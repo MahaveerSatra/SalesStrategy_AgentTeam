@@ -13,3 +13,5 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["src","tests","data"]
+[tool.pytest.ini_options]
+pythonpath = ["."]

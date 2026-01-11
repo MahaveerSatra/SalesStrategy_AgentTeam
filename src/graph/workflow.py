@@ -4,7 +4,8 @@ Defines the multi-agent research workflow with checkpointing.
 """
 from typing import Literal
 from langgraph.graph import StateGraph, END
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from langgraph.checkpoint.sqlite import SqliteSaver
+import sqlite3
 
 from ..models.state import ResearchState
 from ..config import settings
@@ -19,7 +20,7 @@ class ResearchWorkflow:
     
     Workflow:
     1. Coordinator: Parse input, ask clarifying questions
-    2. Gatherer: Collect data from multiple sources
+    2. Gatherer: Collect data from multiple sources (using MCP tools)
     3. Identifier: Analyze data, find opportunities  
     4. Validator: Validate opportunities, assess risks
     5. Coordinator: Present results, get human feedback
@@ -29,18 +30,23 @@ class ResearchWorkflow:
         self.graph = self._build_graph()
         self.checkpointer = None
         self.app = None
+        self._setup_checkpointing()
     
-    async def setup_checkpointing(self) -> None:
-        """Initialize SQLite checkpointing."""
-        import aiosqlite
+    def _setup_checkpointing(self) -> None:
+        """Initialize SQLite checkpointing (synchronous version)."""
         import os
         
         # Ensure checkpoint directory exists
         os.makedirs(settings.checkpoint_dir, exist_ok=True)
         
-        # Create checkpoint database
-        db_path = f"{settings.checkpoint_dir}/checkpoints.db"
-        self.checkpointer = AsyncSqliteSaver.from_conn_string(db_path)
+        # Create checkpoint database path (Windows-compatible)
+        db_path = os.path.join(settings.checkpoint_dir, "checkpoints.db")
+        
+        # Create connection
+        conn = sqlite3.connect(db_path, check_same_thread=False)
+        
+        # Create checkpointer
+        self.checkpointer = SqliteSaver(conn)
         
         # Compile graph with checkpointing
         self.app = self.graph.compile(checkpointer=self.checkpointer)
@@ -72,48 +78,49 @@ class ResearchWorkflow:
         return workflow
     
     # Placeholder node functions (will be replaced by actual agents)
-    async def _coordinator_node(self, state: ResearchState) -> ResearchState:
+    def _coordinator_node(self, state: ResearchState) -> ResearchState:
         """Coordinator agent placeholder."""
         logger.info("coordinator_started", account=state["account_name"])
         # TODO: Implement in Phase 3
         state["progress"].coordinator_complete = True
         return state
     
-    async def _gatherer_node(self, state: ResearchState) -> ResearchState:
+    def _gatherer_node(self, state: ResearchState) -> ResearchState:
         """Gatherer agent placeholder."""
         logger.info("gatherer_started")
-        # TODO: Implement in Phase 3
+        # TODO: Implement in Phase 3 - will use MCP tools for web search
         state["progress"].gatherer_complete = True
         return state
     
-    async def _identifier_node(self, state: ResearchState) -> ResearchState:
+    def _identifier_node(self, state: ResearchState) -> ResearchState:
         """Identifier agent placeholder."""
         logger.info("identifier_started")
         # TODO: Implement in Phase 3
         state["progress"].identifier_complete = True
         return state
     
-    async def _validator_node(self, state: ResearchState) -> ResearchState:
+    def _validator_node(self, state: ResearchState) -> ResearchState:
         """Validator agent placeholder."""
         logger.info("validator_started")
         # TODO: Implement in Phase 3
         state["progress"].validator_complete = True
         return state
     
-    async def _finalizer_node(self, state: ResearchState) -> ResearchState:
+    def _finalizer_node(self, state: ResearchState) -> ResearchState:
         """Final node to prepare output."""
         logger.info("finalizer_started")
         # Mark as complete
-        state["last_updated"] = state["started_at"]  # Placeholder
+        from datetime import datetime
+        state["last_updated"] = datetime.now()
         return state
     
-    async def run(
+    def run(
         self, 
         state: ResearchState,
         thread_id: str | None = None
     ) -> ResearchState:
         """
-        Run the research workflow.
+        Run the research workflow (synchronous version).
         
         Args:
             state: Initial research state
@@ -122,9 +129,6 @@ class ResearchWorkflow:
         Returns:
             Final research state
         """
-        if self.app is None:
-            await self.setup_checkpointing()
-        
         # Create config for checkpointing
         config = {
             "configurable": {
@@ -138,16 +142,16 @@ class ResearchWorkflow:
             thread_id=config["configurable"]["thread_id"]
         )
         
-        # Run workflow
-        result = await self.app.ainvoke(state, config)
+        # Run workflow (synchronous)
+        result = self.app.invoke(state, config)
         
         logger.info("workflow_completed", account=state["account_name"])
         
         return result
     
-    async def resume(self, thread_id: str) -> ResearchState:
+    def resume(self, thread_id: str) -> ResearchState:
         """
-        Resume a workflow from checkpoint.
+        Resume a workflow from checkpoint (synchronous version).
         
         Args:
             thread_id: Thread ID to resume
@@ -155,13 +159,10 @@ class ResearchWorkflow:
         Returns:
             Final research state
         """
-        if self.app is None:
-            await self.setup_checkpointing()
-        
         config = {"configurable": {"thread_id": thread_id}}
         
         # Get current state
-        current_state = await self.app.aget_state(config)
+        current_state = self.app.get_state(config)
         
         if current_state is None:
             raise ValueError(f"No checkpoint found for thread_id: {thread_id}")
@@ -169,7 +170,7 @@ class ResearchWorkflow:
         logger.info("workflow_resumed", thread_id=thread_id)
         
         # Resume execution
-        result = await self.app.ainvoke(None, config)
+        result = self.app.invoke(None, config)
         
         return result
 
@@ -190,9 +191,9 @@ state = create_initial_state(
     research_depth=ResearchDepth.STANDARD
 )
 
-# Run workflow
-result = await workflow.run(state)
+# Run workflow (synchronous)
+result = workflow.run(state)
 
 # Or resume from checkpoint
-result = await workflow.resume(thread_id="research_Boeing")
+result = workflow.resume(thread_id="research_Boeing")
 """

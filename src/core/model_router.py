@@ -48,13 +48,17 @@ class ModelCache:
     def get(self, model: str, prompt: str, **kwargs) -> ModelResponse | None:
         """Retrieve from cache if not expired."""
         key = self._hash_key(model, prompt, **kwargs)
-        
+                
         if key in self._cache:
             response, timestamp = self._cache[key]
             if datetime.now() - timestamp < self.ttl:
                 self.hits += 1
                 logger.debug("cache_hit", key=key[:8])
-                return ModelResponse(**response.model_dump(), cached=True)
+                # Exclude the old 'cached' value from the dump
+                data = response.model_dump(exclude={'cached'})
+                return ModelResponse(**data, cached=True)
+
+                # return ModelResponse(**response.model_dump(), cached=True)
             else:
                 # Expired
                 del self._cache[key]
@@ -194,7 +198,7 @@ class ModelRouter:
             
             # Cache successful response
             if use_cache and settings.enable_caching:
-                self.cache.set(model, prompt, response, system_prompt=system_prompt)
+                self.cache.set(model, prompt, response, system_prompt=system_prompt,temperature=temperature)
             
             # Update metrics
             self.request_counts[model] = self.request_counts.get(model, 0) + 1
