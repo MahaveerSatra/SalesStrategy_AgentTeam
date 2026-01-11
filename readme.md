@@ -303,5 +303,7 @@ MIT License - This is a portfolio/demonstration project.
 ---
 
 **Built by:** Mahaveer Satra
+
 **For:** Sales Strategy / Business Development / Multi-agent AI enthusiasts
+
 **Contact:** [LinkedIn](https://www.linkedin.com/in/mahaveer-satra/)
