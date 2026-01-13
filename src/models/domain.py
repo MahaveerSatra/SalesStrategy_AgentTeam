@@ -46,15 +46,25 @@ class CompanyInfo(BaseModel):
     funding_stage: str | None = None  # For private companies
 
 
+class SearchResult(BaseModel):
+    """A search result from web search."""
+
+    title: str
+    url: HttpUrl
+    snippet: str
+    source: str = "duckduckgo"
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
 class NewsItem(BaseModel):
     """A news article or press release."""
-    
+
     title: str
     source: str
     published_date: datetime | None = None
     url: HttpUrl | None = None
     summary: str
-    
+
     # Analysis
     relevance_score: float = Field(default=0.0, ge=0.0, le=1.0)
     sentiment: str | None = None  # "positive", "negative", "neutral"

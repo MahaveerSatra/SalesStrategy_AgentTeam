@@ -9,6 +9,8 @@ env/
 *.egg-info/
 dist/
 build/
+.claude/
+Status_Plan/
 
 # Environment
 .env
