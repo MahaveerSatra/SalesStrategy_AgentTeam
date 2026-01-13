@@ -1,0 +1,26 @@
+[
+  {
+    "name": "MATLAB",
+    "category": "Programming Platform",
+    "description": "High-level language and interactive environment for numerical computation, visualization, and programming",
+    "key_features": ["matrix operations", "data visualization", "algorithm development", "app building"],
+    "use_cases": ["data analysis", "algorithm prototyping", "mathematical modeling"],
+    "target_personas": ["data scientists", "engineers", "researchers"]
+  },
+  {
+    "name": "Simulink",
+    "category": "Model-Based Design",
+    "description": "Block diagram environment for simulation and Model-Based Design of multidomain and embedded systems",
+    "key_features": ["visual modeling", "simulation", "automatic code generation", "continuous testing"],
+    "use_cases": ["control systems", "signal processing", "embedded systems", "communications"],
+    "target_personas": ["control engineers", "embedded software engineers", "system architects"]
+  },
+  {
+    "name": "Deep Learning Toolbox",
+    "category": "AI/ML",
+    "description": "Design, train, and analyze deep neural networks",
+    "key_features": ["neural network design", "model training", "deployment"],
+    "use_cases": ["image classification", "object detection", "AI deployment"],
+    "target_personas": ["AI engineers", "data scientists", "ML engineers"]
+  }
+]

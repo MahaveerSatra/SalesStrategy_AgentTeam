@@ -1,10 +1,11 @@
 """
-MathWorks product catalog scraping and semantic matching.
+Generic product catalog scraping and semantic matching.
 Builds searchable product index with ChromaDB for requirement matching.
+Supports any company's product catalog via JSON configuration or dynamic scraping.
 """
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import chromadb
 from chromadb.config import Settings
@@ -20,9 +21,33 @@ logger = get_logger(__name__)
 
 
 class ProductCatalogIndexer:
-    """Scrapes and indexes MathWorks products."""
+    """
+    Generic product catalog indexer for any company.
 
-    def __init__(self, db_path: str = "./data/chroma"):
+    Supports multiple data sources:
+    1. JSON file with product definitions
+    2. Hardcoded products (for fallback)
+    3. Web scraping (future enhancement)
+    """
+
+    def __init__(
+        self,
+        company_name: str,
+        db_path: str = "./data/chroma",
+        collection_name: Optional[str] = None,
+        catalog_file: Optional[str] = None
+    ):
+        """
+        Initialize product catalog indexer.
+
+        Args:
+            company_name: Name of the company (e.g., "MathWorks", "Salesforce")
+            db_path: Path to ChromaDB storage
+            collection_name: Optional custom collection name (defaults to "{company_name}_products")
+            catalog_file: Optional path to JSON file with product catalog
+        """
+        self.company_name = company_name
+        self.catalog_file = Path(catalog_file) if catalog_file else None
         self.db_path = Path(db_path)
         self.db_path.mkdir(parents=True, exist_ok=True)
 
@@ -36,40 +61,108 @@ class ProductCatalogIndexer:
             settings=Settings(anonymized_telemetry=False)
         )
 
+        # Use company-specific collection name
+        self.collection_name = collection_name or f"{company_name.lower().replace(' ', '_')}_products"
+
         self.collection = self.client.get_or_create_collection(
-            name="mathworks_products",
+            name=self.collection_name,
             embedding_function=self.embedding_fn,
-            metadata={"description": "MathWorks product catalog"}
+            metadata={"description": f"{company_name} product catalog", "company": company_name}
         )
 
-    async def build_catalog(self) -> list[Product]:
+    async def build_catalog(self, fallback_products: Optional[list[dict]] = None) -> list[Product]:
         """
-        Build complete MathWorks product catalog.
+        Build product catalog from multiple sources.
 
-        Strategy:
-        1. Start with known core products (hardcoded fallback)
-        2. Enrich with web scraping if available
+        Priority order:
+        1. JSON catalog file (if provided)
+        2. Fallback products (if provided)
+        3. Web scraping (if available)
+        4. Built-in defaults for known companies
+
+        Args:
+            fallback_products: Optional list of product dictionaries for fallback
 
         Returns:
             List of Product objects
         """
-        # Core MathWorks products (fallback data)
-        core_products = self._get_core_products()
+        products = []
 
-        logger.info("catalog_build_started", product_count=len(core_products))
+        # Try JSON file first
+        if self.catalog_file and self.catalog_file.exists():
+            try:
+                products = self._load_from_json(self.catalog_file)
+                logger.info(
+                    "catalog_loaded_from_json",
+                    file=str(self.catalog_file),
+                    count=len(products)
+                )
+                return products
+            except Exception as e:
+                logger.warning("json_load_failed", file=str(self.catalog_file), error=str(e))
 
-        # Try to enrich with web scraping
+        # Try provided fallback products
+        if fallback_products:
+            try:
+                products = [Product(**data) for data in fallback_products]
+                logger.info("catalog_loaded_from_fallback", count=len(products))
+                return products
+            except Exception as e:
+                logger.warning("fallback_products_invalid", error=str(e))
+
+        # Try built-in defaults for known companies
+        if self.company_name.lower() == "mathworks":
+            products = self._get_mathworks_products()
+            logger.info("catalog_loaded_from_builtin", company="MathWorks", count=len(products))
+            return products
+
+        # Try web scraping as last resort
         try:
-            enriched = await self._scrape_mathworks_products()
-            if enriched:
-                core_products = enriched
-                logger.info("catalog_enriched_from_web", count=len(enriched))
+            products = await self._scrape_company_products()
+            if products:
+                logger.info("catalog_loaded_from_web", count=len(products))
+                return products
         except Exception as e:
-            logger.warning("web_scraping_failed_using_fallback", error=str(e))
+            logger.warning("web_scraping_failed", error=str(e))
 
-        return core_products
+        # If all methods fail, return empty list
+        logger.warning(
+            "catalog_build_failed_no_products",
+            company=self.company_name,
+            message="Provide catalog_file or fallback_products"
+        )
+        return []
 
-    def _get_core_products(self) -> list[Product]:
+    def _load_from_json(self, json_path: Path) -> list[Product]:
+        """
+        Load product catalog from JSON file.
+
+        Expected JSON format:
+        [
+            {
+                "name": "Product Name",
+                "category": "Category",
+                "description": "Description",
+                "key_features": ["feature1", "feature2"],
+                "use_cases": ["use1", "use2"],
+                "target_personas": ["persona1", "persona2"]
+            },
+            ...
+        ]
+
+        Args:
+            json_path: Path to JSON catalog file
+
+        Returns:
+            List of Product objects
+        """
+        with open(json_path, "r", encoding="utf-8") as f:
+            products_data = json.load(f)
+
+        products = [Product(**data) for data in products_data]
+        return products
+
+    def _get_mathworks_products(self) -> list[Product]:
         """Hardcoded core MathWorks products (fallback)."""
         products_data = [
             {
@@ -238,33 +331,45 @@ class ProductCatalogIndexer:
         logger.info("core_products_loaded", count=len(products))
         return products
 
-    async def _scrape_mathworks_products(self) -> list[Product]:
+    async def _scrape_company_products(self) -> list[Product]:
         """
-        Scrape MathWorks website for product information.
+        Scrape company website for product information.
+
+        Generic implementation that can be extended for specific companies.
 
         Returns:
             List of enriched Product objects or empty list if scraping fails
         """
         try:
-            # Search for MathWorks products page
+            # Search for company products page
             async with DuckDuckGoMCPClient() as client:
-                results = await client.search("MathWorks products toolboxes", max_results=3)
+                query = f"{self.company_name} products catalog"
+                results = await client.search(query, max_results=5)
 
                 if not results:
                     return []
 
                 # Try to fetch product listing page
                 for result in results:
-                    if "mathworks.com" in str(result.url) and "products" in str(result.url):
-                        logger.info("fetching_products_page", url=result.url)
-                        # Future: Parse product listing page
-                        # For now, return empty to use fallback
+                    url_str = str(result.url).lower()
+                    if "product" in url_str or "solution" in url_str or "offering" in url_str:
+                        logger.info(
+                            "fetching_products_page",
+                            company=self.company_name,
+                            url=result.url
+                        )
+                        # Future: Parse product listing page with LLM
+                        # For now, return empty to use other methods
                         break
 
             return []
 
         except Exception as e:
-            logger.warning("scrape_mathworks_failed", error=str(e))
+            logger.warning(
+                "scrape_company_failed",
+                company=self.company_name,
+                error=str(e)
+            )
             return []
 
     async def index_products(self, products: list[Product]) -> None:
@@ -306,13 +411,27 @@ class ProductCatalogIndexer:
             ids=ids
         )
 
-        logger.info("products_indexed", count=len(products), collection="mathworks_products")
+        logger.info("products_indexed", count=len(products), collection=self.collection_name)
 
 
 class ProductMatcher:
     """Matches requirements to products using semantic search."""
 
-    def __init__(self, db_path: str = "./data/chroma"):
+    def __init__(
+        self,
+        company_name: str,
+        db_path: str = "./data/chroma",
+        collection_name: Optional[str] = None
+    ):
+        """
+        Initialize product matcher.
+
+        Args:
+            company_name: Name of the company (must match ProductCatalogIndexer)
+            db_path: Path to ChromaDB storage
+            collection_name: Optional custom collection name (defaults to "{company_name}_products")
+        """
+        self.company_name = company_name
         self.db_path = Path(db_path)
 
         self.embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
@@ -324,14 +443,25 @@ class ProductMatcher:
             settings=Settings(anonymized_telemetry=False)
         )
 
+        # Use company-specific collection name
+        self.collection_name = collection_name or f"{company_name.lower().replace(' ', '_')}_products"
+
         try:
             self.collection = self.client.get_collection(
-                name="mathworks_products",
+                name=self.collection_name,
                 embedding_function=self.embedding_fn
             )
         except Exception as e:
-            logger.error("collection_not_found", error=str(e))
-            raise DataSourceError("Product catalog not indexed. Run ProductCatalogIndexer first.")
+            logger.error(
+                "collection_not_found",
+                company=company_name,
+                collection=self.collection_name,
+                error=str(e)
+            )
+            raise DataSourceError(
+                f"Product catalog not indexed for {company_name}. "
+                f"Run ProductCatalogIndexer.build_catalog() and index_products() first."
+            )
 
     async def match_requirements_to_products(
         self,
