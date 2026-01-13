@@ -73,7 +73,7 @@ class TestFetchUrl:
         mock_response.text = "<html><body>Test content</body></html>"
         mock_response.raise_for_status = MagicMock()
 
-        with patch("httpx.AsyncClient") as mock_client_class:
+        with patch("src.data_sources.scraper.httpx.AsyncClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock()
@@ -95,7 +95,7 @@ class TestFetchUrl:
 
         limiter = RateLimiter(requests_per_second=10.0)
 
-        with patch("httpx.AsyncClient") as mock_client_class:
+        with patch("src.data_sources.scraper.httpx.AsyncClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock()
@@ -113,10 +113,11 @@ class TestFetchUrl:
     @pytest.mark.asyncio
     async def test_fetch_url_timeout(self):
         """Test fetch_url raises DataSourceTimeoutError on timeout."""
-        with patch("httpx.AsyncClient") as mock_client_class:
+        with patch("src.data_sources.scraper.httpx.AsyncClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock()
+            # Make timeout happen on all retry attempts
             mock_client.get = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
             mock_client_class.return_value = mock_client
 
@@ -129,10 +130,11 @@ class TestFetchUrl:
         mock_response = MagicMock()
         mock_response.status_code = 404
 
-        with patch("httpx.AsyncClient") as mock_client_class:
+        with patch("src.data_sources.scraper.httpx.AsyncClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock()
+            # Make HTTP error happen on all retry attempts
             mock_client.get = AsyncMock(side_effect=httpx.HTTPStatusError(
                 "404", request=MagicMock(), response=mock_response
             ))
@@ -149,7 +151,7 @@ class TestFetchUrl:
         mock_response.text = "<html>Test</html>"
         mock_response.raise_for_status = MagicMock()
 
-        with patch("httpx.AsyncClient") as mock_client_class:
+        with patch("src.data_sources.scraper.httpx.AsyncClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock()

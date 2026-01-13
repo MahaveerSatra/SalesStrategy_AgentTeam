@@ -119,9 +119,10 @@ class TestProductCatalogIndexer:
         assert count == 2
 
     @pytest.mark.asyncio
-    async def test_index_products_creates_embeddings(self, indexer):
+    async def test_index_products_creates_embeddings(self):
         """Test that indexing creates embeddings."""
-        products = indexer._get_core_products()[:5]  # Use first 5 products
+        indexer = ProductCatalogIndexer(company_name="MathWorks", db_path=tempfile.mkdtemp())
+        products = indexer._get_mathworks_products()[:5]  # Use first 5 products
 
         await indexer.index_products(products)
 
