@@ -2,6 +2,7 @@
 DuckDuckGo MCP client for web search.
 MCP-only implementation - no Python package fallback.
 """
+import asyncio
 import hashlib
 from datetime import datetime, timedelta
 from typing import Any
@@ -71,9 +72,17 @@ class DuckDuckGoMCPClient:
     """
     DuckDuckGo search via MCP protocol.
     MCP-only - no fallback to Python packages.
+    Includes aggressive rate limiting to avoid bot detection.
     """
 
-    def __init__(self, cache_ttl_hours: int = 1):
+    def __init__(self, cache_ttl_hours: int = 1, min_request_interval: float = 2.0):
+        """
+        Initialize MCP client.
+
+        Args:
+            cache_ttl_hours: Cache TTL in hours
+            min_request_interval: Minimum seconds between requests (default: 1.0 to avoid bot detection)
+        """
         self.cache = MCPCache(ttl_hours=cache_ttl_hours)
         self.request_count = 0
         self.error_count = 0
@@ -81,6 +90,10 @@ class DuckDuckGoMCPClient:
 
         self.session: ClientSession | None = None
         self._exit_stack = None
+
+        # Rate limiting to avoid bot detection
+        self.min_request_interval = min_request_interval
+        self._last_request_time: datetime | None = None
 
         self.logger = logger.bind(component="mcp_client", source="ddg")
 
@@ -125,6 +138,27 @@ class DuckDuckGoMCPClient:
         except Exception as e:
             self.logger.error("mcp_cleanup_failed", error=str(e))
 
+    async def _wait_for_rate_limit(self) -> None:
+        """
+        Enforce rate limiting by waiting if needed.
+        Ensures minimum interval between requests to avoid bot detection.
+        """
+        if self._last_request_time is None:
+            self._last_request_time = datetime.now()
+            return
+
+        elapsed = (datetime.now() - self._last_request_time).total_seconds()
+        if elapsed < self.min_request_interval:
+            wait_time = self.min_request_interval - elapsed
+            self.logger.debug(
+                "rate_limit_wait",
+                elapsed=f"{elapsed:.2f}s",
+                wait_time=f"{wait_time:.2f}s"
+            )
+            await asyncio.sleep(wait_time)
+
+        self._last_request_time = datetime.now()
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -153,6 +187,9 @@ class DuckDuckGoMCPClient:
             raise DataSourceError("MCP session not initialized. Use 'async with' context manager.")
 
         try:
+            # Enforce rate limiting before making request
+            await self._wait_for_rate_limit()
+
             start_time = datetime.now()
             self.logger.info("search_started", query=query, max_results=max_results)
 
@@ -252,6 +289,9 @@ class DuckDuckGoMCPClient:
             raise DataSourceError("MCP session not initialized. Use 'async with' context manager.")
 
         try:
+            # Enforce rate limiting before making request
+            await self._wait_for_rate_limit()
+
             start_time = datetime.now()
             self.logger.info("fetch_started", url=url)
 
