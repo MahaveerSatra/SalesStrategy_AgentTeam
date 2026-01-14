@@ -114,12 +114,17 @@ class TestFetchUrl:
     async def test_fetch_url_timeout(self):
         """Test fetch_url raises DataSourceTimeoutError on timeout."""
         with patch("src.data_sources.scraper.httpx.AsyncClient") as mock_client_class:
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock()
-            # Make timeout happen on all retry attempts
-            mock_client.get = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
-            mock_client_class.return_value = mock_client
+            # Create mock client instance
+            mock_client_instance = MagicMock()
+            mock_client_instance.get = AsyncMock(side_effect=httpx.TimeoutException("Timeout"))
+
+            # Mock the async context manager
+            mock_context = MagicMock()
+            mock_context.__aenter__ = AsyncMock(return_value=mock_client_instance)
+            mock_context.__aexit__ = AsyncMock(return_value=None)
+
+            # Return the context manager when AsyncClient() is called
+            mock_client_class.return_value = mock_context
 
             with pytest.raises(DataSourceTimeoutError, match="Request timeout"):
                 await fetch_url("https://example.com", timeout=1)
@@ -131,14 +136,19 @@ class TestFetchUrl:
         mock_response.status_code = 404
 
         with patch("src.data_sources.scraper.httpx.AsyncClient") as mock_client_class:
-            mock_client = MagicMock()
-            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-            mock_client.__aexit__ = AsyncMock()
-            # Make HTTP error happen on all retry attempts
-            mock_client.get = AsyncMock(side_effect=httpx.HTTPStatusError(
+            # Create mock client instance
+            mock_client_instance = MagicMock()
+            mock_client_instance.get = AsyncMock(side_effect=httpx.HTTPStatusError(
                 "404", request=MagicMock(), response=mock_response
             ))
-            mock_client_class.return_value = mock_client
+
+            # Mock the async context manager
+            mock_context = MagicMock()
+            mock_context.__aenter__ = AsyncMock(return_value=mock_client_instance)
+            mock_context.__aexit__ = AsyncMock(return_value=None)
+
+            # Return the context manager when AsyncClient() is called
+            mock_client_class.return_value = mock_context
 
             with pytest.raises(DataSourceError, match="HTTP error"):
                 await fetch_url("https://example.com")

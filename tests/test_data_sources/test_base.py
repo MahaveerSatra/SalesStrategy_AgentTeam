@@ -71,13 +71,19 @@ class TestDataSource:
     @pytest.mark.asyncio
     async def test_fetch_with_fallback_primary_fails(self):
         """Test fetch_with_fallback when primary fails, first fallback succeeds."""
+        # Use mock to make only primary fail
         primary = MockDataSource()
         fallback1 = MockDataSource()
         fallback2 = MockDataSource()
 
+        # Mock primary to fail, but let fallbacks succeed
+        async def failing_fetch(**kwargs):
+            primary.fetch_called = True
+            raise DataSourceError("Primary source failed")
+        primary.fetch = failing_fetch
+
         result = await primary.fetch_with_fallback(
             fallback_sources=[fallback1, fallback2],
-            should_fail=True,  # Primary will fail
             query="test"
         )
 

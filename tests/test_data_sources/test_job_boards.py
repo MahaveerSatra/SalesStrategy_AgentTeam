@@ -259,7 +259,7 @@ class TestJobBoardScraper:
             assert job is not None
             assert isinstance(job, JobPosting)
             assert "Software Engineer" in job.title
-            assert job.url == "https://example.com/jobs/123"
+            assert str(job.url) == "https://example.com/jobs/123"
             assert len(job.description) > 0
 
     @pytest.mark.asyncio

@@ -3,6 +3,7 @@ Unit tests for product catalog scraping and indexing.
 Tests ProductCatalogIndexer and ProductMatcher.
 """
 import pytest
+import pytest_asyncio
 from pathlib import Path
 from unittest.mock import AsyncMock, patch, MagicMock
 import tempfile
@@ -21,7 +22,8 @@ class TestProductCatalogIndexer:
         """Provide temporary ChromaDB path."""
         temp_dir = tempfile.mkdtemp()
         yield temp_dir
-        shutil.rmtree(temp_dir)
+        # ChromaDB keeps file handles open on Windows, use ignore_errors
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
     @pytest.fixture
     def indexer(self, temp_db_path):
@@ -190,9 +192,10 @@ class TestProductMatcher:
         """Provide temporary ChromaDB path."""
         temp_dir = tempfile.mkdtemp()
         yield temp_dir
-        shutil.rmtree(temp_dir)
+        # ChromaDB keeps file handles open on Windows, use ignore_errors
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def matcher_with_data(self, temp_db_path):
         """Provide ProductMatcher with indexed data."""
         indexer = ProductCatalogIndexer(company_name="TestCompany", db_path=temp_db_path)
