@@ -12,6 +12,7 @@ from src.models.state import ResearchState, Signal, ResearchProgress, ResearchDe
 from src.models.domain import SearchResult, JobPosting, NewsItem
 from src.data_sources.mcp_ddg_client import DuckDuckGoMCPClient
 from src.data_sources.job_boards import JobBoardScraper
+from src.core.model_router import ModelRouter
 
 
 @pytest.fixture
@@ -29,11 +30,32 @@ def mock_job_scraper():
 
 
 @pytest.fixture
-def gatherer_agent(mock_mcp_client, mock_job_scraper):
+def mock_model_router():
+    """Provide mocked model router for LLM analysis."""
+    router = AsyncMock(spec=ModelRouter)
+
+    # Mock response for LLM analysis
+    mock_response = MagicMock()
+    mock_response.content = """{
+        "confidence": 0.85,
+        "summary": "This is an LLM-generated summary of the source content.",
+        "source_type": "official_company_site",
+        "key_facts": ["Fact 1", "Fact 2"],
+        "keywords": ["keyword1", "keyword2"],
+        "relevance": "high"
+    }"""
+    router.generate.return_value = mock_response
+
+    return router
+
+
+@pytest.fixture
+def gatherer_agent(mock_mcp_client, mock_job_scraper, mock_model_router):
     """Provide GathererAgent instance with mocked dependencies."""
     return GathererAgent(
         mcp_client=mock_mcp_client,
-        job_scraper=mock_job_scraper
+        job_scraper=mock_job_scraper,
+        model_router=mock_model_router
     )
 
 
@@ -126,21 +148,24 @@ def initial_state():
 class TestGathererAgentInit:
     """Test GathererAgent initialization."""
 
-    def test_init_creates_agent(self, mock_mcp_client, mock_job_scraper):
+    def test_init_creates_agent(self, mock_mcp_client, mock_job_scraper, mock_model_router):
         """Test that agent initializes correctly."""
         agent = GathererAgent(
             mcp_client=mock_mcp_client,
-            job_scraper=mock_job_scraper
+            job_scraper=mock_job_scraper,
+            model_router=mock_model_router
         )
 
         assert agent.name == "gatherer"
         assert agent.mcp_client == mock_mcp_client
         assert agent.job_scraper == mock_job_scraper
+        assert agent.model_router == mock_model_router
+        assert agent._analysis_cache == {}
 
     def test_get_complexity(self, gatherer_agent, initial_state):
-        """Test complexity returns 3 for simple data collection."""
+        """Test complexity returns 4 for LLM analysis."""
         complexity = gatherer_agent.get_complexity(initial_state)
-        assert complexity == 3
+        assert complexity == 4
 
 
 class TestGathererAgentSuccessfulDataGathering:
@@ -161,6 +186,7 @@ class TestGathererAgentSuccessfulDataGathering:
         # Setup mocks
         mock_mcp_client.search.return_value = sample_search_results
         mock_mcp_client.search_news.return_value = sample_news_items
+        mock_mcp_client.fetch_content.return_value = "<html><body>Sample webpage content</body></html>"
         mock_job_scraper.fetch.return_value = sample_job_postings
 
         # Execute
@@ -169,11 +195,14 @@ class TestGathererAgentSuccessfulDataGathering:
         # Verify signals created
         assert len(initial_state["signals"]) > 0
 
-        # Check search signals
+        # Check search signals (now with LLM analysis)
         search_signals = [s for s in initial_state["signals"] if s.signal_type == "web_search"]
         assert len(search_signals) == 2
         assert search_signals[0].source == "duckduckgo"
-        assert search_signals[0].confidence == 0.8
+        assert search_signals[0].confidence == 0.85  # From mocked LLM response
+        assert "source_type" in search_signals[0].metadata
+        assert "key_facts" in search_signals[0].metadata
+        assert "keywords" in search_signals[0].metadata
 
         # Check hiring signals
         hiring_signals = [s for s in initial_state["signals"] if s.signal_type == "hiring"]
@@ -218,13 +247,14 @@ class TestGathererAgentSuccessfulDataGathering:
         # Setup mocks - job scraper returns empty list
         mock_mcp_client.search.return_value = sample_search_results
         mock_mcp_client.search_news.return_value = sample_news_items
+        mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
         mock_job_scraper.fetch.return_value = []
 
         # Execute
         await gatherer_agent.process(initial_state)
 
         # Verify search and news signals created
-        assert len(initial_state["signals"]) == 4  # 2 search + 2 news
+        assert len(initial_state["signals"]) == 4  # 2 search (LLM analyzed) + 2 news
         assert len(initial_state["job_postings"]) == 0
         assert len(initial_state["tech_stack"]) == 0
 
@@ -249,6 +279,7 @@ class TestGathererAgentPartialFailures:
         # Setup mocks - search raises exception
         mock_mcp_client.search.side_effect = Exception("Search API error")
         mock_mcp_client.search_news.return_value = sample_news_items
+        mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
         mock_job_scraper.fetch.return_value = sample_job_postings
 
         # Execute - should not raise, handles exception
@@ -281,6 +312,7 @@ class TestGathererAgentPartialFailures:
         # Setup mocks - job scraper raises exception
         mock_mcp_client.search.return_value = sample_search_results
         mock_mcp_client.search_news.return_value = sample_news_items
+        mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
         mock_job_scraper.fetch.side_effect = Exception("Career page not found")
 
         # Execute
@@ -317,6 +349,7 @@ class TestGathererAgentPartialFailures:
         # Setup mocks - news raises exception
         mock_mcp_client.search.return_value = sample_search_results
         mock_mcp_client.search_news.side_effect = Exception("News API rate limited")
+        mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
         mock_job_scraper.fetch.return_value = sample_job_postings
 
         # Execute
@@ -354,6 +387,7 @@ class TestGathererAgentCompleteFailures:
         # Setup mocks - all raise exceptions
         mock_mcp_client.search.side_effect = Exception("Search failed")
         mock_mcp_client.search_news.side_effect = Exception("News failed")
+        mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
         mock_job_scraper.fetch.side_effect = Exception("Jobs failed")
 
         # Execute - should handle gracefully
@@ -475,6 +509,7 @@ class TestGathererAgentParallelExecution:
         # Setup mocks
         mock_mcp_client.search.return_value = sample_search_results
         mock_mcp_client.search_news.return_value = sample_news_items
+        mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
         mock_job_scraper.fetch.return_value = sample_job_postings
 
         # Execute
@@ -485,8 +520,8 @@ class TestGathererAgentParallelExecution:
         mock_mcp_client.search_news.assert_called_once()
         mock_job_scraper.fetch.assert_called_once()
 
-        # Verify results collected
-        assert len(initial_state["signals"]) == 6  # 2 search + 2 jobs + 2 news
+        # Verify results collected (2 search with LLM + 2 jobs + 2 news)
+        assert len(initial_state["signals"]) == 6
         assert initial_state["progress"].gatherer_complete is True
 
 
@@ -509,6 +544,7 @@ class TestGathererAgentStateModifications:
         # Setup mocks
         mock_mcp_client.search.return_value = sample_search_results
         mock_mcp_client.search_news.return_value = []
+        mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
         mock_job_scraper.fetch.return_value = []
 
         # Execute
@@ -540,6 +576,7 @@ class TestGathererAgentStateModifications:
         # Setup mocks
         mock_mcp_client.search.return_value = sample_search_results
         mock_mcp_client.search_news.return_value = sample_news_items
+        mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
         # Job scraper should NOT be called since domain is empty
 
         # Execute - should not crash
