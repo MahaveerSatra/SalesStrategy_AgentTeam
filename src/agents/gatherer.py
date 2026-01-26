@@ -33,7 +33,7 @@ class GathererAgent(StatelessAgent):
     - Search web for company information (context-aware queries)
     - Collect job postings from career pages
     - Gather news articles about the company
-    - Analyze EACH source with LOCAL LLM (Tier 1 Ollama, complexity=4)
+    - Analyze EACH source with LOCAL LLM (Tier 1 Ollama, complexity=3)
     - Extract tech stack from job descriptions
     - Structure all data as Signal objects with confidence scores
 
@@ -471,10 +471,10 @@ Return JSON:
 }}"""
 
         try:
-            # Use ModelRouter with complexity=4 (routes to Tier 1 Ollama)
+            # Use ModelRouter with complexity=3 (routes to Tier 1 Ollama)
             response = await self.model_router.generate(
                 prompt=prompt,
-                complexity=4,  # Simple classification/summarization
+                complexity=3,  # Simple classification/summarization - LOCAL Ollama
                 use_cache=True
             )
 
@@ -516,13 +516,14 @@ Return JSON:
         """
         Get task complexity for model routing.
 
-        GathererAgent now performs LLM analysis for each source,
-        so complexity is moderate (uses Tier 1 Ollama).
+        GathererAgent performs LLM analysis for each source using LOCAL Ollama.
+        Complexity=3 ensures routing to Tier 1 (local model) for zero-cost,
+        fast, private analysis.
 
         Args:
             state: Current research state
 
         Returns:
-            Complexity score (1-10). Gatherer returns 4 (uses LLM for analysis)
+            Complexity score (1-10). Gatherer returns 3 (uses LOCAL Ollama)
         """
-        return 4  # LLM analysis per source (Tier 1 Ollama)
+        return 3  # LLM analysis per source (Tier 1: LOCAL Ollama)

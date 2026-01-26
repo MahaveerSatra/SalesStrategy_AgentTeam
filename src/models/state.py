@@ -125,6 +125,12 @@ class ResearchState(TypedDict):
     # Confidence scores for different aspects
     confidence_scores: dict[str, float]
 
+    # CoordinatorAgent fields (for workflow routing and feedback loops)
+    current_report: str | None           # Formatted report from process_exit()
+    workflow_iteration: int              # Track feedback loop count (default: 1)
+    feedback_context: str | None         # Parsed guidance for retry
+    next_route: str | None               # Routing decision: "gatherer"|"identifier"|"validator"|"complete"
+
 
 # Helper function to create initial state
 def create_initial_state(
@@ -167,5 +173,11 @@ def create_initial_state(
         started_at=now,
         last_updated=now,
         error_messages=[],
-        confidence_scores={}
+        confidence_scores={},
+
+        # CoordinatorAgent fields
+        current_report=None,
+        workflow_iteration=1,
+        feedback_context=None,
+        next_route=None
     )

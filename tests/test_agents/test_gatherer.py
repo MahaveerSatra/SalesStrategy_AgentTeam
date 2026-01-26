@@ -163,9 +163,9 @@ class TestGathererAgentInit:
         assert agent._analysis_cache == {}
 
     def test_get_complexity(self, gatherer_agent, initial_state):
-        """Test complexity returns 4 for LLM analysis."""
+        """Test complexity returns 3 for LOCAL Ollama LLM analysis."""
         complexity = gatherer_agent.get_complexity(initial_state)
-        assert complexity == 4
+        assert complexity == 3
 
 
 class TestGathererAgentSuccessfulDataGathering:
