@@ -1,8 +1,8 @@
 # Enterprise Account Research System - Codebase Architecture
 
 **Last Updated**: 2026-01-25
-**Status**: Phase 3 In Progress (2/4 agents complete, workflow fully integrated)
-**Test Status**: 133 tests passing
+**Status**: Phase 3 In Progress (3/4 agents complete, workflow fully integrated)
+**Test Status**: 164 tests passing
 
 ---
 
@@ -11,27 +11,27 @@
 **READ THIS FIRST** when restoring context after clearing chat:
 
 1. **Project**: Multi-agent system for enterprise account research using LangGraph
-2. **Current Phase**: Phase 3 - Agent Implementation (2/4 agents done)
-3. **What's Done**: CoordinatorAgent + GathererAgent + workflow integration + all tests
-4. **What's Next**: Step 4 - Implement IdentifierAgent
+2. **Current Phase**: Phase 3 - Agent Implementation (3/4 agents done)
+3. **What's Done**: CoordinatorAgent + GathererAgent + IdentifierAgent + workflow integration + all tests
+4. **What's Next**: Step 6 - Implement ValidatorAgent
 
 ### Immediate Next Action
-**Implement IdentifierAgent** (`src/agents/identifier.py`)
-- Extract requirements from signals and job_postings
-- Use ProductMatcher for semantic product matching
-- Generate Opportunity objects with LLM
+**Implement ValidatorAgent** (`src/agents/validator.py`)
+- Score confidence for each opportunity
+- Assess competitive risks
+- Filter opportunities by confidence threshold (>0.6)
 
 ---
 
 ## Executive Summary
 
-**Total Codebase**: ~4,800+ lines of production code + ~600 lines of tests
+**Total Codebase**: ~5,200+ lines of production code + ~1,100 lines of tests
 
 | Phase | Status | Description |
 |-------|--------|-------------|
 | Phase 1 | ✅ COMPLETE | Core infrastructure (config, router, logging, exceptions) |
 | Phase 2 | ✅ COMPLETE | Data layer (MCP client, scrapers, product catalog) |
-| Phase 3 | 🔄 IN PROGRESS | Agent implementations (2/4 complete) |
+| Phase 3 | 🔄 IN PROGRESS | Agent implementations (3/4 complete) |
 
 ---
 
@@ -48,8 +48,8 @@
 │  Agent Layer (agents/) - PHASE 3 IN PROGRESS                         │
 │  ✅ CoordinatorAgent (entry/exit, human-in-loop, routing) - COMPLETE │
 │  ✅ GathererAgent (collect & analyze data from sources) - COMPLETE   │
-│  ⏳ IdentifierAgent (find opportunities) - NEXT                      │
-│  ⏳ ValidatorAgent (confidence scoring) - TODO                       │
+│  ✅ IdentifierAgent (find opportunities) - COMPLETE                  │
+│  ⏳ ValidatorAgent (confidence scoring) - NEXT                       │
 ├──────────────────────────────────────────────────────────────────────┤
 │  Core Services (core/)                                               │
 │  - ModelRouter: 3-tier LLM routing with caching                      │
@@ -93,12 +93,12 @@
 │             │                                                            │
 │             ▼                                                            │
 │  ┌─────────────────────┐                                                │
-│  │    identifier       │  Extract requirements, match products (TODO)   │
+│  │    identifier       │  Extract requirements, match products ✅       │
 │  └──────────┬──────────┘                                                │
 │             │                                                            │
 │             ▼                                                            │
 │  ┌─────────────────────┐                                                │
-│  │     validator       │  Score confidence, filter (TODO)               │
+│  │     validator       │  Score confidence, filter (NEXT)               │
 │  └──────────┬──────────┘                                                │
 │             │                                                            │
 │             ▼                                                            │
@@ -171,15 +171,15 @@
 
 ---
 
-### Phase 3: Agents (IN PROGRESS - 2/4 complete)
+### Phase 3: Agents (IN PROGRESS - 3/4 complete)
 
 | File | Lines | Purpose | Status |
 |------|-------|---------|--------|
-| `agents/__init__.py` | ~15 | Package exports (CoordinatorAgent, GathererAgent, WorkflowRoute) | ✅ |
+| `agents/__init__.py` | ~18 | Package exports (CoordinatorAgent, GathererAgent, IdentifierAgent, WorkflowRoute) | ✅ |
 | `agents/coordinator.py` | ~580 | Dual entry/exit, human-in-loop, feedback routing | ✅ COMPLETE |
 | `agents/gatherer.py` | ~530 | Collect & analyze data with LLM from MCP, jobs, news | ✅ COMPLETE |
-| `agents/identifier.py` | ~250 | LLM-based opportunity identification | ⏳ NEXT |
-| `agents/validator.py` | ~200 | Confidence scoring, risk assessment | ⏳ TODO |
+| `agents/identifier.py` | ~350 | LLM-based opportunity identification with ProductMatcher | ✅ COMPLETE |
+| `agents/validator.py` | ~200 | Confidence scoring, risk assessment | ⏳ NEXT |
 
 ### Tests
 
@@ -187,9 +187,10 @@
 |------|-------|---------|--------|
 | `tests/test_agents/test_coordinator.py` | 31 | CoordinatorAgent full coverage | ✅ |
 | `tests/test_agents/test_gatherer.py` | 16 | GathererAgent full coverage | ✅ |
+| `tests/test_agents/test_identifier.py` | 31 | IdentifierAgent full coverage | ✅ |
 | Other test files | 86 | Core, data sources, model router | ✅ |
 
-**Total Tests**: 133 passing
+**Total Tests**: 164 passing
 
 ---
 
@@ -213,10 +214,10 @@ class ResearchState(TypedDict):
     tech_stack: list[str]          # Extracted technologies
     financial_data: dict | None    # Financial info if available
 
-    # Analysis (IdentifierAgent populates - TODO)
+    # Analysis (IdentifierAgent populates - IMPLEMENTED)
     opportunities: list[Opportunity]  # Identified opportunities
 
-    # Validation (ValidatorAgent populates - TODO)
+    # Validation (ValidatorAgent populates - NEXT)
     validated_opportunities: list[Opportunity]  # Filtered opportunities
     competitive_risks: list[str]   # Identified risks
 
@@ -285,69 +286,91 @@ class WorkflowRoute(str, Enum):
 
 ---
 
-### IdentifierAgent (NEXT) ⏳
+### IdentifierAgent (COMPLETE) ✅
 
-**File**: `src/agents/identifier.py` (~250 lines estimated)
-**Complexity**: 6-7 (Groq 8B for complex reasoning)
+**File**: `src/agents/identifier.py` (~350 lines)
+**Tests**: `tests/test_agents/test_identifier.py` (31 tests)
+**Complexity**: 6 (Groq 8B for nuanced reasoning)
 
 **Dependencies**:
 - `ProductMatcher` from `data_sources/product_catalog.py`
 - `ModelRouter` (LLM reasoning)
 
-**Implementation Outline**:
-```python
-class IdentifierAgent(StatelessAgent):
-    def __init__(self, product_matcher: ProductMatcher, model_router: ModelRouter):
-        super().__init__(name="identifier")
-        self.product_matcher = product_matcher
-        self.model_router = model_router
+**Key Methods**:
+1. `process()` - Main entry point, orchestrates the identification workflow
+2. `_extract_requirements()` - Uses LLM to extract implicit/explicit requirements from signals, job_postings, tech_stack
+3. `_generate_opportunities()` - Uses LLM to generate Opportunity objects with rationale, personas, talking points
+4. `_find_evidence()` - Links supporting Signal objects to opportunities via keyword matching
 
-    async def process(self, state: ResearchState) -> None:
-        # 1. Extract requirements from job_postings and signals
-        requirements = await self._extract_requirements(state)
-
-        # 2. Match to products using semantic search
-        matches = await self.product_matcher.match_requirements(requirements)
-
-        # 3. Generate opportunity hypotheses with LLM
-        opportunities = await self._generate_opportunities(state, matches)
-
-        # 4. Create Opportunity objects with evidence
-        state["opportunities"] = opportunities
-        state["progress"].identifier_complete = True
-
-    def get_complexity(self, state: ResearchState) -> int:
-        return 6  # Groq 8B
-```
+**Features**:
+- Handles feedback_context for retry scenarios (feedback loops)
+- Creates structured Opportunity objects with evidence linking
+- Confidence scoring (HIGH/MEDIUM/LOW) via LLM
+- Graceful degradation on LLM failures
 
 **Populates**:
 - `state["opportunities"]` - List of Opportunity objects
+- `state["progress"].identifier_complete = True`
 
 ---
 
-### ValidatorAgent (TODO) ⏳
+### ValidatorAgent (NEXT) ⏳
 
-**File**: `src/agents/validator.py` (~200 lines estimated)
+**File**: `src/agents/validator.py` (~250 lines estimated)
+**Tests**: `tests/test_agents/test_validator.py` (TODO)
 **Complexity**: 6 (Groq 8B)
+
+**Dependencies**:
+- `ModelRouter` (LLM reasoning for risk assessment and scoring)
+
+**Key Methods to Implement**:
+1. `process()` - Main entry point, orchestrates validation workflow
+2. `_assess_risks()` - Uses LLM to identify competitive risks from signals/opportunities
+3. `_score_opportunities()` - Re-evaluates confidence with additional factors
+4. `_filter_opportunities()` - Filter by confidence threshold (>0.6)
 
 **Implementation Outline**:
 ```python
 class ValidatorAgent(StatelessAgent):
+    def __init__(self, model_router: ModelRouter):
+        super().__init__(name="validator")
+        self.model_router = model_router
+
     async def process(self, state: ResearchState) -> None:
-        # 1. Assess competitive risks
+        # 1. Get opportunities from IdentifierAgent
+        opportunities = state.get("opportunities", [])
+
+        # 2. Assess competitive risks using LLM
         risks = await self._assess_risks(state)
 
-        # 2. Score confidence for each opportunity
-        scored = await self._score_opportunities(state["opportunities"])
+        # 3. Re-score confidence for each opportunity with risk context
+        scored = await self._score_opportunities(opportunities, risks, state)
 
-        # 3. Filter: only keep confidence > 0.6
+        # 4. Filter: only keep confidence > 0.6
         validated = [o for o in scored if o.confidence_score > 0.6]
 
-        # 4. Populate results
+        # 5. Populate results
         state["validated_opportunities"] = validated
         state["competitive_risks"] = risks
         state["progress"].validator_complete = True
+
+    def get_complexity(self, state: ResearchState) -> int:
+        return 6  # Tier 2 Groq 8B
 ```
+
+**LLM Prompts Needed**:
+1. Risk assessment prompt - analyze signals for competitor mentions, budget constraints, timing issues
+2. Confidence re-scoring prompt - factor in risks, evidence quality, market conditions
+
+**Populates**:
+- `state["validated_opportunities"]` - Filtered list of high-confidence opportunities
+- `state["competitive_risks"]` - List of identified risk strings
+- `state["progress"].validator_complete = True`
+
+**Edge Cases to Handle**:
+- Empty opportunities list from Identifier
+- LLM failures (graceful degradation - keep original scores)
+- feedback_context for retry scenarios
 
 ---
 
@@ -370,10 +393,10 @@ class ValidatorAgent(StatelessAgent):
 | CoordinatorAgent | ✅ Complete | 31/31 | Entry/exit/feedback |
 | GathererAgent | ✅ Complete | 16/16 | LLM analysis |
 | Workflow Integration | ✅ Complete | - | Conditional routing |
-| **IdentifierAgent** | ⏳ **NEXT** | TODO | Opportunity identification |
-| ValidatorAgent | ⏳ TODO | TODO | Confidence scoring |
+| IdentifierAgent | ✅ Complete | 31/31 | Opportunity identification |
+| **ValidatorAgent** | ⏳ **NEXT** | TODO | Confidence scoring |
 
-**Total Tests**: 133 passing
+**Total Tests**: 164 passing
 
 ---
 
@@ -384,15 +407,15 @@ class ValidatorAgent(StatelessAgent):
 - [x] CoordinatorAgent tests (31 tests)
 - [x] GathererAgent implementation (~530 lines)
 - [x] GathererAgent tests (16 tests)
+- [x] IdentifierAgent implementation (~350 lines)
+- [x] IdentifierAgent tests (31 tests)
 - [x] state.py updated with Coordinator fields
 - [x] workflow.py fully integrated with conditional routing
 - [x] agents/__init__.py exports updated
-- [x] All 133 tests passing
+- [x] All 164 tests passing
 
 ### ⏳ Next Steps
-- [ ] **Step 4: IdentifierAgent implementation** ← NEXT
-- [ ] Step 5: IdentifierAgent tests
-- [ ] Step 6: ValidatorAgent implementation
+- [ ] **Step 6: ValidatorAgent implementation** ← NEXT
 - [ ] Step 7: ValidatorAgent tests
 - [ ] Step 8: Integration tests
 - [ ] Step 9: E2E tests
@@ -411,12 +434,13 @@ python -m pytest tests/ -v
 # Run specific agent tests
 python -m pytest tests/test_agents/test_coordinator.py -v
 python -m pytest tests/test_agents/test_gatherer.py -v
+python -m pytest tests/test_agents/test_identifier.py -v
 
 # Quick test summary
-python -m pytest tests/ -v --tb=short 2>&1 | grep -E "(passed|failed)"
+python -m pytest tests/ -v --tb=short 2>&1 | tail -5
 
 # Check imports work
-python -c "from src.agents import CoordinatorAgent, GathererAgent, WorkflowRoute; print('OK')"
+python -c "from src.agents import CoordinatorAgent, GathererAgent, IdentifierAgent, WorkflowRoute; print('OK')"
 ```
 
 ---
@@ -426,11 +450,11 @@ python -c "from src.agents import CoordinatorAgent, GathererAgent, WorkflowRoute
 When restoring context, read these files in order:
 
 1. **This file** (`CODEBASE_ARCHITECTURE.md`) - Architecture + status + next steps
-2. `src/models/state.py` - State structure (ResearchState TypedDict)
-3. `src/agents/identifier.py` - Next file to implement
-4. `src/data_sources/product_catalog.py` - ProductMatcher for Identifier
-5. `src/agents/coordinator.py` - Reference for agent patterns
-6. `src/graph/workflow.py` - Workflow integration reference
+2. `src/models/state.py` - State structure (ResearchState TypedDict, Opportunity, Signal)
+3. `src/core/base_agent.py` - StatelessAgent base class pattern
+4. `src/agents/identifier.py` - Reference implementation (most recent, uses ProductMatcher + ModelRouter)
+5. `src/agents/gatherer.py` - Reference for LLM analysis patterns
+6. `src/agents/__init__.py` - Package exports (add ValidatorAgent when done)
 
 ---
 
