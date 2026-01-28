@@ -1,0 +1,68 @@
+{
+  "description": "Job posting fixtures in Greenhouse format",
+  "platform": "greenhouse",
+  "company": "Acme Corp",
+  "html": "<!DOCTYPE html><html><head><title>Careers at Acme Corp</title></head><body><div class=\"job-board\"><div class=\"opening\" data-qa=\"opening\"><a class=\"opening-title\" href=\"/jobs/12345\">Senior Data Scientist - ML Platform</a><span class=\"location\" data-qa=\"opening-location\">San Francisco, CA</span></div><div class=\"opening\" data-qa=\"opening\"><a class=\"opening-title\" href=\"/jobs/12346\">Staff Software Engineer - Backend</a><span class=\"location\" data-qa=\"opening-location\">San Francisco, CA (Remote OK)</span></div><div class=\"opening\" data-qa=\"opening\"><a class=\"opening-title\" href=\"/jobs/12347\">Product Manager - Analytics Platform</a><span class=\"location\" data-qa=\"opening-location\">New York, NY</span></div><div class=\"opening\" data-qa=\"opening\"><a class=\"opening-title\" href=\"/jobs/12348\">Senior DevOps Engineer</a><span class=\"location\" data-qa=\"opening-location\">Austin, TX</span></div><div class=\"opening\" data-qa=\"opening\"><a class=\"opening-title\" href=\"/jobs/12349\">Machine Learning Engineer - Computer Vision</a><span class=\"location\" data-qa=\"opening-location\">San Francisco, CA</span></div></div></body></html>",
+  "job_postings": [
+    {
+      "title": "Senior Data Scientist - ML Platform",
+      "company": "Acme Corp",
+      "description": "We're looking for a Senior Data Scientist to join our ML Platform team. You'll work on building and deploying machine learning models at scale, collaborating with product and engineering teams to deliver impactful data-driven solutions.",
+      "location": "San Francisco, CA",
+      "url": "https://careers.acmecorp.com/jobs/12345",
+      "required_skills": ["Python", "TensorFlow", "PyTorch", "SQL", "MLflow"],
+      "preferred_skills": ["Spark", "Kubernetes", "AWS SageMaker"],
+      "technologies": ["Python", "TensorFlow", "PyTorch", "MLflow", "AWS", "Kubernetes"],
+      "seniority_level": "Senior",
+      "confidence": 0.8
+    },
+    {
+      "title": "Staff Software Engineer - Backend",
+      "company": "Acme Corp",
+      "description": "Join our backend engineering team to build scalable distributed systems that power our analytics platform. You'll design and implement high-performance APIs and data pipelines.",
+      "location": "San Francisco, CA (Remote OK)",
+      "url": "https://careers.acmecorp.com/jobs/12346",
+      "required_skills": ["Java", "Go", "Kafka", "PostgreSQL", "Microservices"],
+      "preferred_skills": ["gRPC", "Redis", "Elasticsearch"],
+      "technologies": ["Java", "Go", "Kafka", "PostgreSQL", "Redis", "Elasticsearch"],
+      "seniority_level": "Staff",
+      "confidence": 0.8
+    },
+    {
+      "title": "Product Manager - Analytics Platform",
+      "company": "Acme Corp",
+      "description": "Lead product strategy for our core analytics platform. Work with customers, engineering, and design to define and deliver features that help businesses make better data-driven decisions.",
+      "location": "New York, NY",
+      "url": "https://careers.acmecorp.com/jobs/12347",
+      "required_skills": ["Product Management", "Data Analytics", "SQL", "Agile"],
+      "preferred_skills": ["Python", "Tableau", "Looker"],
+      "technologies": ["SQL", "Tableau", "Looker"],
+      "seniority_level": "Senior",
+      "confidence": 0.8
+    },
+    {
+      "title": "Senior DevOps Engineer",
+      "company": "Acme Corp",
+      "description": "Build and maintain our cloud infrastructure and CI/CD pipelines. Focus on reliability, scalability, and security of our production systems.",
+      "location": "Austin, TX",
+      "url": "https://careers.acmecorp.com/jobs/12348",
+      "required_skills": ["AWS", "Terraform", "Kubernetes", "Docker", "CI/CD"],
+      "preferred_skills": ["ArgoCD", "Prometheus", "Grafana"],
+      "technologies": ["AWS", "Terraform", "Kubernetes", "Docker", "Jenkins", "Prometheus"],
+      "seniority_level": "Senior",
+      "confidence": 0.8
+    },
+    {
+      "title": "Machine Learning Engineer - Computer Vision",
+      "company": "Acme Corp",
+      "description": "Develop and deploy computer vision models for document processing and data extraction. Work with cutting-edge deep learning techniques and production ML systems.",
+      "location": "San Francisco, CA",
+      "url": "https://careers.acmecorp.com/jobs/12349",
+      "required_skills": ["Python", "PyTorch", "Computer Vision", "CNNs", "Transformers"],
+      "preferred_skills": ["ONNX", "TensorRT", "MLOps"],
+      "technologies": ["Python", "PyTorch", "OpenCV", "ONNX", "CUDA"],
+      "seniority_level": "Mid-Senior",
+      "confidence": 0.8
+    }
+  ]
+}

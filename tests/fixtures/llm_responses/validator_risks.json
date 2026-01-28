@@ -1,0 +1,27 @@
+{
+  "description": "LLM response fixtures for ValidatorAgent._assess_risks",
+  "expected_parsed": {
+    "risks": [
+      "Strong competitor presence: Research signals indicate active relationship with Competitor X - found multiple references to their platform in job postings and tech stack discussions",
+      "Budget timing concern: Recent Series C funding announcement suggests they may have already allocated budgets for the year. New tool purchases may be delayed until next fiscal year",
+      "Integration complexity: Current tech stack includes legacy Java systems that may complicate deployment of modern analytics tools. Migration path needs to be addressed",
+      "Organizational restructuring: News signals indicate recent leadership changes in the engineering department - decision-making may be delayed during transition",
+      "Competing priorities: Multiple job postings focused on infrastructure modernization suggest internal projects may take precedence over new tool evaluation"
+    ]
+  },
+  "variants": {
+    "clean": "{\"risks\": [\"Strong competitor presence: Research signals indicate active relationship with Competitor X - found multiple references to their platform in job postings and tech stack discussions\", \"Budget timing concern: Recent Series C funding announcement suggests they may have already allocated budgets for the year. New tool purchases may be delayed until next fiscal year\", \"Integration complexity: Current tech stack includes legacy Java systems that may complicate deployment of modern analytics tools. Migration path needs to be addressed\", \"Organizational restructuring: News signals indicate recent leadership changes in the engineering department - decision-making may be delayed during transition\", \"Competing priorities: Multiple job postings focused on infrastructure modernization suggest internal projects may take precedence over new tool evaluation\"]}",
+
+    "markdown": "Based on my analysis of the research signals and opportunities, I've identified the following risks:\n\n```json\n{\n  \"risks\": [\n    \"Strong competitor presence: Research signals indicate active relationship with Competitor X - found multiple references to their platform in job postings and tech stack discussions\",\n    \"Budget timing concern: Recent Series C funding announcement suggests they may have already allocated budgets for the year. New tool purchases may be delayed until next fiscal year\",\n    \"Integration complexity: Current tech stack includes legacy Java systems that may complicate deployment of modern analytics tools. Migration path needs to be addressed\",\n    \"Organizational restructuring: News signals indicate recent leadership changes in the engineering department - decision-making may be delayed during transition\",\n    \"Competing priorities: Multiple job postings focused on infrastructure modernization suggest internal projects may take precedence over new tool evaluation\"\n  ]\n}\n```\n\nEach risk is supported by evidence from the research data.",
+
+    "extra_text": "I've carefully reviewed the research signals and opportunities to identify potential sales risks. Here is my assessment:\n\n{\"risks\": [\"Strong competitor presence: Research signals indicate active relationship with Competitor X - found multiple references to their platform in job postings and tech stack discussions\", \"Budget timing concern: Recent Series C funding announcement suggests they may have already allocated budgets for the year. New tool purchases may be delayed until next fiscal year\", \"Integration complexity: Current tech stack includes legacy Java systems that may complicate deployment of modern analytics tools. Migration path needs to be addressed\", \"Organizational restructuring: News signals indicate recent leadership changes in the engineering department - decision-making may be delayed during transition\", \"Competing priorities: Multiple job postings focused on infrastructure modernization suggest internal projects may take precedence over new tool evaluation\"]}\n\nRecommendation: Focus initial outreach on the MATLAB opportunity as it has lower risk factors than Simulink.",
+
+    "whitespace": "\n{\n  \"risks\": [\n    \"Strong competitor presence: Research signals indicate active relationship with Competitor X\",\n    \"Budget timing concern: Recent Series C funding announcement suggests budget may be allocated\"  ,\n    \"Integration complexity: Current tech stack includes legacy Java systems\"\n  ]\n}\n",
+
+    "no_significant_risks": "{\"risks\": [\"No significant risks identified - proceed with standard sales approach\"]}",
+
+    "empty_risks": "{\"risks\": []}",
+
+    "partial": "{\"risks\": [\"Strong competitor presence: Research signals"
+  }
+}

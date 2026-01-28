@@ -1,0 +1,60 @@
+{
+  "description": "Search result fixtures for Acme Corp company research",
+  "company": "Acme Corp",
+  "raw_mcp_response": "1. Acme Corp | About Us\n   URL: https://www.acmecorp.com/about\n   Summary: Acme Corp is a leading enterprise software company specializing in cloud-based data analytics solutions. Founded in 2015, we help businesses transform their data into actionable insights.\n\n2. Acme Corp raises $50M Series C to expand AI capabilities - TechCrunch\n   URL: https://techcrunch.com/2024/09/15/acme-corp-series-c\n   Summary: Acme Corp announced today it has raised $50 million in Series C funding led by Sequoia Capital. The company plans to use the funds to expand its machine learning and AI capabilities.\n\n3. Acme Corp Careers - Join Our Team\n   URL: https://careers.acmecorp.com\n   Summary: Explore career opportunities at Acme Corp. We're hiring engineers, data scientists, and product managers to help us build the future of data analytics.\n\n4. Acme Corp Reviews | Glassdoor\n   URL: https://www.glassdoor.com/acme-corp-reviews\n   Summary: See what employees say about working at Acme Corp. 4.2 star rating based on 342 reviews. Pros: Great culture, competitive compensation. Cons: Fast-paced environment.\n\n5. Acme Corp - LinkedIn\n   URL: https://www.linkedin.com/company/acme-corp\n   Summary: Acme Corp | 2,500 followers on LinkedIn. Enterprise data analytics platform trusted by Fortune 500 companies. Headquarters: San Francisco, CA.",
+  "results": [
+    {
+      "title": "Acme Corp | About Us",
+      "url": "https://www.acmecorp.com/about",
+      "snippet": "Acme Corp is a leading enterprise software company specializing in cloud-based data analytics solutions. Founded in 2015, we help businesses transform their data into actionable insights.",
+      "source": "duckduckgo"
+    },
+    {
+      "title": "Acme Corp raises $50M Series C to expand AI capabilities - TechCrunch",
+      "url": "https://techcrunch.com/2024/09/15/acme-corp-series-c",
+      "snippet": "Acme Corp announced today it has raised $50 million in Series C funding led by Sequoia Capital. The company plans to use the funds to expand its machine learning and AI capabilities.",
+      "source": "duckduckgo"
+    },
+    {
+      "title": "Acme Corp Careers - Join Our Team",
+      "url": "https://careers.acmecorp.com",
+      "snippet": "Explore career opportunities at Acme Corp. We're hiring engineers, data scientists, and product managers to help us build the future of data analytics.",
+      "source": "duckduckgo"
+    },
+    {
+      "title": "Acme Corp Reviews | Glassdoor",
+      "url": "https://www.glassdoor.com/acme-corp-reviews",
+      "snippet": "See what employees say about working at Acme Corp. 4.2 star rating based on 342 reviews. Pros: Great culture, competitive compensation. Cons: Fast-paced environment.",
+      "source": "duckduckgo"
+    },
+    {
+      "title": "Acme Corp - LinkedIn",
+      "url": "https://www.linkedin.com/company/acme-corp",
+      "snippet": "Acme Corp | 2,500 followers on LinkedIn. Enterprise data analytics platform trusted by Fortune 500 companies. Headquarters: San Francisco, CA.",
+      "source": "duckduckgo"
+    }
+  ],
+  "news_items": [
+    {
+      "title": "Acme Corp raises $50M Series C to expand AI capabilities",
+      "source": "TechCrunch",
+      "published_date": "2024-09-15T10:30:00Z",
+      "url": "https://techcrunch.com/2024/09/15/acme-corp-series-c",
+      "summary": "Acme Corp announced today it has raised $50 million in Series C funding led by Sequoia Capital. The company plans to use the funds to expand its machine learning and AI capabilities."
+    },
+    {
+      "title": "Acme Corp named to Forbes Cloud 100 list for second consecutive year",
+      "source": "Forbes",
+      "published_date": "2024-08-10T14:00:00Z",
+      "url": "https://www.forbes.com/cloud-100-2024",
+      "summary": "Acme Corp has been recognized on the Forbes Cloud 100 list, ranking #45 among the top private cloud companies. The recognition highlights their growth in the enterprise analytics market."
+    },
+    {
+      "title": "Acme Corp partners with AWS for enhanced data integration",
+      "source": "Business Wire",
+      "published_date": "2024-07-22T09:00:00Z",
+      "url": "https://www.businesswire.com/acme-aws-partnership",
+      "summary": "Acme Corp today announced a strategic partnership with Amazon Web Services to provide seamless data integration capabilities for enterprise customers."
+    }
+  ]
+}

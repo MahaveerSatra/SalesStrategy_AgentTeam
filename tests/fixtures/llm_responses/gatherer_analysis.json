@@ -1,0 +1,30 @@
+{
+  "description": "LLM response fixtures for GathererAgent._analyze_source_with_llm",
+  "expected_parsed": {
+    "confidence": 0.85,
+    "summary": "Acme Corp is a leading enterprise software company founded in 2015, specializing in cloud-based data analytics solutions. They have recently expanded their engineering team and are investing heavily in machine learning infrastructure.",
+    "source_type": "official_company_site",
+    "key_facts": [
+      "Founded in 2015",
+      "Specializes in cloud-based data analytics",
+      "Recently expanded engineering team by 40%",
+      "Series C funding of $50M in 2024",
+      "Headquartered in San Francisco with offices in Austin and London"
+    ],
+    "keywords": ["data analytics", "cloud", "machine learning", "enterprise software", "Series C"],
+    "relevance": "high"
+  },
+  "variants": {
+    "clean": "{\"confidence\": 0.85, \"summary\": \"Acme Corp is a leading enterprise software company founded in 2015, specializing in cloud-based data analytics solutions. They have recently expanded their engineering team and are investing heavily in machine learning infrastructure.\", \"source_type\": \"official_company_site\", \"key_facts\": [\"Founded in 2015\", \"Specializes in cloud-based data analytics\", \"Recently expanded engineering team by 40%\", \"Series C funding of $50M in 2024\", \"Headquartered in San Francisco with offices in Austin and London\"], \"keywords\": [\"data analytics\", \"cloud\", \"machine learning\", \"enterprise software\", \"Series C\"], \"relevance\": \"high\"}",
+
+    "markdown": "Based on my analysis of the source, here's the structured assessment:\n\n```json\n{\n  \"confidence\": 0.85,\n  \"summary\": \"Acme Corp is a leading enterprise software company founded in 2015, specializing in cloud-based data analytics solutions. They have recently expanded their engineering team and are investing heavily in machine learning infrastructure.\",\n  \"source_type\": \"official_company_site\",\n  \"key_facts\": [\n    \"Founded in 2015\",\n    \"Specializes in cloud-based data analytics\",\n    \"Recently expanded engineering team by 40%\",\n    \"Series C funding of $50M in 2024\",\n    \"Headquartered in San Francisco with offices in Austin and London\"\n  ],\n  \"keywords\": [\"data analytics\", \"cloud\", \"machine learning\", \"enterprise software\", \"Series C\"],\n  \"relevance\": \"high\"\n}\n```\n\nThis is an official company source with reliable information.",
+
+    "extra_text": "I've analyzed the webpage content you provided. Here is my assessment:\n\n{\"confidence\": 0.85, \"summary\": \"Acme Corp is a leading enterprise software company founded in 2015, specializing in cloud-based data analytics solutions. They have recently expanded their engineering team and are investing heavily in machine learning infrastructure.\", \"source_type\": \"official_company_site\", \"key_facts\": [\"Founded in 2015\", \"Specializes in cloud-based data analytics\", \"Recently expanded engineering team by 40%\", \"Series C funding of $50M in 2024\", \"Headquartered in San Francisco with offices in Austin and London\"], \"keywords\": [\"data analytics\", \"cloud\", \"machine learning\", \"enterprise software\", \"Series C\"], \"relevance\": \"high\"}\n\nNote: This appears to be a highly credible source as it's the company's official website. The information is factual and current.",
+
+    "whitespace": "\n\n  {\n    \"confidence\":   0.85,\n    \"summary\":  \"Acme Corp is a leading enterprise software company founded in 2015, specializing in cloud-based data analytics solutions. They have recently expanded their engineering team and are investing heavily in machine learning infrastructure.\",\n\n    \"source_type\": \"official_company_site\",\n    \"key_facts\": [\n      \"Founded in 2015\",\n      \"Specializes in cloud-based data analytics\",\n      \"Recently expanded engineering team by 40%\",\n      \"Series C funding of $50M in 2024\",\n      \"Headquartered in San Francisco with offices in Austin and London\"\n    ],\n    \"keywords\": [\"data analytics\", \"cloud\", \"machine learning\", \"enterprise software\", \"Series C\"],\n    \"relevance\": \"high\"\n  }\n\n",
+
+    "partial": "{\"confidence\": 0.85, \"summary\": \"Acme Corp is a leading",
+
+    "missing_fields": "{\"confidence\": 0.85, \"summary\": \"Acme Corp is a leading enterprise software company.\", \"source_type\": \"official_company_site\"}"
+  }
+}

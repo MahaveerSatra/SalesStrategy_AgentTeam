@@ -1,0 +1,56 @@
+{
+  "description": "Job posting fixtures in Lever format",
+  "platform": "lever",
+  "company": "NovaTech Systems",
+  "html": "<!DOCTYPE html><html><head><title>NovaTech Systems Careers</title></head><body><div class=\"postings-group\"><div class=\"posting\" data-qa=\"posting\"><h5 class=\"posting-title\"><a href=\"/jobs/av-001\">Senior ML Engineer - Perception</a></h5><div class=\"posting-categories\"><span class=\"location\">Austin, TX</span><span class=\"team\">Engineering</span></div></div><div class=\"posting\" data-qa=\"posting\"><h5 class=\"posting-title\"><a href=\"/jobs/av-002\">Embedded Systems Developer</a></h5><div class=\"posting-categories\"><span class=\"location\">Austin, TX</span><span class=\"team\">Engineering</span></div></div><div class=\"posting\" data-qa=\"posting\"><h5 class=\"posting-title\"><a href=\"/jobs/av-003\">Computer Vision Researcher</a></h5><div class=\"posting-categories\"><span class=\"location\">Austin, TX (Remote OK)</span><span class=\"team\">Research</span></div></div><div class=\"posting\" data-qa=\"posting\"><h5 class=\"posting-title\"><a href=\"/jobs/av-004\">Simulation Engineer - ADAS</a></h5><div class=\"posting-categories\"><span class=\"location\">Austin, TX</span><span class=\"team\">Engineering</span></div></div></div></body></html>",
+  "job_postings": [
+    {
+      "title": "Senior ML Engineer - Perception",
+      "company": "NovaTech Systems",
+      "description": "Build and deploy machine learning models for autonomous vehicle perception systems. Work on object detection, tracking, and sensor fusion using LiDAR, camera, and radar data.",
+      "location": "Austin, TX",
+      "url": "https://jobs.lever.co/novatech/av-001",
+      "required_skills": ["Python", "PyTorch", "Computer Vision", "Point Cloud Processing", "C++"],
+      "preferred_skills": ["ROS", "CUDA", "TensorRT"],
+      "technologies": ["Python", "PyTorch", "C++", "ROS", "CUDA", "LiDAR", "TensorRT"],
+      "seniority_level": "Senior",
+      "confidence": 0.8
+    },
+    {
+      "title": "Embedded Systems Developer",
+      "company": "NovaTech Systems",
+      "description": "Develop real-time embedded software for autonomous vehicle control systems. Work with automotive-grade hardware and safety-critical software development practices.",
+      "location": "Austin, TX",
+      "url": "https://jobs.lever.co/novatech/av-002",
+      "required_skills": ["C", "C++", "RTOS", "Embedded Linux", "CAN bus"],
+      "preferred_skills": ["AUTOSAR", "ISO 26262", "ARM Cortex"],
+      "technologies": ["C", "C++", "RTOS", "Linux", "CAN", "AUTOSAR"],
+      "seniority_level": "Mid-Senior",
+      "confidence": 0.8
+    },
+    {
+      "title": "Computer Vision Researcher",
+      "company": "NovaTech Systems",
+      "description": "Conduct research on novel computer vision algorithms for autonomous driving. Publish papers, develop prototypes, and transition research into production systems.",
+      "location": "Austin, TX (Remote OK)",
+      "url": "https://jobs.lever.co/novatech/av-003",
+      "required_skills": ["PhD in CV/ML", "Python", "Deep Learning", "Research Publications"],
+      "preferred_skills": ["3D Reconstruction", "SLAM", "Transformers"],
+      "technologies": ["Python", "PyTorch", "OpenCV", "NumPy", "SLAM"],
+      "seniority_level": "Senior",
+      "confidence": 0.8
+    },
+    {
+      "title": "Simulation Engineer - ADAS",
+      "company": "NovaTech Systems",
+      "description": "Build high-fidelity simulation environments for testing and validating ADAS features. Create realistic scenarios for perception and planning system evaluation.",
+      "location": "Austin, TX",
+      "url": "https://jobs.lever.co/novatech/av-004",
+      "required_skills": ["MATLAB", "Simulink", "Python", "Simulation", "Vehicle Dynamics"],
+      "preferred_skills": ["Unreal Engine", "CARLA", "ROS"],
+      "technologies": ["MATLAB", "Simulink", "Python", "Unreal Engine", "CARLA", "ROS"],
+      "seniority_level": "Mid",
+      "confidence": 0.8
+    }
+  ]
+}

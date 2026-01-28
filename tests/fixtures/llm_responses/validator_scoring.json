@@ -1,0 +1,41 @@
+{
+  "description": "LLM response fixtures for ValidatorAgent._score_opportunities",
+  "expected_parsed": {
+    "scored_opportunities": [
+      {
+        "product_name": "MATLAB",
+        "new_score": 0.82,
+        "score_rationale": "Strong evidence from hiring patterns and tech stack signals. Risk of Python-centric culture is mitigated by MATLAB's Python integration. Timing is favorable given data team expansion."
+      },
+      {
+        "product_name": "Simulink",
+        "new_score": 0.65,
+        "score_rationale": "Moderate evidence from embedded systems job postings. Risk of existing tooling is significant. Score reduced due to competitor presence signals in this space."
+      },
+      {
+        "product_name": "Polyspace",
+        "new_score": 0.48,
+        "score_rationale": "Limited direct evidence for code verification needs. High-value opportunity if safety-critical development is confirmed, but current signals are weak."
+      }
+    ]
+  },
+  "variants": {
+    "clean": "{\"scored_opportunities\": [{\"product_name\": \"MATLAB\", \"new_score\": 0.82, \"score_rationale\": \"Strong evidence from hiring patterns and tech stack signals. Risk of Python-centric culture is mitigated by MATLAB's Python integration. Timing is favorable given data team expansion.\"}, {\"product_name\": \"Simulink\", \"new_score\": 0.65, \"score_rationale\": \"Moderate evidence from embedded systems job postings. Risk of existing tooling is significant. Score reduced due to competitor presence signals in this space.\"}, {\"product_name\": \"Polyspace\", \"new_score\": 0.48, \"score_rationale\": \"Limited direct evidence for code verification needs. High-value opportunity if safety-critical development is confirmed, but current signals are weak.\"}]}",
+
+    "markdown": "I've re-evaluated each opportunity considering the identified risks and evidence quality:\n\n```json\n{\n  \"scored_opportunities\": [\n    {\n      \"product_name\": \"MATLAB\",\n      \"new_score\": 0.82,\n      \"score_rationale\": \"Strong evidence from hiring patterns and tech stack signals. Risk of Python-centric culture is mitigated by MATLAB's Python integration. Timing is favorable given data team expansion.\"\n    },\n    {\n      \"product_name\": \"Simulink\",\n      \"new_score\": 0.65,\n      \"score_rationale\": \"Moderate evidence from embedded systems job postings. Risk of existing tooling is significant. Score reduced due to competitor presence signals in this space.\"\n    },\n    {\n      \"product_name\": \"Polyspace\",\n      \"new_score\": 0.48,\n      \"score_rationale\": \"Limited direct evidence for code verification needs. High-value opportunity if safety-critical development is confirmed, but current signals are weak.\"\n    }\n  ]\n}\n```\n\nMATLAB remains the strongest opportunity after risk adjustment.",
+
+    "extra_text": "After factoring in the identified risks and evaluating evidence quality, here are my updated confidence scores:\n\n{\"scored_opportunities\": [{\"product_name\": \"MATLAB\", \"new_score\": 0.82, \"score_rationale\": \"Strong evidence from hiring patterns and tech stack signals. Risk of Python-centric culture is mitigated by MATLAB's Python integration. Timing is favorable given data team expansion.\"}, {\"product_name\": \"Simulink\", \"new_score\": 0.65, \"score_rationale\": \"Moderate evidence from embedded systems job postings. Risk of existing tooling is significant. Score reduced due to competitor presence signals in this space.\"}, {\"product_name\": \"Polyspace\", \"new_score\": 0.48, \"score_rationale\": \"Limited direct evidence for code verification needs. High-value opportunity if safety-critical development is confirmed, but current signals are weak.\"}]}\n\nNote: Polyspace falls below the 0.6 threshold and should be marked as a secondary opportunity requiring additional qualification.",
+
+    "whitespace": "\n  {\n    \"scored_opportunities\": [\n      {\n        \"product_name\":  \"MATLAB\",\n        \"new_score\":  0.82,\n        \"score_rationale\": \"Strong evidence from hiring patterns.\"\n      },\n      {\n        \"product_name\": \"Simulink\",\n        \"new_score\": 0.65,\n        \"score_rationale\": \"Moderate evidence.\"\n      }\n    ]\n  }\n  ",
+
+    "string_scores": "{\"scored_opportunities\": [{\"product_name\": \"MATLAB\", \"new_score\": \"0.82\", \"score_rationale\": \"Strong evidence.\"}, {\"product_name\": \"Simulink\", \"new_score\": \"0.65\", \"score_rationale\": \"Moderate evidence.\"}]}",
+
+    "missing_rationale": "{\"scored_opportunities\": [{\"product_name\": \"MATLAB\", \"new_score\": 0.82}, {\"product_name\": \"Simulink\", \"new_score\": 0.65}]}",
+
+    "out_of_range_scores": "{\"scored_opportunities\": [{\"product_name\": \"MATLAB\", \"new_score\": 1.5, \"score_rationale\": \"Extremely strong fit.\"}, {\"product_name\": \"Simulink\", \"new_score\": -0.2, \"score_rationale\": \"Poor fit.\"}]}",
+
+    "empty_scored": "{\"scored_opportunities\": []}",
+
+    "partial": "{\"scored_opportunities\": [{\"product_name\": \"MATLAB\", \"new_score\":"
+  }
+}

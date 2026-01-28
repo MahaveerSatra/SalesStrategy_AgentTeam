@@ -1,0 +1,52 @@
+{
+  "description": "LLM response fixtures for IdentifierAgent._generate_opportunities",
+  "expected_parsed": {
+    "opportunities": [
+      {
+        "product_name": "MATLAB",
+        "rationale": "Acme Corp is scaling their data analytics capabilities and hiring multiple data scientists. MATLAB's advanced analytics and visualization capabilities would accelerate their modeling workflows and integrate well with their existing Python stack.",
+        "target_persona": "VP of Data Science",
+        "talking_points": [
+          "MATLAB integrates seamlessly with Python workflows via the Python Engine API",
+          "Built-in tools for data visualization eliminate need for multiple toolchains",
+          "Live Editor enables reproducible research and collaboration",
+          "GPU computing support for ML model training at scale"
+        ],
+        "estimated_value": "$150K ARR",
+        "risks": ["Existing Python-centric culture may resist new tools", "Budget cycle timing unclear"],
+        "confidence": "high",
+        "confidence_score": 0.85
+      },
+      {
+        "product_name": "Simulink",
+        "rationale": "Job postings indicate embedded systems development work. Simulink would provide model-based design capabilities for their control systems engineering team, reducing development time and improving quality.",
+        "target_persona": "Director of Embedded Systems",
+        "talking_points": [
+          "Model-based design reduces embedded development time by 30-50%",
+          "Automatic code generation for production deployment",
+          "Hardware-in-the-loop testing capabilities",
+          "Integration with existing CI/CD pipelines"
+        ],
+        "estimated_value": "$200K ARR",
+        "risks": ["May have existing modeling tools in use", "Learning curve for engineering team"],
+        "confidence": "medium",
+        "confidence_score": 0.68
+      }
+    ]
+  },
+  "variants": {
+    "clean": "{\"opportunities\": [{\"product_name\": \"MATLAB\", \"rationale\": \"Acme Corp is scaling their data analytics capabilities and hiring multiple data scientists. MATLAB's advanced analytics and visualization capabilities would accelerate their modeling workflows and integrate well with their existing Python stack.\", \"target_persona\": \"VP of Data Science\", \"talking_points\": [\"MATLAB integrates seamlessly with Python workflows via the Python Engine API\", \"Built-in tools for data visualization eliminate need for multiple toolchains\", \"Live Editor enables reproducible research and collaboration\", \"GPU computing support for ML model training at scale\"], \"estimated_value\": \"$150K ARR\", \"risks\": [\"Existing Python-centric culture may resist new tools\", \"Budget cycle timing unclear\"], \"confidence\": \"high\", \"confidence_score\": 0.85}, {\"product_name\": \"Simulink\", \"rationale\": \"Job postings indicate embedded systems development work. Simulink would provide model-based design capabilities for their control systems engineering team, reducing development time and improving quality.\", \"target_persona\": \"Director of Embedded Systems\", \"talking_points\": [\"Model-based design reduces embedded development time by 30-50%\", \"Automatic code generation for production deployment\", \"Hardware-in-the-loop testing capabilities\", \"Integration with existing CI/CD pipelines\"], \"estimated_value\": \"$200K ARR\", \"risks\": [\"May have existing modeling tools in use\", \"Learning curve for engineering team\"], \"confidence\": \"medium\", \"confidence_score\": 0.68}]}",
+
+    "markdown": "Based on my analysis of Acme Corp's requirements and our product catalog matches, here are the sales opportunities:\n\n```json\n{\n  \"opportunities\": [\n    {\n      \"product_name\": \"MATLAB\",\n      \"rationale\": \"Acme Corp is scaling their data analytics capabilities and hiring multiple data scientists. MATLAB's advanced analytics and visualization capabilities would accelerate their modeling workflows and integrate well with their existing Python stack.\",\n      \"target_persona\": \"VP of Data Science\",\n      \"talking_points\": [\n        \"MATLAB integrates seamlessly with Python workflows via the Python Engine API\",\n        \"Built-in tools for data visualization eliminate need for multiple toolchains\",\n        \"Live Editor enables reproducible research and collaboration\",\n        \"GPU computing support for ML model training at scale\"\n      ],\n      \"estimated_value\": \"$150K ARR\",\n      \"risks\": [\"Existing Python-centric culture may resist new tools\", \"Budget cycle timing unclear\"],\n      \"confidence\": \"high\",\n      \"confidence_score\": 0.85\n    },\n    {\n      \"product_name\": \"Simulink\",\n      \"rationale\": \"Job postings indicate embedded systems development work. Simulink would provide model-based design capabilities for their control systems engineering team, reducing development time and improving quality.\",\n      \"target_persona\": \"Director of Embedded Systems\",\n      \"talking_points\": [\n        \"Model-based design reduces embedded development time by 30-50%\",\n        \"Automatic code generation for production deployment\",\n        \"Hardware-in-the-loop testing capabilities\",\n        \"Integration with existing CI/CD pipelines\"\n      ],\n      \"estimated_value\": \"$200K ARR\",\n      \"risks\": [\"May have existing modeling tools in use\", \"Learning curve for engineering team\"],\n      \"confidence\": \"medium\",\n      \"confidence_score\": 0.68\n    }\n  ]\n}\n```\n\nBoth opportunities are well-supported by the research data.",
+
+    "extra_text": "I've analyzed the requirements against our product catalog and generated the following opportunities. Note that I've focused on quality over quantity, only including products with genuine fit.\n\n{\"opportunities\": [{\"product_name\": \"MATLAB\", \"rationale\": \"Acme Corp is scaling their data analytics capabilities and hiring multiple data scientists. MATLAB's advanced analytics and visualization capabilities would accelerate their modeling workflows and integrate well with their existing Python stack.\", \"target_persona\": \"VP of Data Science\", \"talking_points\": [\"MATLAB integrates seamlessly with Python workflows via the Python Engine API\", \"Built-in tools for data visualization eliminate need for multiple toolchains\", \"Live Editor enables reproducible research and collaboration\", \"GPU computing support for ML model training at scale\"], \"estimated_value\": \"$150K ARR\", \"risks\": [\"Existing Python-centric culture may resist new tools\", \"Budget cycle timing unclear\"], \"confidence\": \"high\", \"confidence_score\": 0.85}, {\"product_name\": \"Simulink\", \"rationale\": \"Job postings indicate embedded systems development work. Simulink would provide model-based design capabilities for their control systems engineering team, reducing development time and improving quality.\", \"target_persona\": \"Director of Embedded Systems\", \"talking_points\": [\"Model-based design reduces embedded development time by 30-50%\", \"Automatic code generation for production deployment\", \"Hardware-in-the-loop testing capabilities\", \"Integration with existing CI/CD pipelines\"], \"estimated_value\": \"$200K ARR\", \"risks\": [\"May have existing modeling tools in use\", \"Learning curve for engineering team\"], \"confidence\": \"medium\", \"confidence_score\": 0.68}]}\n\nLet me know if you need more details on any of these opportunities.",
+
+    "whitespace": "\n\n{\n  \"opportunities\":  [\n    {\n      \"product_name\":   \"MATLAB\",\n      \"rationale\": \"Acme Corp is scaling their data analytics capabilities and hiring multiple data scientists. MATLAB's advanced analytics and visualization capabilities would accelerate their modeling workflows and integrate well with their existing Python stack.\",\n      \"target_persona\": \"VP of Data Science\",\n      \"talking_points\": [\n        \"MATLAB integrates seamlessly with Python workflows via the Python Engine API\",\n        \"Built-in tools for data visualization eliminate need for multiple toolchains\"\n      ],\n      \"estimated_value\":  \"$150K ARR\",\n      \"risks\": [\"Existing Python-centric culture may resist new tools\"],\n      \"confidence\": \"high\",\n      \"confidence_score\":  0.85\n    }\n  ]\n}\n\n",
+
+    "confidence_string_score": "{\"opportunities\": [{\"product_name\": \"MATLAB\", \"rationale\": \"Strong fit for data analytics needs.\", \"target_persona\": \"VP of Data Science\", \"talking_points\": [\"Point 1\", \"Point 2\"], \"estimated_value\": \"$150K ARR\", \"risks\": [\"Risk 1\"], \"confidence\": \"HIGH\", \"confidence_score\": \"0.85\"}]}",
+
+    "empty_opportunities": "{\"opportunities\": []}",
+
+    "partial": "{\"opportunities\": [{\"product_name\": \"MATLAB\", \"rationale\": \"Strong fit"
+  }
+}

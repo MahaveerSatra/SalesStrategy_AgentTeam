@@ -1,0 +1,68 @@
+{
+  "description": "Job posting fixtures from generic/custom career pages",
+  "platform": "generic",
+  "company": "MegaCorp Industries",
+  "html": "<!DOCTYPE html><html><head><title>MegaCorp Careers</title></head><body><div class=\"careers-page\"><h1>Join MegaCorp Industries</h1><div class=\"job-list\"><div class=\"job-item\"><a href=\"/careers/eng-101\">Senior Software Engineer - Data Platform</a><p>Build scalable data infrastructure</p></div><div class=\"job-item\"><a href=\"/careers/eng-102\">Controls Engineer - Manufacturing</a><p>Design PLC and automation systems</p></div><div class=\"job-item\"><a href=\"/careers/eng-103\">Systems Analyst - SAP Integration</a><p>Lead ERP integration projects</p></div><div class=\"job-item\"><a href=\"/careers/ds-201\">Data Analyst - Business Intelligence</a><p>Create dashboards and reports</p></div><div class=\"job-item\"><a href=\"/careers/eng-104\">Test Automation Engineer</a><p>Build CI/CD and automated testing</p></div></div></div></body></html>",
+  "job_postings": [
+    {
+      "title": "Senior Software Engineer - Data Platform",
+      "company": "MegaCorp Industries",
+      "description": "Build and maintain our data platform infrastructure. Work with big data technologies to process terabytes of manufacturing and supply chain data daily.",
+      "location": "Chicago, IL",
+      "url": "https://megacorp.com/careers/eng-101",
+      "required_skills": ["Java", "Spark", "Hadoop", "SQL", "Kafka"],
+      "preferred_skills": ["Airflow", "Delta Lake", "Databricks"],
+      "technologies": ["Java", "Spark", "Hadoop", "Kafka", "Airflow", "Delta Lake"],
+      "seniority_level": "Senior",
+      "confidence": 0.5
+    },
+    {
+      "title": "Controls Engineer - Manufacturing",
+      "company": "MegaCorp Industries",
+      "description": "Design and implement PLC-based control systems for manufacturing automation. Program Allen-Bradley and Siemens PLCs, develop HMI interfaces.",
+      "location": "Detroit, MI",
+      "url": "https://megacorp.com/careers/eng-102",
+      "required_skills": ["PLC Programming", "Allen-Bradley", "Siemens", "HMI", "Industrial Networking"],
+      "preferred_skills": ["SCADA", "FactoryTalk", "OPC UA"],
+      "technologies": ["Allen-Bradley", "Siemens", "SCADA", "FactoryTalk", "OPC UA"],
+      "seniority_level": "Mid",
+      "confidence": 0.5
+    },
+    {
+      "title": "Systems Analyst - SAP Integration",
+      "company": "MegaCorp Industries",
+      "description": "Lead SAP integration projects connecting manufacturing systems to ERP. Develop interfaces, manage data flows, and optimize business processes.",
+      "location": "Chicago, IL",
+      "url": "https://megacorp.com/careers/eng-103",
+      "required_skills": ["SAP", "ABAP", "EDI", "SQL", "Integration Platforms"],
+      "preferred_skills": ["SAP S/4HANA", "MuleSoft", "Boomi"],
+      "technologies": ["SAP", "ABAP", "EDI", "MuleSoft", "SQL Server"],
+      "seniority_level": "Senior",
+      "confidence": 0.5
+    },
+    {
+      "title": "Data Analyst - Business Intelligence",
+      "company": "MegaCorp Industries",
+      "description": "Create dashboards and reports for manufacturing operations. Analyze production data to identify optimization opportunities and quality improvements.",
+      "location": "Chicago, IL (Hybrid)",
+      "url": "https://megacorp.com/careers/ds-201",
+      "required_skills": ["SQL", "Tableau", "Power BI", "Excel", "Data Analysis"],
+      "preferred_skills": ["Python", "R", "Statistics"],
+      "technologies": ["SQL", "Tableau", "Power BI", "Excel", "Python"],
+      "seniority_level": "Mid",
+      "confidence": 0.5
+    },
+    {
+      "title": "Test Automation Engineer",
+      "company": "MegaCorp Industries",
+      "description": "Build automated testing frameworks and CI/CD pipelines. Implement unit tests, integration tests, and end-to-end testing for our software platforms.",
+      "location": "Chicago, IL",
+      "url": "https://megacorp.com/careers/eng-104",
+      "required_skills": ["Python", "Selenium", "Jenkins", "pytest", "Git"],
+      "preferred_skills": ["Docker", "Kubernetes", "AWS"],
+      "technologies": ["Python", "Selenium", "Jenkins", "Docker", "AWS"],
+      "seniority_level": "Mid",
+      "confidence": 0.5
+    }
+  ]
+}

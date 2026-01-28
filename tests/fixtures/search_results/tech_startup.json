@@ -1,0 +1,53 @@
+{
+  "description": "Search result fixtures for a typical tech startup - NovaTech Systems",
+  "company": "NovaTech Systems",
+  "raw_mcp_response": "1. NovaTech Systems - Autonomous Vehicle Technology\n   URL: https://novatech.io\n   Summary: NovaTech Systems is building the future of autonomous driving. Our advanced sensor fusion and perception systems power next-generation vehicles.\n\n2. NovaTech Systems | Crunchbase\n   URL: https://www.crunchbase.com/organization/novatech-systems\n   Summary: NovaTech Systems is an autonomous vehicle technology company. Founded: 2019. Funding: $25M Series A. Employees: 75-100. Headquarters: Austin, TX.\n\n3. NovaTech Systems - We're Hiring!\n   URL: https://novatech.io/careers\n   Summary: Join our mission to revolutionize transportation. Open roles: Senior ML Engineer, Embedded Systems Developer, Computer Vision Researcher.\n\n4. NovaTech Systems demonstrates breakthrough in LiDAR processing - IEEE Spectrum\n   URL: https://spectrum.ieee.org/novatech-lidar\n   Summary: NovaTech's new algorithm achieves 40% faster LiDAR point cloud processing, enabling real-time object detection at highway speeds.\n\n5. NovaTech Systems CEO on future of AVs - The Verge Interview\n   URL: https://www.theverge.com/novatech-interview\n   Summary: Exclusive interview with NovaTech CEO Sarah Chen on their approach to Level 4 autonomy and plans for 2025 commercial deployment.",
+  "results": [
+    {
+      "title": "NovaTech Systems - Autonomous Vehicle Technology",
+      "url": "https://novatech.io",
+      "snippet": "NovaTech Systems is building the future of autonomous driving. Our advanced sensor fusion and perception systems power next-generation vehicles.",
+      "source": "duckduckgo"
+    },
+    {
+      "title": "NovaTech Systems | Crunchbase",
+      "url": "https://www.crunchbase.com/organization/novatech-systems",
+      "snippet": "NovaTech Systems is an autonomous vehicle technology company. Founded: 2019. Funding: $25M Series A. Employees: 75-100. Headquarters: Austin, TX.",
+      "source": "duckduckgo"
+    },
+    {
+      "title": "NovaTech Systems - We're Hiring!",
+      "url": "https://novatech.io/careers",
+      "snippet": "Join our mission to revolutionize transportation. Open roles: Senior ML Engineer, Embedded Systems Developer, Computer Vision Researcher.",
+      "source": "duckduckgo"
+    },
+    {
+      "title": "NovaTech Systems demonstrates breakthrough in LiDAR processing - IEEE Spectrum",
+      "url": "https://spectrum.ieee.org/novatech-lidar",
+      "snippet": "NovaTech's new algorithm achieves 40% faster LiDAR point cloud processing, enabling real-time object detection at highway speeds.",
+      "source": "duckduckgo"
+    },
+    {
+      "title": "NovaTech Systems CEO on future of AVs - The Verge Interview",
+      "url": "https://www.theverge.com/novatech-interview",
+      "snippet": "Exclusive interview with NovaTech CEO Sarah Chen on their approach to Level 4 autonomy and plans for 2025 commercial deployment.",
+      "source": "duckduckgo"
+    }
+  ],
+  "news_items": [
+    {
+      "title": "NovaTech Systems demonstrates breakthrough in LiDAR processing",
+      "source": "IEEE Spectrum",
+      "published_date": "2024-11-05T08:00:00Z",
+      "url": "https://spectrum.ieee.org/novatech-lidar",
+      "summary": "NovaTech's new algorithm achieves 40% faster LiDAR point cloud processing, enabling real-time object detection at highway speeds."
+    },
+    {
+      "title": "NovaTech Systems raises $25M Series A for autonomous vehicle tech",
+      "source": "VentureBeat",
+      "published_date": "2024-06-15T12:00:00Z",
+      "url": "https://venturebeat.com/novatech-series-a",
+      "summary": "Austin-based NovaTech Systems has secured $25 million in Series A funding to accelerate development of their sensor fusion platform for autonomous vehicles."
+    }
+  ]
+}

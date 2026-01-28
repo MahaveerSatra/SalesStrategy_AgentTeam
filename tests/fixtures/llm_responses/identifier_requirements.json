@@ -1,0 +1,30 @@
+{
+  "description": "LLM response fixtures for IdentifierAgent._extract_requirements",
+  "expected_parsed": {
+    "requirements": [
+      "Need for automated testing solution for embedded systems development",
+      "Requirement for data visualization and business intelligence platform",
+      "Looking for ML model deployment and MLOps infrastructure",
+      "Need for simulation and modeling tools for engineering workflows",
+      "Requirement for collaborative documentation and knowledge management",
+      "Looking for CI/CD pipeline automation for multi-platform builds",
+      "Need for real-time data streaming and processing capabilities",
+      "Requirement for API management and integration platform"
+    ]
+  },
+  "variants": {
+    "clean": "{\"requirements\": [\"Need for automated testing solution for embedded systems development\", \"Requirement for data visualization and business intelligence platform\", \"Looking for ML model deployment and MLOps infrastructure\", \"Need for simulation and modeling tools for engineering workflows\", \"Requirement for collaborative documentation and knowledge management\", \"Looking for CI/CD pipeline automation for multi-platform builds\", \"Need for real-time data streaming and processing capabilities\", \"Requirement for API management and integration platform\"]}",
+
+    "markdown": "Based on the research data provided, I've identified the following requirements for Acme Corp:\n\n```json\n{\n  \"requirements\": [\n    \"Need for automated testing solution for embedded systems development\",\n    \"Requirement for data visualization and business intelligence platform\",\n    \"Looking for ML model deployment and MLOps infrastructure\",\n    \"Need for simulation and modeling tools for engineering workflows\",\n    \"Requirement for collaborative documentation and knowledge management\",\n    \"Looking for CI/CD pipeline automation for multi-platform builds\",\n    \"Need for real-time data streaming and processing capabilities\",\n    \"Requirement for API management and integration platform\"\n  ]\n}\n```\n\nThese requirements are derived from both explicit job posting mentions and implicit signals from their tech stack and hiring patterns.",
+
+    "extra_text": "After carefully analyzing the signals, job postings, and tech stack information for Acme Corp, I've identified several key requirements that could map to software products.\n\nHere are my findings:\n\n{\"requirements\": [\"Need for automated testing solution for embedded systems development\", \"Requirement for data visualization and business intelligence platform\", \"Looking for ML model deployment and MLOps infrastructure\", \"Need for simulation and modeling tools for engineering workflows\", \"Requirement for collaborative documentation and knowledge management\", \"Looking for CI/CD pipeline automation for multi-platform builds\", \"Need for real-time data streaming and processing capabilities\", \"Requirement for API management and integration platform\"]}\n\nThe requirements are ranked roughly by how strongly they appeared in the source data.",
+
+    "whitespace": "  \n{\n  \"requirements\":   [\n    \"Need for automated testing solution for embedded systems development\"  ,\n    \"Requirement for data visualization and business intelligence platform\",\n    \"Looking for ML model deployment and MLOps infrastructure\",\n    \"Need for simulation and modeling tools for engineering workflows\"  ,\n    \"Requirement for collaborative documentation and knowledge management\",\n    \"Looking for CI/CD pipeline automation for multi-platform builds\",\n    \"Need for real-time data streaming and processing capabilities\",\n    \"Requirement for API management and integration platform\"\n  ]\n}\n  ",
+
+    "numbered_list": "Here are the requirements:\n\n```json\n{\n  \"requirements\": [\n    \"1. Need for automated testing solution for embedded systems development\",\n    \"2. Requirement for data visualization and business intelligence platform\",\n    \"3. Looking for ML model deployment and MLOps infrastructure\"\n  ]\n}\n```",
+
+    "empty_requirements": "{\"requirements\": []}",
+
+    "partial": "{\"requirements\": [\"Need for automated testing"
+  }
+}

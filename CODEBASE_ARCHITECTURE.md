@@ -1,8 +1,8 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-01-26
-**Status**: Phase 3 FULLY COMPLETE - Ready for Phase 4
-**Test Status**: 199 tests passing
+**Last Updated**: 2026-01-28
+**Status**: Phase 4 IN PROGRESS - Realistic Fixtures Complete, E2E Tests Next
+**Test Status**: 290 tests passing
 
 ---
 
@@ -11,9 +11,31 @@
 **READ THIS FIRST** when restoring context after clearing chat:
 
 1. **Project**: Multi-agent system for enterprise account research using LangGraph
-2. **Current Phase**: Phase 3 COMPLETE ✅ - All goals achieved
-3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 199 tests
-4. **What's Next**: Phase 4 - Testing & Polish (integration tests, E2E tests, CLI)
+2. **Current Phase**: Phase 4 IN PROGRESS - Realistic fixtures complete, E2E tests next
+3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 290 tests + Realistic fixtures
+4. **What's Next**: E2E tests with real Ollama LLM, then CLI interface
+5. **CRITICAL**: Fixtures reveal agents need robust JSON parsing for varied LLM output formats
+
+### Current Session Context (2026-01-28)
+
+**Just Completed**:
+- Created realistic test fixtures in `tests/fixtures/`
+- Added `FixtureLoader` utility for easy fixture access
+- LLM response fixtures with 6 variants (clean, markdown, extra_text, whitespace, partial, etc.)
+- Search result fixtures (Acme Corp, NovaTech) with raw MCP response format
+- Job posting fixtures (Greenhouse, Lever, Generic formats)
+- 28 new fixture-based tests (290 total tests passing)
+- JSON parsing robustness tests using `extract_json_from_llm_response` helper
+
+**Identified Enhancement Opportunity**:
+- Agent code uses raw `json.loads()` - not robust to varied LLM output
+- The `extract_json_from_llm_response` helper in `tests/fixtures/loader.py` handles varied formats
+- TODO: Integrate robust JSON parsing into agent code for production resilience
+
+**Immediate Next Action**:
+1. Add E2E tests with real Ollama LLM (mark as `@pytest.mark.slow`)
+2. Consider integrating `extract_json_from_llm_response` into agent code
+3. Build CLI interface for running research
 
 ---
 
@@ -28,20 +50,98 @@
 
 ---
 
-## Phase 4 Goals (NEXT)
+## Phase 4 Goals (IN PROGRESS)
 
 **Goals:**
-1. Integration tests (multi-agent pipeline tests)
-2. E2E tests (full workflow with mocked external services)
-3. CLI interface for running research
-4. Documentation and examples
+1. ✅ Integration tests (multi-agent pipeline tests) - DONE
+2. ✅ Realistic fixtures for testing - DONE
+3. ⏳ E2E tests (full workflow with real Ollama LLM) - **CURRENT TASK**
+4. ⏳ CLI interface for running research
+5. ⏳ Documentation and examples
+
+### Integration Tests Created (2026-01-28)
+
+| File | Tests | Purpose | Quality |
+|------|-------|---------|---------|
+| `test_integration/test_pipeline.py` | 13 | Agent pipeline flow | ⚠️ Mocked |
+| `test_integration/test_feedback_loops.py` | 16 | Human feedback routing | ⚠️ Mocked |
+| `test_integration/test_error_recovery.py` | 17 | Error handling paths | ⚠️ Mocked |
+| `test_integration/test_checkpointing.py` | 17 | SQLite checkpointing | ✅ Real LangGraph |
+| `test_integration/test_realistic_fixtures.py` | 28 | Realistic data fixtures | ✅ Realistic Data |
+
+**Total**: 91 integration tests (290 total tests passing)
+
+### Realistic Test Fixtures (COMPLETE)
+
+**Directory Structure:**
+```
+tests/fixtures/
+├── __init__.py           # Package init, exports FixtureLoader
+├── loader.py             # FixtureLoader utility + extract_json_from_llm_response helper
+├── llm_responses/        # LLM response fixtures with format variants
+│   ├── gatherer_analysis.json
+│   ├── identifier_requirements.json
+│   ├── identifier_opportunities.json
+│   ├── validator_risks.json
+│   └── validator_scoring.json
+├── search_results/       # DuckDuckGo search result fixtures
+│   ├── acme_corp.json
+│   └── tech_startup.json
+└── job_postings/         # Job board fixtures (HTML + parsed)
+    ├── greenhouse.json
+    ├── lever.json
+    └── generic.json
+```
+
+**LLM Response Variants (for robustness testing):**
+- `clean` - Perfect JSON as expected
+- `markdown` - JSON wrapped in markdown code fences
+- `extra_text` - JSON with explanatory text before/after
+- `whitespace` - JSON with extra whitespace/newlines
+- `partial` - Malformed JSON (for error handling tests)
+- Additional variants per fixture (empty, missing_fields, etc.)
+
+**Usage:**
+```python
+from tests.fixtures import FixtureLoader
+
+loader = FixtureLoader()
+# Get LLM response in different formats
+response = loader.get_llm_response("gatherer_analysis", variant="markdown")
+# Get search results
+results = loader.get_search_results("acme_corp")
+# Get job postings
+jobs = loader.get_job_postings("greenhouse")
+```
+
+### Test Quality Assessment
+
+**What current tests DO verify:**
+- Agent pipeline flow (state passes correctly between agents)
+- Error handling paths (when mocks throw exceptions)
+- State mutation (progress flags, feedback lists)
+- SQLite checkpointing (real LangGraph/SQLite)
+- ✅ JSON parsing robustness (markdown, extra text, whitespace)
+- ✅ Realistic search result data structures
+- ✅ Realistic job posting data structures
+- ✅ Data flow with realistic fixtures
+
+**What current tests DON'T verify (NEXT STEPS):**
+- Real Ollama LLM responses (actual model calls)
+- Actual semantic matching with ChromaDB
+- Full E2E workflow with live services
 
 ### Immediate Next Action
-**Write Integration Tests** (`tests/test_integration/`)
-- Test Coordinator → Gatherer → Identifier → Validator pipeline
-- Test feedback loop scenarios (human says "gather more data")
-- Test error recovery across agents
-- Test state persistence with SQLite checkpointing
+**Add E2E Tests with Real Ollama**
+
+1. **Create Ollama-based tests**: Use real local LLM
+   - Configure test to use `llama3.2:3b` via Ollama
+   - Test actual prompt → response → parsing flow
+   - Mark as `@pytest.mark.slow` for CI skip option
+
+2. **Integrate robust JSON parsing into agents**:
+   - Move `extract_json_from_llm_response` to `src/utils/`
+   - Update agent code to use robust parsing
 
 ---
 
@@ -218,7 +318,7 @@
 
 ---
 
-### Tests (199 passing)
+### Tests (290 passing)
 
 | File | Tests | Purpose | Status |
 |------|-------|---------|--------|
@@ -226,9 +326,20 @@
 | `tests/test_agents/test_gatherer.py` | 16 | GathererAgent full coverage | ✅ |
 | `tests/test_agents/test_identifier.py` | 31 | IdentifierAgent full coverage | ✅ |
 | `tests/test_agents/test_validator.py` | 35 | ValidatorAgent full coverage | ✅ |
-| Other test files | 86 | Core, data sources, model router | ✅ |
+| `tests/test_integration/test_pipeline.py` | 13 | Agent pipeline flow | ⚠️ Mocked |
+| `tests/test_integration/test_feedback_loops.py` | 16 | Human feedback routing | ⚠️ Mocked |
+| `tests/test_integration/test_error_recovery.py` | 17 | Error handling paths | ⚠️ Mocked |
+| `tests/test_integration/test_checkpointing.py` | 17 | SQLite checkpointing | ✅ Real |
+| `tests/test_integration/test_realistic_fixtures.py` | 28 | Realistic fixture tests | ✅ Real Data |
+| Other test files (core, router, data sources) | 86 | Infrastructure | ✅ |
 
-**Total Tests**: 199 passing
+**Total Tests**: 290 passing
+
+**Test Fixture Files** (in `tests/fixtures/`):
+- `loader.py` - FixtureLoader utility + `extract_json_from_llm_response` helper
+- `llm_responses/*.json` - 5 LLM response fixtures with format variants
+- `search_results/*.json` - 2 search result fixtures (Acme Corp, NovaTech)
+- `job_postings/*.json` - 3 job board fixtures (Greenhouse, Lever, Generic)
 
 ---
 
@@ -303,11 +414,33 @@
 - [x] Feedback loops back to any agent
 - [x] All 199 tests passing
 
-### ⏳ Phase 4: Testing & Polish (NEXT)
-- [ ] Integration tests (multi-agent pipeline)
-- [ ] E2E tests (full workflow with mocks)
-- [ ] CLI interface
-- [ ] Documentation and examples
+### ⏳ Phase 4: Testing & Polish (IN PROGRESS)
+
+**Step 1: Integration Tests (DONE - but mocked)**
+- [x] `test_pipeline.py` - 13 tests for agent pipeline flow
+- [x] `test_feedback_loops.py` - 16 tests for feedback routing
+- [x] `test_error_recovery.py` - 17 tests for error handling
+- [x] `test_checkpointing.py` - 17 tests for SQLite persistence
+- [x] Installed `langgraph`, `langgraph-checkpoint`, `langgraph-checkpoint-sqlite`
+- [x] Fixed mock interface issues (method names, spec restrictions)
+
+**Step 2: Improve Tests with Realistic Fixtures (CURRENT - NOT STARTED)**
+- [ ] Create `tests/fixtures/` directory structure
+- [ ] Add realistic LLM response fixtures (varied formats)
+- [ ] Add realistic search result fixtures (DuckDuckGo structure)
+- [ ] Add Ollama-based tests using `llama3.2:3b`
+- [ ] Test JSON parsing robustness (markdown wrapping, extra text)
+- [ ] Mark slow tests with `@pytest.mark.slow`
+
+**Step 3: E2E Tests (NOT STARTED)**
+- [ ] Full workflow with real Ollama LLM
+- [ ] Test actual data flow from search to opportunities
+- [ ] Test checkpointing with real state changes
+
+**Step 4: CLI & Documentation (NOT STARTED)**
+- [ ] CLI interface for running research
+- [ ] Usage documentation
+- [ ] Example workflows
 
 ---
 
@@ -343,7 +476,16 @@ When restoring context, read these files in order:
 2. `src/models/state.py` - State structure (ResearchState, Opportunity, Signal)
 3. `src/graph/workflow.py` - LangGraph workflow definition
 4. `src/agents/coordinator.py` - Human-in-loop patterns
-5. `src/agents/validator.py` - Most recently implemented agent
+5. `tests/fixtures/loader.py` - FixtureLoader utility + `extract_json_from_llm_response` helper
+6. `tests/test_integration/test_realistic_fixtures.py` - Fixture-based integration tests
+
+### Current Task Context (for E2E tests)
+
+When continuing work on E2E tests with Ollama, read:
+- `tests/fixtures/loader.py` - Has `extract_json_from_llm_response` that could be moved to `src/utils/`
+- `src/core/model_router.py` - ModelRouter that routes to Ollama
+- `src/agents/gatherer.py` - See `_analyze_with_llm()` for JSON parsing patterns
+- `config.py` - Ollama configuration (model: `llama3.2:3b`)
 
 ---
 
@@ -385,7 +527,80 @@ class ResearchState(TypedDict):
 
 ---
 
+---
+
+## Mock Interface Reference (for tests)
+
+When mocking data sources, use these correct method names:
+
+```python
+# DuckDuckGoMCPClient (mcp_ddg_client.py)
+mock_mcp_client.search.return_value = []        # NOT web_search
+mock_mcp_client.search_news.return_value = []   # NOT news_search
+mock_mcp_client.fetch_content.return_value = ""
+
+# JobBoardScraper (job_boards.py)
+mock_job_scraper.fetch.return_value = []        # NOT scrape_career_pages
+
+# ProductMatcher (product_catalog.py)
+mock_product_matcher.match_requirements_to_products.return_value = []
+
+# ModelRouter (model_router.py)
+mock_model_router.generate.return_value = MagicMock(content='{"key": "value"}')
+```
+
+### Fixture Pattern for Mocks
+
+```python
+@pytest.fixture
+def mock_mcp_client():
+    """Provide mocked MCP client with default empty returns."""
+    client = AsyncMock()  # Do NOT use spec= (too restrictive)
+    client.search.return_value = []
+    client.search_news.return_value = []
+    client.fetch_content.return_value = ""
+    return client
+```
+
+---
+
+## Ollama Configuration for Testing
+
+The project uses local Ollama for LLM calls. Ensure Ollama is running:
+
+```powershell
+# Check Ollama is running
+ollama list
+
+# Pull required model if not present
+ollama pull llama3.2:3b
+
+# Test model works
+ollama run llama3.2:3b "Return only: {\"status\": \"ok\"}"
+```
+
+### Model Router Test Configuration
+
+For realistic integration tests, configure ModelRouter to use Ollama:
+
+```python
+# In tests, use actual Ollama instead of mocks
+from src.core.model_router import ModelRouter
+
+async def test_with_real_ollama():
+    router = ModelRouter()  # Uses settings from config.py
+    response = await router.generate(
+        prompt="Extract company name from: 'Acme Corp is hiring'",
+        complexity=2  # Routes to llama3.2:3b
+    )
+    # Test actual response parsing
+    assert "Acme" in response.content
+```
+
+---
+
 **END OF ARCHITECTURE DOCUMENT**
 
-*Phase 3 is COMPLETE. All 4 agents implemented, workflow integrated, human-in-loop working, 199 tests passing.*
-*Ready for Phase 4: Testing & Polish*
+*Phase 4 IN PROGRESS: Integration tests written (262 tests passing) but using hollow mocks.*
+*Next: Improve tests with realistic fixtures and local Ollama testing.*
+*See "Quick Context Recovery" section for current task details.*
