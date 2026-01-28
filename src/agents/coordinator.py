@@ -15,6 +15,7 @@ from datetime import datetime
 import structlog
 
 from src.core.base_agent import StatelessAgent
+from src.utils.json_parsing import extract_json_from_llm_response, JSONParseError
 from src.models.state import ResearchState, ResearchProgress, Opportunity
 from src.core.model_router import ModelRouter
 
@@ -245,7 +246,8 @@ If you detect typos, add them to suggested_corrections as {{"field": "corrected_
                 use_cache=True
             )
 
-            result = json.loads(response.content)
+            # Use robust JSON extraction to handle varied LLM output formats
+            result = extract_json_from_llm_response(response.content)
 
             if not result.get("is_valid", True):
                 errors.extend(result.get("errors", []))
@@ -276,7 +278,7 @@ If you detect typos, add them to suggested_corrections as {{"field": "corrected_
                     concerns=concerns
                 )
 
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, JSONParseError) as e:
             self.logger.warning(
                 "coordinator_validation_json_parse_failed",
                 error=str(e)
@@ -399,7 +401,8 @@ OR if clarification needed:
                 use_cache=True
             )
 
-            result = json.loads(response.content)
+            # Use robust JSON extraction to handle varied LLM output formats
+            result = extract_json_from_llm_response(response.content)
 
             if result.get("needs_clarification", False):
                 questions = result.get("questions")
@@ -412,7 +415,7 @@ OR if clarification needed:
 
             return None
 
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, JSONParseError) as e:
             self.logger.warning(
                 "coordinator_question_json_parse_failed",
                 error=str(e)
@@ -735,7 +738,8 @@ Return JSON:
                 use_cache=False  # Don't cache feedback parsing
             )
 
-            result = json.loads(response.content)
+            # Use robust JSON extraction to handle varied LLM output formats
+            result = extract_json_from_llm_response(response.content)
             route_str = result.get("route", "COMPLETE").upper()
 
             self.logger.info(
@@ -754,7 +758,7 @@ Return JSON:
 
             return route_map.get(route_str, WorkflowRoute.COMPLETE)
 
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, JSONParseError) as e:
             self.logger.warning(
                 "coordinator_intent_json_parse_failed",
                 error=str(e),

@@ -8,6 +8,7 @@ from typing import Any
 import structlog
 
 from src.core.base_agent import StatelessAgent
+from src.utils.json_parsing import extract_json_from_llm_response, JSONParseError
 from src.models.state import ResearchState, Signal, Opportunity, OpportunityConfidence
 from src.core.model_router import ModelRouter
 
@@ -222,7 +223,8 @@ Return JSON:
                 use_cache=True
             )
 
-            result = json.loads(response.content)
+            # Use robust JSON extraction to handle varied LLM output formats
+            result = extract_json_from_llm_response(response.content)
             risks = result.get("risks", [])
 
             # Validate risks are strings
@@ -230,7 +232,7 @@ Return JSON:
 
             return risks
 
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, JSONParseError) as e:
             self.logger.warning("risks_json_parse_failed", error=str(e))
             # Fallback: return generic risks
             return ["Unable to fully assess competitive landscape - recommend manual review"]
@@ -329,7 +331,8 @@ Return JSON with product_name and new_score for each:
                 use_cache=False  # Don't cache scoring
             )
 
-            result = json.loads(response.content)
+            # Use robust JSON extraction to handle varied LLM output formats
+            result = extract_json_from_llm_response(response.content)
             scored_data = result.get("scored_opportunities", [])
 
             # Create a lookup for new scores
@@ -376,7 +379,7 @@ Return JSON with product_name and new_score for each:
 
             return updated_opportunities
 
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, JSONParseError) as e:
             self.logger.warning("scoring_json_parse_failed", error=str(e))
             # Fallback: return original opportunities unchanged
             return opportunities

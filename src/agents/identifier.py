@@ -9,6 +9,7 @@ from datetime import datetime
 import structlog
 
 from src.core.base_agent import StatelessAgent
+from src.utils.json_parsing import extract_json_from_llm_response, JSONParseError
 from src.models.state import ResearchState, Signal, Opportunity, OpportunityConfidence
 from src.data_sources.product_catalog import ProductMatcher
 from src.core.model_router import ModelRouter
@@ -230,7 +231,8 @@ Return JSON:
                 use_cache=True
             )
 
-            result = json.loads(response.content)
+            # Use robust JSON extraction to handle varied LLM output formats
+            result = extract_json_from_llm_response(response.content)
             requirements = result.get("requirements", [])
 
             # Validate requirements are strings
@@ -238,7 +240,7 @@ Return JSON:
 
             return requirements
 
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, JSONParseError) as e:
             self.logger.warning("requirements_json_parse_failed", error=str(e))
             # Fallback: extract from tech stack
             return [f"Need for {tech} capabilities" for tech in tech_stack[:5]]
@@ -336,7 +338,8 @@ Return JSON:
                 use_cache=False  # Don't cache opportunity generation
             )
 
-            result = json.loads(response.content)
+            # Use robust JSON extraction to handle varied LLM output formats
+            result = extract_json_from_llm_response(response.content)
             raw_opportunities = result.get("opportunities", [])
 
             # Convert to Opportunity objects with evidence linking
@@ -381,7 +384,7 @@ Return JSON:
 
             return opportunities
 
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, JSONParseError) as e:
             self.logger.warning("opportunities_json_parse_failed", error=str(e))
             return []
         except Exception as e:

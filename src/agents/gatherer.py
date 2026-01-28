@@ -10,6 +10,7 @@ from datetime import datetime
 import structlog
 
 from src.core.base_agent import StatelessAgent
+from src.utils.json_parsing import extract_json_from_llm_response, JSONParseError
 from src.models.state import ResearchState, Signal, ResearchDepth
 from src.data_sources.mcp_ddg_client import DuckDuckGoMCPClient
 from src.data_sources.job_boards import JobBoardScraper
@@ -478,8 +479,8 @@ Return JSON:
                 use_cache=True
             )
 
-            # Parse LLM JSON response
-            analysis = json.loads(response.content)
+            # Parse LLM JSON response with robust extraction
+            analysis = extract_json_from_llm_response(response.content)
 
             # Create Signal with LLM-analyzed data
             signal = Signal(
@@ -505,7 +506,7 @@ Return JSON:
 
             return signal
 
-        except json.JSONDecodeError as e:
+        except (json.JSONDecodeError, JSONParseError) as e:
             self.logger.warning("llm_json_parse_failed", url=url[:50], error=str(e))
             raise
         except Exception as e:
