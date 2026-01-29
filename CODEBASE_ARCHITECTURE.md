@@ -1,7 +1,7 @@
 # Enterprise Account Research System - Codebase Architecture
 
 **Last Updated**: 2026-01-29
-**Status**: Phase 4 IN PROGRESS - E2E Tests + Structured Outputs Complete
+**Status**: Phase 4 IN PROGRESS - E2E Tests + Structured Outputs + Agent Integration Complete
 **Test Status**: 347 tests (326 unit/integration + 21 E2E with real Ollama)
 
 ---
@@ -12,9 +12,9 @@
 
 1. **Project**: Multi-agent system for enterprise account research using LangGraph
 2. **Current Phase**: Phase 4 IN PROGRESS - E2E tests complete, CLI interface next
-3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 347 tests + Robust JSON parsing + E2E tests + Structured outputs
+3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 347 tests + Robust JSON parsing + E2E tests + Structured outputs + Pydantic schemas for all agents
 4. **What's Next**: CLI interface for running research, then documentation
-5. **COMPLETED**: Structured outputs in ModelRouter for reliable LLM JSON generation
+5. **COMPLETED**: Structured outputs integrated into ALL agents with Pydantic validation
 
 ### Current Session Context (2026-01-29)
 
@@ -24,6 +24,11 @@
   - New `response_format` parameter accepts Pydantic JSON schemas
   - Uses Ollama's structured output feature (v0.5+) for guaranteed valid JSON
   - Use `Literal` types in Pydantic to constrain LLM output values
+- ✅ **TECH DEBT RESOLVED: All agents now use Pydantic schemas for JSON validation**
+  - Created `src/models/llm_schemas.py` with schemas for all agent outputs
+  - GathererAgent & CoordinatorAgent: Use `response_format` for structured outputs (LOCAL Ollama)
+  - IdentifierAgent & ValidatorAgent: Use Pydantic validation after JSON parsing (external models)
+  - Graceful fallback to `extract_json_from_llm_response` if Pydantic validation fails
 - ✅ Tests cover:
   - ModelRouter with real Ollama calls (5 tests)
   - **Structured outputs with Pydantic schemas (3 tests)**
@@ -136,7 +141,10 @@ result = AnalysisResult.model_validate_json(response.content)
 - Set `temperature=0` for deterministic output
 - Reference: https://docs.ollama.com/capabilities/structured-outputs
 
-**Tech Debt**: Agents don't use structured outputs yet (use `extract_json_from_llm_response` fallback)
+**✅ TECH DEBT RESOLVED**: All agents now use Pydantic schemas for JSON validation
+- Created `src/models/llm_schemas.py` with schemas: `SourceAnalysis`, `RequirementsExtraction`, `OpportunitiesGeneration`, `RiskAssessment`, `OpportunityScoring`, `InputValidation`, `ClarificationCheck`, `FeedbackIntent`
+- LOCAL Ollama agents (GathererAgent, CoordinatorAgent): Use `response_format` for guaranteed JSON
+- External model agents (IdentifierAgent, ValidatorAgent): Use Pydantic validation after parsing
 
 ---
 
@@ -290,9 +298,10 @@ result = AnalysisResult.model_validate_json(response.content)
 | `core/model_router.py` | ~350 | 3-tier LLM routing, caching, retries | ✅ |
 | `core/base_agent.py` | ~220 | Abstract BaseAgent, StatelessAgent | ✅ |
 | `utils/logging.py` | ~80 | Structured logging (structlog) | ✅ |
-| `utils/json_parsing.py` | ~150 | Robust JSON extraction from LLM responses | ✅ NEW |
+| `utils/json_parsing.py` | ~150 | Robust JSON extraction from LLM responses | ✅ |
+| `models/llm_schemas.py` | ~210 | Pydantic schemas for LLM structured outputs | ✅ NEW |
 
-**Total Phase 1**: ~1,070 lines
+**Total Phase 1**: ~1,280 lines
 
 ---
 
@@ -359,36 +368,36 @@ result = AnalysisResult.model_validate_json(response.content)
 ## Agent Summary
 
 ### CoordinatorAgent ✅
-- **File**: `src/agents/coordinator.py` (~580 lines)
+- **File**: `src/agents/coordinator.py` (~600 lines)
 - **Tests**: 31 passing
 - **Role**: Supervisor agent with 3 entry points
 - **Entry Points**: `process_entry()`, `process_exit()`, `process_feedback()`
 - **Human-in-Loop**: Handles interrupts, formats reports, routes feedback
-- **JSON Parsing**: Uses `extract_json_from_llm_response()` in 3 methods
+- **Structured Outputs**: Uses `InputValidation`, `ClarificationCheck`, `FeedbackIntent` schemas with Ollama
 
 ### GathererAgent ✅
-- **File**: `src/agents/gatherer.py` (~530 lines)
+- **File**: `src/agents/gatherer.py` (~540 lines)
 - **Tests**: 16 passing
 - **Role**: Intelligence collection with LLM analysis
 - **Sources**: DuckDuckGo MCP (web + news), JobBoardScraper
 - **Outputs**: signals, job_postings, news_items, tech_stack
-- **JSON Parsing**: Uses `extract_json_from_llm_response()` in `_analyze_source_with_llm()`
+- **Structured Outputs**: Uses `SourceAnalysis` schema with Ollama's `response_format`
 
 ### IdentifierAgent ✅
-- **File**: `src/agents/identifier.py` (~350 lines)
+- **File**: `src/agents/identifier.py` (~360 lines)
 - **Tests**: 31 passing
 - **Role**: Opportunity identification from gathered data
 - **Uses**: ProductMatcher (semantic search), ModelRouter (LLM reasoning)
 - **Outputs**: opportunities (list of Opportunity objects with evidence)
-- **JSON Parsing**: Uses `extract_json_from_llm_response()` in 2 methods
+- **Pydantic Validation**: Uses `RequirementsExtraction`, `OpportunitiesGeneration` schemas
 
 ### ValidatorAgent ✅
-- **File**: `src/agents/validator.py` (~300 lines)
+- **File**: `src/agents/validator.py` (~310 lines)
 - **Tests**: 35 passing
 - **Role**: Risk assessment and confidence scoring
 - **Features**: 5 risk categories, confidence re-scoring, 0.6 threshold filtering
 - **Outputs**: validated_opportunities, competitive_risks
-- **JSON Parsing**: Uses `extract_json_from_llm_response()` in 2 methods
+- **Pydantic Validation**: Uses `RiskAssessment`, `OpportunityScoring` schemas
 
 ---
 
@@ -519,11 +528,12 @@ python -c "from src.utils.json_parsing import extract_json_from_llm_response, JS
 When restoring context, read these files in order:
 
 1. **This file** (`CODEBASE_ARCHITECTURE.md`) - Architecture + status + next steps
-2. `src/utils/json_parsing.py` - Robust JSON extraction (NEW)
-3. `src/models/state.py` - State structure (ResearchState, Opportunity, Signal)
-4. `src/graph/workflow.py` - LangGraph workflow definition
-5. `src/agents/coordinator.py` - Human-in-loop patterns
-6. `tests/test_utils/test_json_parsing.py` - JSON parsing test examples
+2. `src/models/llm_schemas.py` - Pydantic schemas for structured outputs (NEW)
+3. `src/utils/json_parsing.py` - Robust JSON extraction
+4. `src/models/state.py` - State structure (ResearchState, Opportunity, Signal)
+5. `src/graph/workflow.py` - LangGraph workflow definition
+6. `src/agents/coordinator.py` - Human-in-loop patterns
+7. `tests/test_utils/test_json_parsing.py` - JSON parsing test examples
 
 ### E2E Test File Reference
 

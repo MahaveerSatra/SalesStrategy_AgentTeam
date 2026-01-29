@@ -11,6 +11,7 @@ import structlog
 from src.core.base_agent import StatelessAgent
 from src.utils.json_parsing import extract_json_from_llm_response, JSONParseError
 from src.models.state import ResearchState, Signal, Opportunity, OpportunityConfidence
+from src.models.llm_schemas import RequirementsExtraction, OpportunitiesGeneration
 from src.data_sources.product_catalog import ProductMatcher
 from src.core.model_router import ModelRouter
 
@@ -232,13 +233,13 @@ Return JSON:
             )
 
             # Use robust JSON extraction to handle varied LLM output formats
-            result = extract_json_from_llm_response(response.content)
-            requirements = result.get("requirements", [])
+            raw_result = extract_json_from_llm_response(response.content)
 
-            # Validate requirements are strings
-            requirements = [str(r) for r in requirements if r]
+            # Validate with Pydantic for type safety
+            result = RequirementsExtraction.model_validate(raw_result)
 
-            return requirements
+            # Already validated as list[str] by Pydantic
+            return result.requirements
 
         except (json.JSONDecodeError, JSONParseError) as e:
             self.logger.warning("requirements_json_parse_failed", error=str(e))
@@ -339,8 +340,20 @@ Return JSON:
             )
 
             # Use robust JSON extraction to handle varied LLM output formats
-            result = extract_json_from_llm_response(response.content)
-            raw_opportunities = result.get("opportunities", [])
+            raw_result = extract_json_from_llm_response(response.content)
+
+            # Try Pydantic validation first, fall back to raw dict if it fails
+            # This handles cases where some entries in the list are malformed
+            try:
+                result = OpportunitiesGeneration.model_validate(raw_result)
+                raw_opportunities = [opp.model_dump() for opp in result.opportunities]
+            except Exception as validation_error:
+                self.logger.warning(
+                    "pydantic_validation_failed_using_fallback",
+                    error=str(validation_error)
+                )
+                # Fall back to raw dict - will validate individual items below
+                raw_opportunities = raw_result.get("opportunities", [])
 
             # Convert to Opportunity objects with evidence linking
             opportunities = []

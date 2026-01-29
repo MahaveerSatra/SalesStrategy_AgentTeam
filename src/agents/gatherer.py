@@ -12,6 +12,7 @@ import structlog
 from src.core.base_agent import StatelessAgent
 from src.utils.json_parsing import extract_json_from_llm_response, JSONParseError
 from src.models.state import ResearchState, Signal, ResearchDepth
+from src.models.llm_schemas import SourceAnalysis
 from src.data_sources.mcp_ddg_client import DuckDuckGoMCPClient
 from src.data_sources.job_boards import JobBoardScraper
 from src.core.model_router import ModelRouter
@@ -473,29 +474,42 @@ Return JSON:
 
         try:
             # Use ModelRouter with complexity=3 (routes to Tier 1 Ollama)
+            # Use structured output for guaranteed valid JSON
             response = await self.model_router.generate(
                 prompt=prompt,
                 complexity=3,  # Simple classification/summarization - LOCAL Ollama
-                use_cache=True
+                temperature=0,  # Deterministic for structured output
+                use_cache=True,
+                response_format=SourceAnalysis.model_json_schema()
             )
 
-            # Parse LLM JSON response with robust extraction
-            analysis = extract_json_from_llm_response(response.content)
+            # Parse with Pydantic - guaranteed to work with structured output
+            try:
+                analysis = SourceAnalysis.model_validate_json(response.content)
+            except Exception as pydantic_error:
+                # Fallback to robust JSON extraction if Pydantic validation fails
+                self.logger.warning(
+                    "pydantic_validation_failed_using_fallback",
+                    url=url[:50],
+                    error=str(pydantic_error)
+                )
+                raw_analysis = extract_json_from_llm_response(response.content)
+                analysis = SourceAnalysis.model_validate(raw_analysis)
 
             # Create Signal with LLM-analyzed data
             signal = Signal(
                 source="duckduckgo",
                 signal_type="web_search",
-                content=analysis["summary"],  # LLM summary
+                content=analysis.summary,  # LLM summary
                 timestamp=datetime.now(),
-                confidence=analysis["confidence"],  # LLM-assigned
+                confidence=analysis.confidence,  # LLM-assigned
                 metadata={
                     "url": url,
                     "title": title,
-                    "source_type": analysis["source_type"],
-                    "key_facts": analysis["key_facts"],
-                    "keywords": analysis["keywords"],
-                    "relevance": analysis["relevance"],
+                    "source_type": analysis.source_type,
+                    "key_facts": analysis.key_facts,
+                    "keywords": analysis.keywords,
+                    "relevance": analysis.relevance,
                     "original_snippet": snippet
                 }
             )

@@ -17,6 +17,7 @@ import structlog
 from src.core.base_agent import StatelessAgent
 from src.utils.json_parsing import extract_json_from_llm_response, JSONParseError
 from src.models.state import ResearchState, ResearchProgress, Opportunity
+from src.models.llm_schemas import InputValidation, ClarificationCheck, FeedbackIntent
 from src.core.model_router import ModelRouter
 
 
@@ -240,42 +241,52 @@ If you detect typos, add them to suggested_corrections as {{"field": "corrected_
 """
 
         try:
+            # Use structured output for guaranteed valid JSON
             response = await self.model_router.generate(
                 prompt=prompt,
                 complexity=3,  # LOCAL Ollama
-                use_cache=True
+                temperature=0,  # Deterministic for structured output
+                use_cache=True,
+                response_format=InputValidation.model_json_schema()
             )
 
-            # Use robust JSON extraction to handle varied LLM output formats
-            result = extract_json_from_llm_response(response.content)
+            # Parse with Pydantic - guaranteed to work with structured output
+            try:
+                result = InputValidation.model_validate_json(response.content)
+            except Exception as pydantic_error:
+                # Fallback to robust JSON extraction if Pydantic validation fails
+                self.logger.warning(
+                    "pydantic_validation_failed_using_fallback",
+                    error=str(pydantic_error)
+                )
+                raw_result = extract_json_from_llm_response(response.content)
+                result = InputValidation.model_validate(raw_result)
 
-            if not result.get("is_valid", True):
-                errors.extend(result.get("errors", []))
+            if not result.is_valid:
+                errors.extend(result.errors)
 
             # Apply suggested corrections to state
-            corrections = result.get("suggested_corrections", {})
-            if corrections:
-                if "account_name" in corrections:
-                    state["account_name"] = corrections["account_name"]
+            if result.suggested_corrections:
+                if "account_name" in result.suggested_corrections:
+                    state["account_name"] = result.suggested_corrections["account_name"]
                     self.logger.info(
                         "coordinator_applied_correction",
                         field="account_name",
-                        corrected=corrections["account_name"]
+                        corrected=result.suggested_corrections["account_name"]
                     )
-                if "industry" in corrections:
-                    state["industry"] = corrections["industry"]
+                if "industry" in result.suggested_corrections:
+                    state["industry"] = result.suggested_corrections["industry"]
                     self.logger.info(
                         "coordinator_applied_correction",
                         field="industry",
-                        corrected=corrections["industry"]
+                        corrected=result.suggested_corrections["industry"]
                     )
 
             # Log concerns but don't block
-            concerns = result.get("concerns", [])
-            if concerns:
+            if result.concerns:
                 self.logger.info(
                     "coordinator_validation_concerns",
-                    concerns=concerns
+                    concerns=result.concerns
                 )
 
         except (json.JSONDecodeError, JSONParseError) as e:
@@ -395,23 +406,33 @@ OR if clarification needed:
 """
 
         try:
+            # Use structured output for guaranteed valid JSON
             response = await self.model_router.generate(
                 prompt=prompt,
                 complexity=3,  # LOCAL Ollama
-                use_cache=True
+                temperature=0,  # Deterministic for structured output
+                use_cache=True,
+                response_format=ClarificationCheck.model_json_schema()
             )
 
-            # Use robust JSON extraction to handle varied LLM output formats
-            result = extract_json_from_llm_response(response.content)
+            # Parse with Pydantic - guaranteed to work with structured output
+            try:
+                result = ClarificationCheck.model_validate_json(response.content)
+            except Exception as pydantic_error:
+                # Fallback to robust JSON extraction if Pydantic validation fails
+                self.logger.warning(
+                    "pydantic_validation_failed_using_fallback",
+                    error=str(pydantic_error)
+                )
+                raw_result = extract_json_from_llm_response(response.content)
+                result = ClarificationCheck.model_validate(raw_result)
 
-            if result.get("needs_clarification", False):
-                questions = result.get("questions")
-                if questions:
-                    self.logger.info(
-                        "coordinator_question_generated",
-                        reasoning=result.get("reasoning", "")[:100]
-                    )
-                    return questions
+            if result.needs_clarification and result.questions:
+                self.logger.info(
+                    "coordinator_question_generated",
+                    reasoning=result.reasoning[:100] if result.reasoning else ""
+                )
+                return result.questions
 
             return None
 
@@ -732,20 +753,33 @@ Return JSON:
 """
 
         try:
+            # Use structured output for guaranteed valid JSON
             response = await self.model_router.generate(
                 prompt=prompt,
                 complexity=3,  # LOCAL Ollama
-                use_cache=False  # Don't cache feedback parsing
+                temperature=0,  # Deterministic for structured output
+                use_cache=False,  # Don't cache feedback parsing
+                response_format=FeedbackIntent.model_json_schema()
             )
 
-            # Use robust JSON extraction to handle varied LLM output formats
-            result = extract_json_from_llm_response(response.content)
-            route_str = result.get("route", "COMPLETE").upper()
+            # Parse with Pydantic - guaranteed to work with structured output
+            try:
+                result = FeedbackIntent.model_validate_json(response.content)
+            except Exception as pydantic_error:
+                # Fallback to robust JSON extraction if Pydantic validation fails
+                self.logger.warning(
+                    "pydantic_validation_failed_using_fallback",
+                    error=str(pydantic_error)
+                )
+                raw_result = extract_json_from_llm_response(response.content)
+                result = FeedbackIntent.model_validate(raw_result)
+
+            route_str = result.route.upper()
 
             self.logger.info(
                 "coordinator_intent_parsed",
                 route=route_str,
-                reasoning=result.get("reasoning", "")[:100]
+                reasoning=result.reasoning[:100] if result.reasoning else ""
             )
 
             # Map to enum

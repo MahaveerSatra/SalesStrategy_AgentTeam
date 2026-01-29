@@ -10,6 +10,7 @@ import structlog
 from src.core.base_agent import StatelessAgent
 from src.utils.json_parsing import extract_json_from_llm_response, JSONParseError
 from src.models.state import ResearchState, Signal, Opportunity, OpportunityConfidence
+from src.models.llm_schemas import RiskAssessment, OpportunityScoring
 from src.core.model_router import ModelRouter
 
 logger = structlog.get_logger(__name__)
@@ -224,13 +225,13 @@ Return JSON:
             )
 
             # Use robust JSON extraction to handle varied LLM output formats
-            result = extract_json_from_llm_response(response.content)
-            risks = result.get("risks", [])
+            raw_result = extract_json_from_llm_response(response.content)
 
-            # Validate risks are strings
-            risks = [str(r) for r in risks if r]
+            # Validate with Pydantic for type safety
+            result = RiskAssessment.model_validate(raw_result)
 
-            return risks
+            # Already validated as list[str] by Pydantic
+            return result.risks
 
         except (json.JSONDecodeError, JSONParseError) as e:
             self.logger.warning("risks_json_parse_failed", error=str(e))
@@ -332,16 +333,15 @@ Return JSON with product_name and new_score for each:
             )
 
             # Use robust JSON extraction to handle varied LLM output formats
-            result = extract_json_from_llm_response(response.content)
-            scored_data = result.get("scored_opportunities", [])
+            raw_result = extract_json_from_llm_response(response.content)
 
-            # Create a lookup for new scores
+            # Validate with Pydantic for type safety
+            result = OpportunityScoring.model_validate(raw_result)
+
+            # Create a lookup for new scores from validated Pydantic models
             score_lookup = {
-                item["product_name"]: (
-                    float(item.get("new_score", 0.5)),
-                    item.get("score_rationale", "")
-                )
-                for item in scored_data
+                item.product_name: (item.new_score, item.score_rationale)
+                for item in result.scored_opportunities
             }
 
             # Update opportunities with new scores
