@@ -1,8 +1,8 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-01-28
-**Status**: Phase 4 IN PROGRESS - Robust JSON Parsing Complete, E2E Tests Next
-**Test Status**: 326 tests passing
+**Last Updated**: 2026-01-29
+**Status**: Phase 4 IN PROGRESS - E2E Tests + Structured Outputs Complete
+**Test Status**: 347 tests (326 unit/integration + 21 E2E with real Ollama)
 
 ---
 
@@ -11,32 +11,39 @@
 **READ THIS FIRST** when restoring context after clearing chat:
 
 1. **Project**: Multi-agent system for enterprise account research using LangGraph
-2. **Current Phase**: Phase 4 IN PROGRESS - Robust JSON parsing integrated, E2E tests next
-3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 326 tests + Robust JSON parsing
-4. **What's Next**: E2E tests with real Ollama LLM, then CLI interface
-5. **COMPLETED**: Robust JSON parsing integrated into all agents via `src/utils/json_parsing.py`
+2. **Current Phase**: Phase 4 IN PROGRESS - E2E tests complete, CLI interface next
+3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 347 tests + Robust JSON parsing + E2E tests + Structured outputs
+4. **What's Next**: CLI interface for running research, then documentation
+5. **COMPLETED**: Structured outputs in ModelRouter for reliable LLM JSON generation
 
-### Current Session Context (2026-01-28)
+### Current Session Context (2026-01-29)
 
 **Just Completed**:
-- ✅ Created `src/utils/json_parsing.py` with robust JSON extraction utilities
-- ✅ Added `extract_json_from_llm_response()` function that handles:
-  - Clean JSON (direct parsing)
-  - JSON wrapped in markdown code fences (```json ... ```)
-  - JSON with explanatory text before/after
-  - JSON with extra whitespace/newlines
-- ✅ Updated ALL 4 agents to use robust JSON parsing:
-  - `GathererAgent` - 1 location updated
-  - `IdentifierAgent` - 2 locations updated
-  - `ValidatorAgent` - 2 locations updated
-  - `CoordinatorAgent` - 3 locations updated
-- ✅ Added 36 new tests for JSON parsing utility (`tests/test_utils/test_json_parsing.py`)
-- ✅ All 326 tests passing
+- ✅ Created `tests/test_integration/test_e2e_ollama.py` with 21 E2E tests using real Ollama
+- ✅ **Added Structured Output support to ModelRouter** (proper LLM JSON handling)
+  - New `response_format` parameter accepts Pydantic JSON schemas
+  - Uses Ollama's structured output feature (v0.5+) for guaranteed valid JSON
+  - Use `Literal` types in Pydantic to constrain LLM output values
+- ✅ Tests cover:
+  - ModelRouter with real Ollama calls (5 tests)
+  - **Structured outputs with Pydantic schemas (3 tests)**
+  - Real LLM JSON parsing with structured outputs (4 tests)
+  - Agent-level tests with real LLM (3 tests)
+  - Simplified E2E workflow (1 test)
+  - LLM response variability handling (2 tests)
+  - Error handling edge cases (2 tests)
+- ✅ All tests marked with `@pytest.mark.slow` for CI skip option
+- ✅ Installed `chromadb` dependency for agent imports
+- ✅ 347 total tests (326 unit/integration + 21 E2E)
+
+**Key Technical Decision**: Use Ollama's structured outputs (not hoping LLM returns JSON)
+- Reference: https://docs.ollama.com/capabilities/structured-outputs
+- Pass `response_format=Model.model_json_schema()` to enforce JSON schema
+- Use `Literal["high", "medium", "low"]` in Pydantic to constrain enum values
 
 **Immediate Next Action**:
-1. Create E2E tests with real Ollama LLM (mark as `@pytest.mark.slow`)
-2. Build CLI interface for running research
-3. Documentation and examples
+1. Build CLI interface for running research
+2. Documentation and examples
 
 ---
 
@@ -46,8 +53,8 @@
 1. ✅ Integration tests (multi-agent pipeline tests) - DONE
 2. ✅ Realistic fixtures for testing - DONE
 3. ✅ Robust JSON parsing integration - DONE (2026-01-28)
-4. ⏳ E2E tests (full workflow with real Ollama LLM) - **CURRENT TASK**
-5. ⏳ CLI interface for running research
+4. ✅ E2E tests (full workflow with real Ollama LLM) - DONE (2026-01-29)
+5. ⏳ CLI interface for running research - **CURRENT TASK**
 6. ⏳ Documentation and examples
 
 ### Robust JSON Parsing Integration (COMPLETE)
@@ -93,6 +100,43 @@ result = extract_json_from_llm_response(response.content)
 | IdentifierAgent | 2 | `_extract_requirements()`, `_generate_opportunities()` |
 | ValidatorAgent | 2 | `_assess_risks()`, `_score_opportunities()` |
 | CoordinatorAgent | 3 | `_validate_inputs()`, `_generate_clarifying_questions()`, `_parse_feedback_intent()` |
+
+### Structured Outputs for Reliable JSON (COMPLETE)
+
+**Problem**: LLMs don't always return valid JSON, even when prompted. Tests were flaky.
+
+**Solution**: Use Ollama's structured output feature (v0.5+) to **enforce** JSON schema compliance.
+
+**Implementation in ModelRouter** (`src/core/model_router.py`):
+```python
+from pydantic import BaseModel
+from typing import Literal
+
+class AnalysisResult(BaseModel):
+    confidence: float
+    summary: str
+    relevance: Literal["high", "medium", "low"]  # Constrain values
+
+# Use structured output - GUARANTEES valid JSON
+response = await router.generate(
+    prompt="Analyze this company...",
+    complexity=3,
+    temperature=0,  # Deterministic for structured output
+    response_format=AnalysisResult.model_json_schema()  # NEW PARAMETER
+)
+
+# Parse with Pydantic - guaranteed to work
+result = AnalysisResult.model_validate_json(response.content)
+```
+
+**Key Points**:
+- `response_format` parameter added to `ModelRouter.generate()`
+- Pass Pydantic's `model_json_schema()` to enforce schema
+- Use `Literal` types to constrain string values (e.g., "high/medium/low")
+- Set `temperature=0` for deterministic output
+- Reference: https://docs.ollama.com/capabilities/structured-outputs
+
+**Tech Debt**: Agents don't use structured outputs yet (use `extract_json_from_llm_response` fallback)
 
 ---
 
@@ -283,7 +327,7 @@ result = extract_json_from_llm_response(response.content)
 
 ---
 
-### Tests (326 passing)
+### Tests (347 total)
 
 | File | Tests | Purpose | Status |
 |------|-------|---------|--------|
@@ -296,10 +340,13 @@ result = extract_json_from_llm_response(response.content)
 | `tests/test_integration/test_error_recovery.py` | 17 | Error handling paths | ⚠️ Mocked |
 | `tests/test_integration/test_checkpointing.py` | 17 | SQLite checkpointing | ✅ Real |
 | `tests/test_integration/test_realistic_fixtures.py` | 28 | Realistic fixture tests | ✅ Real Data |
-| `tests/test_utils/test_json_parsing.py` | 36 | JSON parsing utility tests | ✅ NEW |
+| `tests/test_integration/test_e2e_ollama.py` | 21 | E2E tests with real Ollama | ✅ Real LLM + Structured Outputs |
+| `tests/test_utils/test_json_parsing.py` | 36 | JSON parsing utility tests | ✅ |
 | Other test files (core, router, data sources) | 86 | Infrastructure | ✅ |
 
-**Total Tests**: 326 passing
+**Total Tests**: 347 (326 unit/integration + 21 E2E with real Ollama)
+
+**Note**: Run `pytest -m "not slow"` to skip E2E tests for faster CI runs.
 
 **Test Fixture Files** (in `tests/fixtures/`):
 - `loader.py` - FixtureLoader utility + legacy `extract_json_from_llm_response` helper
@@ -410,12 +457,13 @@ result = extract_json_from_llm_response(response.content)
 - [x] Add 36 tests for JSON parsing utility
 - [x] All 326 tests passing
 
-**Step 4: E2E Tests with Ollama (CURRENT - NOT STARTED)**
-- [ ] Create `tests/test_integration/test_e2e_ollama.py`
-- [ ] Test ModelRouter with real Ollama calls
-- [ ] Test agent JSON parsing with real LLM responses
-- [ ] Test simplified E2E flow with real LLM
-- [ ] Mark as `@pytest.mark.slow` for CI skip option
+**Step 4: E2E Tests with Ollama (DONE - 2026-01-29)**
+- [x] Create `tests/test_integration/test_e2e_ollama.py` (17 tests)
+- [x] Test ModelRouter with real Ollama calls (5 tests)
+- [x] Test agent JSON parsing with real LLM responses (4 tests)
+- [x] Test simplified E2E flow with real LLM (1 test)
+- [x] Mark as `@pytest.mark.slow` for CI skip option
+- [x] Handle LLM variability with retries and graceful skips
 
 **Step 5: CLI & Documentation (NOT STARTED)**
 - [ ] CLI interface for running research
@@ -450,7 +498,10 @@ python -m pytest tests/test_agents/test_validator.py -v
 # Run JSON parsing tests only
 python -m pytest tests/test_utils/test_json_parsing.py -v
 
-# Skip slow tests (when E2E tests exist)
+# Run E2E tests with real Ollama (slow)
+python -m pytest tests/test_integration/test_e2e_ollama.py -v
+
+# Skip slow E2E tests (faster CI)
 python -m pytest tests/ -v -m "not slow"
 
 # Count total tests
@@ -474,15 +525,36 @@ When restoring context, read these files in order:
 5. `src/agents/coordinator.py` - Human-in-loop patterns
 6. `tests/test_utils/test_json_parsing.py` - JSON parsing test examples
 
-### Current Task Context (for E2E tests)
+### E2E Test File Reference
 
-When continuing work on E2E tests with Ollama, read:
-- `src/utils/json_parsing.py` - Robust JSON parsing already integrated into agents
-- `src/core/model_router.py` - ModelRouter that routes to Ollama
-- `src/agents/gatherer.py` - See `_analyze_source_with_llm()` for LLM usage patterns
-- `config.py` - Ollama configuration (model: `llama3.2:3b`)
+**Location**: `tests/test_integration/test_e2e_ollama.py`
 
-**Ollama is available locally** with model `llama3.2:3b` (verified via `ollama list`)
+**Test Classes** (21 tests total):
+| Class | Tests | Description |
+|-------|-------|-------------|
+| `TestModelRouterWithRealOllama` | 5 | Basic generation, JSON output, system prompts, caching, metrics |
+| `TestStructuredOutputs` | 3 | **NEW**: Pydantic schemas for guaranteed JSON output |
+| `TestRealLLMJsonParsing` | 4 | Gatherer, Identifier, Validator, Coordinator prompt formats |
+| `TestGathererAgentWithRealLLM` | 2 | Structured output test + agent integration test (xfail) |
+| `TestIdentifierAgentWithRealLLM` | 1 | IdentifierAgent requirement extraction |
+| `TestValidatorAgentWithRealLLM` | 1 | ValidatorAgent risk assessment |
+| `TestSimplifiedE2EFlow` | 1 | Mini-pipeline: Gatherer → Identifier |
+| `TestLLMResponseVariability` | 2 | Markdown-wrapped JSON, consistency |
+| `TestErrorHandlingWithRealLLM` | 2 | Empty prompt, long prompt |
+
+**Running E2E Tests**:
+```powershell
+# Run only E2E tests
+python -m pytest tests/test_integration/test_e2e_ollama.py -v
+
+# Run all tests INCLUDING slow E2E tests
+python -m pytest tests/ -v
+
+# Run all tests EXCLUDING slow E2E tests (faster CI)
+python -m pytest tests/ -v -m "not slow"
+```
+
+**Ollama Requirement**: Model `llama3.2:3b` must be available locally.
 
 ---
 
@@ -628,6 +700,6 @@ async def test_with_real_ollama():
 
 **END OF ARCHITECTURE DOCUMENT**
 
-*Phase 4 IN PROGRESS: Robust JSON parsing integrated (326 tests passing).*
-*Next: E2E tests with real Ollama LLM, then CLI interface.*
+*Phase 4 IN PROGRESS: E2E tests with real Ollama complete (343 tests).*
+*Next: CLI interface for running research, then documentation.*
 *See "Quick Context Recovery" section for current task details.*

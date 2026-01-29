@@ -146,11 +146,12 @@ class ModelRouter:
         temperature: float = 0.7,
         max_tokens: int = 2000,
         use_cache: bool = True,
+        response_format: dict | None = None,
         **kwargs
     ) -> ModelResponse:
         """
         Generate response with automatic model routing.
-        
+
         Args:
             prompt: User prompt
             complexity: Task complexity (1-10) for routing
@@ -159,8 +160,12 @@ class ModelRouter:
             temperature: Sampling temperature
             max_tokens: Max tokens to generate
             use_cache: Whether to use cache
+            response_format: JSON schema for structured output (Ollama only).
+                            Use Pydantic's model_json_schema() to generate.
+                            When provided, enforces the model to return valid JSON
+                            conforming to the schema.
             **kwargs: Additional model parameters
-            
+
         Returns:
             ModelResponse with content and metadata
         """
@@ -191,9 +196,10 @@ class ModelRouter:
                     model, prompt, system_prompt, temperature, max_tokens, **kwargs
                 )
             else:
-                # Local Ollama model
+                # Local Ollama model - supports structured outputs
                 response = await self._call_ollama_model(
-                    model, prompt, system_prompt, temperature, max_tokens, **kwargs
+                    model, prompt, system_prompt, temperature, max_tokens,
+                    response_format=response_format, **kwargs
                 )
             
             # Cache successful response
@@ -227,30 +233,52 @@ class ModelRouter:
         system_prompt: str | None,
         temperature: float,
         max_tokens: int,
+        response_format: dict | None = None,
         **kwargs
     ) -> ModelResponse:
-        """Call local Ollama model."""
+        """Call local Ollama model.
+
+        Args:
+            model: Ollama model name
+            prompt: User prompt
+            system_prompt: Optional system prompt
+            temperature: Sampling temperature
+            max_tokens: Max tokens to generate
+            response_format: JSON schema for structured output.
+                            When provided, Ollama enforces the response
+                            to conform to this schema (guaranteed valid JSON).
+            **kwargs: Additional parameters
+        """
         start_time = time.time()
-        
+
         try:
             ollama = self._get_ollama_client()
-            
+
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
-            
-            response = ollama.chat(
-                model=model,
-                messages=messages,
-                options={
+
+            # Build chat kwargs
+            chat_kwargs = {
+                "model": model,
+                "messages": messages,
+                "options": {
                     "temperature": temperature,
                     "num_predict": max_tokens,
                 }
-            )
-            
+            }
+
+            # Add structured output format if provided
+            # This enforces the model to return valid JSON conforming to the schema
+            if response_format is not None:
+                chat_kwargs["format"] = response_format
+                self.logger.debug("using_structured_output", schema_keys=list(response_format.get("properties", {}).keys()))
+
+            response = ollama.chat(**chat_kwargs)
+
             latency_ms = (time.time() - start_time) * 1000
-            
+
             return ModelResponse(
                 content=response["message"]["content"],
                 model=model,
@@ -258,7 +286,7 @@ class ModelRouter:
                 latency_ms=latency_ms,
                 cached=False
             )
-            
+
         except Exception as e:
             raise ModelError(f"Ollama error: {e}")
     
