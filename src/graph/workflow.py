@@ -24,8 +24,11 @@ from ..config import settings
 from ..core.model_router import ModelRouter
 from ..agents.coordinator import CoordinatorAgent, WorkflowRoute
 from ..agents.gatherer import GathererAgent
+from ..agents.identifier import IdentifierAgent
+from ..agents.validator import ValidatorAgent
 from ..data_sources.mcp_ddg_client import DuckDuckGoMCPClient
 from ..data_sources.job_boards import JobBoardScraper
+from ..data_sources.product_catalog import ProductMatcher
 
 import structlog
 
@@ -74,14 +77,19 @@ class ResearchWorkflow:
         self.mcp_client = mcp_client or DuckDuckGoMCPClient()
         self.job_scraper = job_scraper or JobBoardScraper()
 
-        # Initialize agents
+        # Initialize agents (Identifier created lazily with company name)
         self.coordinator = CoordinatorAgent(model_router=self.model_router)
         self.gatherer = GathererAgent(
             mcp_client=self.mcp_client,
             job_scraper=self.job_scraper,
             model_router=self.model_router
         )
-        # IdentifierAgent and ValidatorAgent will be added when implemented
+        self.validator = ValidatorAgent(
+            model_router=self.model_router
+        )
+
+        # Cache for lazily-created agents (keyed by account_name)
+        self._identifier_cache: dict[str, IdentifierAgent] = {}
 
         self.graph = self._build_graph()
         self.checkpointer = None
@@ -232,43 +240,65 @@ class ResearchWorkflow:
 
     def _identifier_node(self, state: ResearchState) -> ResearchState:
         """
-        Identifier agent placeholder - will be implemented in next step.
+        Identifier agent - find opportunities from gathered data.
 
-        TODO: Uses IdentifierAgent.process() to:
+        Uses IdentifierAgent.process() to:
         - Extract requirements from signals and job postings
         - Match to products using semantic search
         - Generate opportunity hypotheses
         """
-        logger.info("identifier_started")
+        account_name = state.get("account_name", "unknown")
 
-        # Placeholder: mark complete for now
-        # Will be replaced with actual IdentifierAgent
-        state["progress"].identifier_complete = True
+        logger.info(
+            "identifier_started",
+            account=account_name,
+            feedback_context=state.get("feedback_context")
+        )
 
-        logger.info("identifier_completed_placeholder")
+        # Create or get cached IdentifierAgent for this company
+        if account_name not in self._identifier_cache:
+            product_matcher = ProductMatcher(company_name=account_name)
+            identifier = IdentifierAgent(
+                product_matcher=product_matcher,
+                model_router=self.model_router
+            )
+            self._identifier_cache[account_name] = identifier
+
+        identifier = self._identifier_cache[account_name]
+
+        # Run async process in sync context
+        asyncio.run(identifier.process(state))
+
+        logger.info(
+            "identifier_completed",
+            opportunities_count=len(state.get("opportunities", []))
+        )
 
         return state
 
     def _validator_node(self, state: ResearchState) -> ResearchState:
         """
-        Validator agent placeholder - will be implemented after Identifier.
+        Validator agent - validate and score opportunities.
 
-        TODO: Uses ValidatorAgent.process() to:
+        Uses ValidatorAgent.process() to:
         - Assess competitive risks
         - Score confidence for each opportunity
         - Filter low-confidence opportunities
         """
-        logger.info("validator_started")
+        logger.info(
+            "validator_started",
+            account=state.get("account_name"),
+            opportunities_count=len(state.get("opportunities", []))
+        )
 
-        # Placeholder: mark complete and copy opportunities to validated
-        # Will be replaced with actual ValidatorAgent
-        state["progress"].validator_complete = True
+        # Run async process in sync context
+        asyncio.run(self.validator.process(state))
 
-        # For now, just pass through opportunities as validated
-        opportunities = state.get("opportunities", [])
-        state["validated_opportunities"] = opportunities
-
-        logger.info("validator_completed_placeholder")
+        logger.info(
+            "validator_completed",
+            validated_count=len(state.get("validated_opportunities", [])),
+            risks_count=len(state.get("competitive_risks", []))
+        )
 
         return state
 

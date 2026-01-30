@@ -727,8 +727,497 @@ async def test_with_real_ollama():
 
 ---
 
+## GAP ANALYSIS & ROADMAP TO STAFF-LEVEL DEMONSTRATION
+
+**Analysis Date**: 2026-01-30
+**Career Goal**: Promote from Senior → Staff Application Engineer
+**Purpose**: This project demonstrates staff-level engineering skills
+
+### Executive Summary
+
+**Current Implementation**: ★★★☆☆ (Good infrastructure, medium sophistication)
+**Staff-Level Readiness**: ⚠️ **NOT YET READY FOR DEMONSTRATION**
+
+**WHY THIS PROJECT EXISTS** (from original brief):
+- **Problem**: Account managers spend 6-8 hours manually researching each enterprise account
+- **Solution**: Multi-agent AI system reducing research time to 40 minutes (10x faster)
+- **Goal**: Demonstrate staff-level engineering to get promoted
+- **Success**: Working demo on 2-3 real companies + measurable metrics + LinkedIn visibility
+
+The project has **excellent technical foundation** but is **missing critical components** needed to demonstrate staff-level engineering and achieve career advancement.
+
+---
+
+### CRITICAL GAPS BLOCKING PROMOTION
+
+#### ❌ GAP 1: NO CLI INTERFACE (CRITICAL BLOCKER)
+
+**Impact**: ⚠️ **BLOCKS ALL WORK** - Cannot run system on real companies
+
+**Current**: `main.py` only has Phase 1 tests, system is complete but unusable
+
+**Needed**:
+- `src/cli/main.py` - Entry point with argparse
+- `src/cli/commands.py` - research, resume, list-runs commands
+- `src/cli/formatters.py` - Terminal, markdown, JSON output
+- Usage: `python -m src.cli research "Boeing" --industry aerospace`
+
+**Priority**: 🔴 CRITICAL (2 days)
+
+---
+
+#### ❌ GAP 2: JOB ANALYSIS NOT STAFF-LEVEL (40-50% COMPLETE)
+
+**Impact**: ⚠️ **FAILS TO DEMONSTRATE TECHNICAL DEPTH**
+
+Original brief's **"Challenge A: Job Posting Analysis"** is the staff-level differentiator. Current implementation is basic scraping + LLM prompting, not sophisticated NLP.
+
+**Current vs Staff-Level**:
+
+| Feature | Current | Required |
+|---------|---------|----------|
+| Data Points | 7 fields | 15+ fields |
+| NER Pipeline | ❌ None | ✅ spaCy/Transformers |
+| Context Parse | ❌ None | ✅ "required" vs "preferred" |
+| Urgency Detect | ❌ None | ✅ "ASAP", multiple postings |
+| Pattern Detect | ❌ None | ✅ "5 control engineers = autonomy" |
+| Accuracy | ❌ Unmeasured | ✅ 70%+ validated |
+
+**Component Assessment**:
+- **GathererAgent** (lines 345-374): ★☆☆☆☆ - Just field aggregation
+- **IdentifierAgent**: ★★★☆☆ - LLM-based, lacks explicit pattern logic
+- **ValidatorAgent** (lines 244-389): ★★★☆☆ - Good heuristics, no calibration
+
+**Needed**:
+- `src/analysis/pattern_detector.py` - Role clustering, team expansion detection
+- `src/analysis/context_parser.py` - Parse requirement levels
+- Expand JobPosting model to 15+ fields
+
+**Priority**: 🟡 HIGH (3-4 days)
+
+---
+
+#### ❌ GAP 3: NO REAL COMPANY DEMONSTRATIONS
+
+**Impact**: ⚠️ **CANNOT PROVE VALUE**
+
+- 347 tests passing with mocks
+- **ZERO runs on actual companies**
+- Cannot prove "6-8 hours → 40 minutes" claim
+
+**Needed**:
+- Run on Boeing, Tesla, Rivian
+- Collect timing, data points, opportunities
+- Generate reports in `demos/demo_results/`
+
+**Priority**: 🔴 CRITICAL (1 day after CLI)
+
+---
+
+#### ❌ GAP 4: NO DEMO MATERIALS (BLOCKS PROMOTION)
+
+**Impact**: ⚠️ **NO VISIBILITY = NO PROMOTION**
+
+Having working system ≠ Career advancement. Need materials for visibility.
+
+**Current**:
+- README.md outdated (says "Phase 1", we're in Phase 4)
+- No LinkedIn post, no interview guide
+
+**Needed**:
+- Update README with current status, real results
+- `Status_Plan/linkedin_post.md` - Draft with real metrics
+- `Status_Plan/interview_guide.md` - Technical talking points
+
+**Priority**: 🔴 CRITICAL (2 days)
+
+---
+
+### TWO-WEEK IMPLEMENTATION PLAN
+
+**APPROACH**: Hybrid (demo first, enhance after)
+- **Week 1**: CLI + real demos + materials + publish LinkedIn
+- **Week 2**: Add sophistication + publish enhancement post
+
+---
+
+#### WEEK 1: MAKE IT DEMONSTRABLE (5 days)
+
+**Day 1-2: CLI Interface**
+
+Files to create:
+```
+src/cli/__init__.py
+src/cli/main.py          # python -m src.cli
+src/cli/commands.py      # research, resume, list-runs
+src/cli/formatters.py    # Terminal, markdown, JSON
+```
+
+Features:
+- `python -m src.cli research "Boeing" --industry aerospace`
+- Human-in-loop prompts
+- Progress indicators (rich/tqdm)
+- Resume: `python -m src.cli resume <thread_id>`
+- List: `python -m src.cli list-runs`
+
+Acceptance:
+- [ ] Can start research from CLI
+- [ ] Prompts for human input
+- [ ] Generates markdown report
+- [ ] Can resume workflow
+
+---
+
+**Day 3: Real Company Demos**
+
+Run research on:
+1. Boeing (aerospace)
+2. Tesla (automotive)
+3. Rivian (automotive)
+
+Collect per company:
+- Time to complete (<60 min target)
+- Data points (signals, jobs, news)
+- Opportunities found
+- Confidence distribution
+
+Deliverables:
+```
+demos/demo_results/boeing_report.md
+demos/demo_results/tesla_report.md
+demos/demo_results/rivian_report.md
+demos/demo_results/metrics_summary.json
+```
+
+Acceptance:
+- [ ] All 3 companies complete
+- [ ] 5+ opportunities each
+- [ ] Timing documented
+- [ ] Evidence for "40 minutes" claim
+
+---
+
+**Day 4-5: Demo Materials**
+
+Tasks:
+
+1. **Update README.md**:
+   - Current status (Phase 4, 347 tests)
+   - Installation (Windows PowerShell)
+   - CLI usage examples
+   - Real demo results
+   - Architecture diagram
+
+2. **LinkedIn Post** (`Status_Plan/linkedin_post.md`):
+   - Hook: "6-8 hours → 40 minutes"
+   - Solution: Multi-agent AI system
+   - Metrics: Real Boeing/Tesla/Rivian results
+   - Tech: LangGraph, multi-tier LLM, MCP, 347 tests
+   - GitHub link
+   - CTA: "Interested in AI for B2B sales?"
+
+3. **Interview Guide** (`Status_Plan/interview_guide.md`):
+   - System design (why LangGraph, why multi-tier LLM)
+   - Challenges (Challenge A, JSON, checkpointing)
+   - Real metrics
+   - Trade-offs
+   - Future enhancements
+
+Acceptance:
+- [ ] README polished
+- [ ] LinkedIn post ready
+- [ ] Interview guide complete
+- [ ] Can discuss confidently
+
+**END WEEK 1**: ✅ PUBLISH LINKEDIN POST with real results
+
+---
+
+#### WEEK 2: ADD SOPHISTICATION (5-6 days)
+
+**Day 6-7: Enhanced Job Analysis**
+
+1. **Expand JobPosting** (`src/models/domain.py`):
+```python
+# Add 8+ new fields for 15+ total:
+seniority_level: str | None
+team_size_indicators: list[str]
+urgency_signals: list[str]
+required_skills_explicit: list[str]
+preferred_skills: list[str]
+domain_focus: str | None
+posting_date: str | None
+role_category: str | None
+tech_stack_primary: list[str]
+tech_stack_secondary: list[str]
+```
+
+2. **Context Parser** (`src/analysis/context_parser.py`):
+```python
+def parse_skill_context(description: str) -> dict:
+    """Categorize skills by requirement level."""
+    return {
+        "required": [...],    # "must have", "required"
+        "preferred": [...],   # "nice to have", "bonus"
+        "nice_to_have": [...] # "familiarity with"
+    }
+
+def detect_urgency_signals(description: str) -> list[str]:
+    """Detect urgency indicators."""
+    keywords = ["asap", "immediate", "urgent", "rapidly growing"]
+    return signals
+```
+
+3. **Pattern Detector** (`src/analysis/pattern_detector.py`):
+```python
+def cluster_job_postings(postings: list[JobPosting]) -> dict:
+    """Group similar roles."""
+    clusters = {
+        "control_engineers": [],
+        "autonomy_engineers": [],
+        "simulation_engineers": [],
+    }
+    return clusters
+
+def detect_team_expansion(clusters: dict) -> list[dict]:
+    """Identify initiatives from clusters."""
+    patterns = []
+    for role_type, jobs in clusters.items():
+        if len(jobs) >= 3:  # 3+ = initiative
+            patterns.append({
+                "pattern": f"{len(jobs)} {role_type}",
+                "inference": f"Major initiative in {domain}",
+                "confidence": calc_confidence(jobs),
+                "evidence": jobs
+            })
+    return patterns
+```
+
+Integration:
+- GathererAgent calls context_parser per job
+- GathererAgent calls pattern_detector after collection
+- Add state field: `hiring_patterns: list[dict]`
+
+Acceptance:
+- [ ] 15+ fields per job
+- [ ] Skills categorized
+- [ ] Urgency detected
+- [ ] Roles clustered
+- [ ] "5+ engineers = initiative" works
+
+---
+
+**Day 8-9: Enhanced Opportunities**
+
+Add to IdentifierAgent:
+```python
+def _generate_opportunities_from_patterns(
+    self, hiring_patterns, tech_stack
+) -> list[Opportunity]:
+    """Create opportunities from patterns."""
+    # Map: "5 control engineers" → Control System Toolbox
+    # Map: "autonomy engineers" → Automated Driving Toolbox
+    return opportunities
+```
+
+Enhanced evidence:
+- Link to job clusters
+- Reference counts
+- Include urgency
+
+Acceptance:
+- [ ] Opportunities reference patterns
+- [ ] Evidence includes clusters
+- [ ] Higher confidence from patterns
+
+---
+
+**Day 10-11: Metrics & Validation**
+
+Create `src/validation/metrics.py`:
+```python
+class ResearchMetrics(BaseModel):
+    time_to_complete: float
+    data_points_collected: int
+    opportunities_found: int
+    high_confidence_count: int
+    job_postings_analyzed: int
+    hiring_patterns_detected: int
+    fields_per_job_avg: float  # Should be 15+
+```
+
+Validation:
+1. Re-run Boeing, Tesla, Rivian
+2. Compare before/after
+3. Document improvements
+
+Acceptance:
+- [ ] Metrics framework done
+- [ ] Before/after comparison
+- [ ] Improvements measured
+
+---
+
+**Day 11-12: Update Materials**
+
+1. Update README with enhancements
+2. **Second LinkedIn Post** (`Status_Plan/linkedin_enhancement_post.md`):
+   - Hook: "Last week I shared..."
+   - Update: "This week I enhanced with pattern detection..."
+   - Metrics: Improved results
+   - Learning: Iteration process
+3. Update interview guide
+
+Acceptance:
+- [ ] Docs reflect enhancements
+- [ ] Second post ready
+- [ ] Can explain improvements
+
+**END WEEK 2**: ✅ PUBLISH ENHANCEMENT POST
+
+---
+
+### SUCCESS METRICS
+
+**Week 1 (Demonstrable)**:
+- [ ] CLI working
+- [ ] 3 real reports (Boeing, Tesla, Rivian)
+- [ ] <60 min per company
+- [ ] README updated
+- [ ] LinkedIn post published
+- [ ] **Can discuss real results in interviews**
+
+**Week 2 (Sophisticated)**:
+- [ ] 15+ data points per job
+- [ ] Pattern detection working
+- [ ] Skills categorized
+- [ ] Urgency detection
+- [ ] Improvements measured
+- [ ] **Can demonstrate staff-level depth**
+
+---
+
+### VERIFICATION CHECKLIST
+
+**Technical**:
+- [ ] `python -m src.cli research "Company" --industry sector` works
+- [ ] Completes in <1 hour
+- [ ] Markdown report with opportunities
+- [ ] 15+ fields per job
+- [ ] Hiring patterns detected (3+ similar roles)
+- [ ] Skills by requirement level
+- [ ] All 347+ tests passing
+
+**Demo Readiness**:
+- [ ] Boeing report
+- [ ] Tesla report
+- [ ] Rivian report
+- [ ] Metrics summary
+- [ ] Results impressive
+
+**Career Materials**:
+- [ ] README polished
+- [ ] LinkedIn post 1 published
+- [ ] LinkedIn post 2 ready
+- [ ] Interview guide
+- [ ] Can discuss:
+  - System design
+  - Technical challenges
+  - Real metrics
+  - Staff-level sophistication
+
+---
+
+### CRITICAL FILES TO IMPLEMENT
+
+**Week 1 (Demo)**:
+```
+NEW:
+  src/cli/__init__.py
+  src/cli/main.py
+  src/cli/commands.py
+  src/cli/formatters.py
+  demos/demo_results/boeing_report.md
+  demos/demo_results/tesla_report.md
+  demos/demo_results/rivian_report.md
+  demos/demo_results/metrics_summary.json
+  Status_Plan/linkedin_post.md
+  Status_Plan/interview_guide.md
+
+UPDATED:
+  readme.md
+```
+
+**Week 2 (Sophistication)**:
+```
+NEW:
+  src/analysis/__init__.py
+  src/analysis/context_parser.py
+  src/analysis/pattern_detector.py
+  src/validation/__init__.py
+  src/validation/metrics.py
+  Status_Plan/linkedin_enhancement_post.md
+
+UPDATED:
+  src/models/domain.py (expand JobPosting)
+  src/agents/gatherer.py (use analysis modules)
+  src/agents/identifier.py (pattern opportunities)
+  demos/demo_results/* (re-run)
+  readme.md (enhancements)
+```
+
+---
+
+### WHY THIS MATTERS FOR CAREER
+
+**Original Brief Goal**: Senior → Staff Application Engineer promotion
+
+**What This Must Demonstrate**:
+1. ✅ System design (multi-tier architecture) - **DONE**
+2. ✅ Protocol knowledge (MCP) - **DONE**
+3. ✅ Production patterns (error handling, caching) - **DONE**
+4. ✅ Performance (async, parallel, routing) - **DONE**
+5. ⏳ Complex problem solving (job analysis) - **Week 2**
+6. ⏳ End-to-end ownership (demo) - **Week 1**
+
+**Success Criteria**:
+- Working demo on 2-3 companies ← **Week 1**
+- Measurable improvements ← **Week 1**
+- Production code ← **DONE (347 tests)**
+- LinkedIn post with metrics ← **Week 1**
+- Staff-level depth ← **Week 2**
+- Interview ready ← **Week 1-2**
+
+**Timeline**: 2 weeks → promotion/job search
+
+---
+
+### COMPONENT QUALITY SUMMARY
+
+**Production Ready** ✅:
+- Product Catalog: ★★★★☆ (20 products, semantic search)
+- Testing: ★★★★★ (347 tests, E2E coverage)
+- Infrastructure: ★★★★☆ (LangGraph, multi-tier LLM, checkpointing)
+- CoordinatorAgent: ★★★★☆ (human-in-loop, structured outputs)
+
+**Medium Quality** ⚠️:
+- GathererAgent: ★☆☆☆☆ (basic scraping, needs enhancement)
+- IdentifierAgent: ★★★☆☆ (LLM-based, lacks pattern logic)
+- ValidatorAgent: ★★★☆☆ (good heuristics, no calibration)
+
+**Missing** ❌:
+- CLI Interface (BLOCKER)
+- Pattern Detection (staff-level depth)
+- Enhanced Extraction (15+ fields)
+- Metrics Framework (validation)
+- Demo Materials (visibility)
+
+---
+
 **END OF ARCHITECTURE DOCUMENT**
 
 *Last verified: 2026-01-30 - All 347 tests passing (326 unit/integration + 21 E2E).*
-*All tech debt resolved. Next: CLI interface for running research.*
-*See "Quick Context Recovery" section for current task details.*
+*All tech debt resolved.*
+*Next immediate action: Build CLI interface (Week 1, Day 1-2).*
+*See "GAP ANALYSIS" section above for complete roadmap to staff-level demonstration.*
+*Use this document as single source of truth for context recovery.*
