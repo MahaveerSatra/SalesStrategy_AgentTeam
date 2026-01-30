@@ -403,7 +403,7 @@ Identify potential risks. Return JSON:
 
     @pytest.mark.asyncio
     async def test_coordinator_validation_prompt_real_llm(self):
-        """Test that the Coordinator's input validation prompt works."""
+        """Test that the Coordinator's input validation prompt works with structured output."""
         router = ModelRouter()
 
         prompt = """Validate this research request:
@@ -417,31 +417,27 @@ Check if:
 2. Industry makes sense
 3. Any clarifying questions needed
 
-Return JSON:
-{
-    "is_valid": true,
-    "normalized_name": "Acme Corporation",
-    "needs_clarification": false,
-    "questions": []
-}"""
+Provide validation results with normalized company name."""
 
+        # Use structured output to GUARANTEE valid JSON
         response = await router.generate(
             prompt=prompt,
             complexity=3,
-            temperature=0.3,
-            use_cache=False
+            temperature=0,  # Deterministic for structured output
+            use_cache=False,
+            response_format=InputValidation.model_json_schema()
         )
 
-        # Try to parse JSON - LLM variability may cause different structures
-        try:
-            parsed = extract_json_from_llm_response(response.content)
-            # Accept any valid JSON response - LLM may use different field names
-            assert isinstance(parsed, dict), "Expected dict response"
-        except JSONParseError:
-            # If JSON parsing fails, check if response contains expected keywords
-            content_lower = response.content.lower()
-            assert "acme" in content_lower or "valid" in content_lower, \
-                f"Response should mention Acme or validity: {response.content[:200]}"
+        # Parse and validate with Pydantic - guaranteed to work with structured output
+        result = InputValidation.model_validate_json(response.content)
+
+        # Validate the response structure and content
+        assert isinstance(result.is_valid, bool)
+        assert isinstance(result.normalized_name, str)
+        assert len(result.normalized_name) > 0, "Should have a normalized name"
+        assert "acme" in result.normalized_name.lower(), "Should contain Acme"
+        assert isinstance(result.needs_clarification, bool)
+        assert isinstance(result.questions, list)
 
 
 class TestGathererAgentWithRealLLM:

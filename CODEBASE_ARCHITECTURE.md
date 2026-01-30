@@ -1,8 +1,8 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-01-29
-**Status**: Phase 4 IN PROGRESS - E2E Tests + Structured Outputs + Agent Integration Complete
-**Test Status**: 347 tests (326 unit/integration + 21 E2E with real Ollama)
+**Last Updated**: 2026-01-30
+**Status**: Phase 4 IN PROGRESS - All Tests Passing, CLI Interface Next
+**Test Status**: ✅ 347 tests passing (326 unit/integration + 21 E2E with real Ollama)
 
 ---
 
@@ -11,14 +11,19 @@
 **READ THIS FIRST** when restoring context after clearing chat:
 
 1. **Project**: Multi-agent system for enterprise account research using LangGraph
-2. **Current Phase**: Phase 4 IN PROGRESS - E2E tests complete, CLI interface next
-3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 347 tests + Robust JSON parsing + E2E tests + Structured outputs + Pydantic schemas for all agents
-4. **What's Next**: CLI interface for running research, then documentation
-5. **COMPLETED**: Structured outputs integrated into ALL agents with Pydantic validation
+2. **Current Phase**: Phase 4 IN PROGRESS - All tests passing, CLI interface next
+3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 347 tests passing + Robust JSON parsing + E2E tests + Structured outputs + Pydantic schemas for all agents
+4. **What's Next**: Build CLI interface for running research, then documentation
+5. **ALL TECH DEBT RESOLVED**: Structured outputs, flaky tests fixed, all dependencies installed
 
-### Current Session Context (2026-01-29)
+### Current Session Context (2026-01-30)
 
-**Just Completed**:
+**Latest Verification** (2026-01-30):
+- ✅ **ALL 347 tests passing** - verified with full test run including slow E2E tests
+- ✅ All tech debt resolved
+- ✅ Ready for CLI implementation
+
+**Previously Completed** (2026-01-29):
 - ✅ Created `tests/test_integration/test_e2e_ollama.py` with 21 E2E tests using real Ollama
 - ✅ **Added Structured Output support to ModelRouter** (proper LLM JSON handling)
   - New `response_format` parameter accepts Pydantic JSON schemas
@@ -39,12 +44,21 @@
   - Error handling edge cases (2 tests)
 - ✅ All tests marked with `@pytest.mark.slow` for CI skip option
 - ✅ Installed `chromadb` dependency for agent imports
-- ✅ 347 total tests (326 unit/integration + 21 E2E)
+- ✅ **Fixed flaky E2E test** `test_coordinator_validation_prompt_real_llm`
+  - Was failing due to LLM returning `[]` instead of `{}` without schema enforcement
+  - Now uses `response_format=InputValidation.model_json_schema()` for guaranteed valid JSON
+- ✅ **Installed missing dependencies**: `lxml`, `sentence_transformers`
+  - Required for BeautifulSoup HTML parsing and ChromaDB embeddings
 
 **Key Technical Decision**: Use Ollama's structured outputs (not hoping LLM returns JSON)
 - Reference: https://docs.ollama.com/capabilities/structured-outputs
 - Pass `response_format=Model.model_json_schema()` to enforce JSON schema
 - Use `Literal["high", "medium", "low"]` in Pydantic to constrain enum values
+
+**Required Dependencies** (ensure these are installed):
+```powershell
+pip install lxml sentence_transformers chromadb
+```
 
 **Immediate Next Action**:
 1. Build CLI interface for running research
@@ -467,14 +481,16 @@ result = AnalysisResult.model_validate_json(response.content)
 - [x] All 326 tests passing
 
 **Step 4: E2E Tests with Ollama (DONE - 2026-01-29)**
-- [x] Create `tests/test_integration/test_e2e_ollama.py` (17 tests)
+- [x] Create `tests/test_integration/test_e2e_ollama.py` (21 tests)
 - [x] Test ModelRouter with real Ollama calls (5 tests)
 - [x] Test agent JSON parsing with real LLM responses (4 tests)
 - [x] Test simplified E2E flow with real LLM (1 test)
 - [x] Mark as `@pytest.mark.slow` for CI skip option
 - [x] Handle LLM variability with retries and graceful skips
+- [x] Fixed flaky `test_coordinator_validation_prompt_real_llm` with structured output enforcement
+- [x] Installed missing dependencies: `lxml`, `sentence_transformers`
 
-**Step 5: CLI & Documentation (NOT STARTED)**
+**Step 5: CLI & Documentation (NOT STARTED - CURRENT TASK)**
 - [ ] CLI interface for running research
 - [ ] Usage documentation
 - [ ] Example workflows
@@ -487,7 +503,10 @@ result = AnalysisResult.model_validate_json(response.content)
 # Activate environment
 .\venv\Scripts\Activate.ps1
 
-# Run all tests
+# Install required dependencies (if missing)
+pip install lxml sentence_transformers chromadb
+
+# Run all tests (347 total)
 python -m pytest tests/ -v
 
 # Run all tests quickly
@@ -710,6 +729,6 @@ async def test_with_real_ollama():
 
 **END OF ARCHITECTURE DOCUMENT**
 
-*Phase 4 IN PROGRESS: E2E tests with real Ollama complete (343 tests).*
-*Next: CLI interface for running research, then documentation.*
+*Last verified: 2026-01-30 - All 347 tests passing (326 unit/integration + 21 E2E).*
+*All tech debt resolved. Next: CLI interface for running research.*
 *See "Quick Context Recovery" section for current task details.*
