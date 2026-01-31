@@ -86,7 +86,7 @@ def mock_product_matcher():
 def initial_state():
     """Provide initial research state."""
     return create_initial_state(
-        account_name="Checkpoint Corp",
+        account_name="Checkpoint",
         industry="Technology",
         region="North America",
         research_depth=ResearchDepth.STANDARD
@@ -160,7 +160,7 @@ class TestWorkflowPauseResume:
 
             # Setup coordinator to require human clarification
             coord_response = MagicMock()
-            coord_response.content = '{"needs_clarification": true, "question": "Which division of Checkpoint Corp?"}'
+            coord_response.content = '{"needs_clarification": true, "question": "Which division of Checkpoint?"}'
             mock_model_router.generate.return_value = coord_response
 
             workflow = ResearchWorkflow(
@@ -261,7 +261,7 @@ class TestWorkflowPauseResume:
             retrieved_state = workflow.get_state(thread_id)
 
             assert retrieved_state is not None
-            assert retrieved_state["account_name"] == "Checkpoint Corp"
+            assert retrieved_state["account_name"] == "Checkpoint"
 
     def test_get_state_returns_none_for_unknown_thread(
         self,
@@ -333,7 +333,7 @@ class TestStatePersistence:
             # Retrieve and verify
             retrieved = workflow.get_state(thread_id)
 
-            assert retrieved["account_name"] == "Checkpoint Corp"
+            assert retrieved["account_name"] == "Checkpoint"
             assert retrieved["industry"] == "Technology"
             assert retrieved["user_context"] == "Meeting notes: interested in ML"
             assert len(retrieved["signals"]) == 1
@@ -452,17 +452,17 @@ class TestMultiSessionScenarios:
 
             thread_id = "shared_thread"
 
-            # First run
-            state1 = create_initial_state("First Company", "Tech")
+            # First run (using name without suffix as rule-based normalization removes suffixes)
+            state1 = create_initial_state("FirstCo", "Tech")
             workflow.run(state1, thread_id=thread_id)
 
             # Second run with same thread ID
-            state2 = create_initial_state("Second Company", "Finance")
+            state2 = create_initial_state("SecondCo", "Finance")
             workflow.run(state2, thread_id=thread_id)
 
             # Latest should be stored
             retrieved = workflow.get_state(thread_id)
-            assert retrieved["account_name"] == "Second Company"
+            assert retrieved["account_name"] == "SecondCo"
 
 
 class TestCheckpointErrorHandling:

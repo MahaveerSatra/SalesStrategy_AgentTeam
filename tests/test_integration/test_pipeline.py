@@ -92,8 +92,10 @@ def validator_agent(mock_model_router):
 @pytest.fixture
 def initial_state():
     """Provide clean initial state for pipeline tests."""
+    # Note: Using "Acme" without suffix because rule-based normalization
+    # removes suffixes like "Corporation", "Inc", etc.
     return create_initial_state(
-        account_name="Acme Corporation",
+        account_name="Acme",
         industry="Technology",
         region="North America",
         research_depth=ResearchDepth.STANDARD
@@ -173,13 +175,13 @@ class TestCoordinatorToGathererPipeline:
         """Test that CoordinatorAgent.process_entry prepares state for GathererAgent."""
         # Setup mock to not require human clarification
         mock_response = MagicMock()
-        mock_response.content = '{"needs_clarification": false, "normalized_name": "Acme Corporation"}'
+        mock_response.content = '{"needs_clarification": false, "normalized_name": "Acme"}'
         mock_model_router.generate.return_value = mock_response
 
         await coordinator_agent.process_entry(initial_state)
 
         # Verify state is ready for gatherer
-        assert initial_state["account_name"] == "Acme Corporation"
+        assert initial_state["account_name"] == "Acme"
         assert initial_state["progress"].coordinator_complete is True
         # Should not be waiting for human if no clarification needed
         assert initial_state.get("waiting_for_human", False) is False
@@ -216,7 +218,7 @@ class TestCoordinatorToGathererPipeline:
         """Test that GathererAgent receives properly prepared state from Coordinator."""
         # Coordinator setup
         coord_response = MagicMock()
-        coord_response.content = '{"needs_clarification": false, "normalized_name": "Acme Corporation"}'
+        coord_response.content = '{"needs_clarification": false, "normalized_name": "Acme"}'
         mock_model_router.generate.return_value = coord_response
 
         await coordinator_agent.process_entry(initial_state)
@@ -429,7 +431,7 @@ class TestValidatorToCoordinatorExitPipeline:
 
         # Mock report generation
         report_response = MagicMock()
-        report_response.content = '''## Research Report for Acme Corporation
+        report_response.content = '''## Research Report for Acme
 
 ### Top Opportunities
 1. **ML Platform Pro** - Strong ML hiring signals indicate need
@@ -471,7 +473,7 @@ class TestFullPipelineIntegration:
         """Test complete pipeline execution without human interrupts."""
         # Phase 1: Coordinator Entry
         coord_entry_response = MagicMock()
-        coord_entry_response.content = '{"needs_clarification": false, "normalized_name": "Acme Corporation"}'
+        coord_entry_response.content = '{"needs_clarification": false, "normalized_name": "Acme"}'
 
         # Phase 2: Gatherer
         gatherer_analysis_response = MagicMock()

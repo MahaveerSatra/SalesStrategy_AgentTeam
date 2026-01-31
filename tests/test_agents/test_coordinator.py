@@ -174,19 +174,15 @@ class TestCoordinatorEntryValidInputs:
         mock_model_router
     ):
         """Test that valid inputs proceed without errors."""
-        # Mock LLM responses
+        # Mock LLM responses (normalization is now rule-based, no LLM call)
         validation_response = MagicMock()
         validation_response.content = '{"is_valid": true, "errors": [], "suggested_corrections": {}, "concerns": []}'
-
-        normalization_response = MagicMock()
-        normalization_response.content = 'Acme Corporation'
 
         questioning_response = MagicMock()
         questioning_response.content = '{"needs_clarification": false, "questions": null, "reasoning": "Inputs are clear"}'
 
         mock_model_router.generate.side_effect = [
             validation_response,
-            normalization_response,
             questioning_response
         ]
 
@@ -205,32 +201,28 @@ class TestCoordinatorEntryValidInputs:
         coordinator_agent,
         mock_model_router
     ):
-        """Test company name normalization."""
+        """Test company name normalization using rule-based ticker expansion."""
         state = create_initial_state(
-            account_name="msft",
+            account_name="msft",  # Known ticker
             industry="Technology"
         )
 
-        # Mock responses
+        # Mock responses (normalization is now rule-based, no LLM call)
         validation_response = MagicMock()
         validation_response.content = '{"is_valid": true, "errors": [], "suggested_corrections": {}, "concerns": []}'
-
-        normalization_response = MagicMock()
-        normalization_response.content = 'Microsoft'
 
         questioning_response = MagicMock()
         questioning_response.content = '{"needs_clarification": false, "questions": null, "reasoning": "Clear"}'
 
         mock_model_router.generate.side_effect = [
             validation_response,
-            normalization_response,
             questioning_response
         ]
 
         # Execute
         await coordinator_agent.process_entry(state)
 
-        # Verify name normalized
+        # Verify name normalized via rule-based ticker lookup
         assert state["account_name"] == "Microsoft"
         assert state["progress"].coordinator_complete is True
 
@@ -317,22 +309,20 @@ class TestCoordinatorEntryInvalidInputs:
         validation_response = MagicMock()
         validation_response.content = '{"is_valid": true, "errors": [], "suggested_corrections": {"account_name": "Microsoft", "industry": "Technology"}, "concerns": []}'
 
-        normalization_response = MagicMock()
-        normalization_response.content = 'Microsoft'
+        # Note: No normalization response needed - normalization is now rule-based
 
         questioning_response = MagicMock()
         questioning_response.content = '{"needs_clarification": false, "questions": null, "reasoning": "Clear"}'
 
         mock_model_router.generate.side_effect = [
             validation_response,
-            normalization_response,
             questioning_response
         ]
 
         # Execute
         await coordinator_agent.process_entry(state)
 
-        # Verify corrections applied
+        # Verify corrections applied (from validation, not normalization)
         assert state["account_name"] == "Microsoft"
         assert state["industry"] == "Technology"
 
@@ -355,16 +345,14 @@ class TestCoordinatorEntrySmartQuestioning:
         validation_response = MagicMock()
         validation_response.content = '{"is_valid": true, "errors": [], "suggested_corrections": {}, "concerns": []}'
 
-        normalization_response = MagicMock()
-        normalization_response.content = 'Amazon'
+        # Note: No normalization response needed - normalization is now rule-based
 
         questioning_response = MagicMock()
         questioning_response.content = '{"needs_clarification": true, "questions": "Are you interested in Amazon Web Services (AWS) or Amazon Retail?", "reasoning": "Company name is ambiguous"}'
 
         mock_model_router.generate.side_effect = [
             validation_response,
-            normalization_response,
-            questioning_response
+            questioning_response  # Only 2 responses now (no LLM normalization)
         ]
 
         # Execute
@@ -388,16 +376,14 @@ class TestCoordinatorEntrySmartQuestioning:
         validation_response = MagicMock()
         validation_response.content = '{"is_valid": true, "errors": [], "suggested_corrections": {}, "concerns": []}'
 
-        normalization_response = MagicMock()
-        normalization_response.content = 'Acme Corporation'
+        # Note: No normalization response needed - normalization is now rule-based
 
         questioning_response = MagicMock()
         questioning_response.content = '{"needs_clarification": false, "questions": null, "reasoning": "Inputs are sufficiently clear for research"}'
 
         mock_model_router.generate.side_effect = [
             validation_response,
-            normalization_response,
-            questioning_response
+            questioning_response  # Only 2 responses now (no LLM normalization)
         ]
 
         # Execute
@@ -423,15 +409,13 @@ class TestCoordinatorEntryEdgeCases:
         validation_response = MagicMock()
         validation_response.content = 'Invalid JSON response from LLM'
 
-        normalization_response = MagicMock()
-        normalization_response.content = 'Acme Corporation'
+        # Note: No normalization response needed - normalization is now rule-based
 
         questioning_response = MagicMock()
         questioning_response.content = '{"needs_clarification": false, "questions": null, "reasoning": "Clear"}'
 
         mock_model_router.generate.side_effect = [
             validation_response,
-            normalization_response,
             questioning_response
         ]
 
@@ -455,24 +439,23 @@ class TestCoordinatorEntryEdgeCases:
 
         mock_model_router.generate.side_effect = [
             validation_response,
-            Exception("LLM service unavailable"),  # Normalization fails
-            Exception("LLM service unavailable")   # Questioning fails
+            Exception("LLM service unavailable"),  # Questioning fails
         ]
 
         # Execute - should not crash
         await coordinator_agent.process_entry(initial_state)
 
-        # Should continue (uses original name)
-        assert initial_state["account_name"] == "Acme Corp"
+        # Should continue (name normalized by rule-based system: "Acme Corp" -> "Acme")
+        assert initial_state["account_name"] == "Acme"  # Corp suffix removed
         assert initial_state["progress"].coordinator_complete is True
 
     @pytest.mark.asyncio
-    async def test_normalization_returns_unreasonable_name(
+    async def test_ticker_expansion_works_correctly(
         self,
         coordinator_agent,
         mock_model_router
     ):
-        """Test that unreasonably long normalized names are rejected."""
+        """Test that stock tickers are correctly expanded to company names."""
         state = create_initial_state(
             account_name="MSFT",
             industry="Technology"
@@ -481,24 +464,19 @@ class TestCoordinatorEntryEdgeCases:
         validation_response = MagicMock()
         validation_response.content = '{"is_valid": true, "errors": [], "suggested_corrections": {}, "concerns": []}'
 
-        # Return absurdly long name
-        normalization_response = MagicMock()
-        normalization_response.content = 'A' * 1000  # Very long name
-
         questioning_response = MagicMock()
         questioning_response.content = '{"needs_clarification": false, "questions": null, "reasoning": "Clear"}'
 
         mock_model_router.generate.side_effect = [
             validation_response,
-            normalization_response,
             questioning_response
         ]
 
         # Execute
         await coordinator_agent.process_entry(state)
 
-        # Should keep original name (sanity check in _normalize_company_name)
-        assert state["account_name"] == "MSFT"
+        # MSFT should be expanded to Microsoft (rule-based ticker lookup)
+        assert state["account_name"] == "Microsoft"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -898,19 +876,15 @@ class TestCoordinatorDefaultProcess:
         mock_model_router
     ):
         """Test that process() delegates to process_entry when coordinator not complete."""
-        # Mock responses for entry
+        # Mock responses for entry (normalization is now rule-based, no LLM call)
         validation_response = MagicMock()
         validation_response.content = '{"is_valid": true, "errors": [], "suggested_corrections": {}, "concerns": []}'
-
-        normalization_response = MagicMock()
-        normalization_response.content = 'Acme Corporation'
 
         questioning_response = MagicMock()
         questioning_response.content = '{"needs_clarification": false, "questions": null, "reasoning": "Clear"}'
 
         mock_model_router.generate.side_effect = [
             validation_response,
-            normalization_response,
             questioning_response
         ]
 

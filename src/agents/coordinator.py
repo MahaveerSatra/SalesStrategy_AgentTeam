@@ -304,16 +304,50 @@ If you detect typos, add them to suggested_corrections as {{"field": "corrected_
 
         return errors
 
+    # Well-known stock ticker to company name mappings
+    # Only these abbreviations will be expanded - conservative approach
+    TICKER_TO_COMPANY = {
+        "msft": "Microsoft",
+        "aapl": "Apple",
+        "googl": "Google",
+        "goog": "Google",
+        "amzn": "Amazon",
+        "meta": "Meta",
+        "fb": "Meta",
+        "tsla": "Tesla",
+        "nvda": "NVIDIA",
+        "ibm": "IBM",
+        "intc": "Intel",
+        "amd": "AMD",
+        "crm": "Salesforce",
+        "orcl": "Oracle",
+        "sap": "SAP",
+        "adbe": "Adobe",
+        "csco": "Cisco",
+        "ba": "Boeing",
+        "ge": "General Electric",
+        "gm": "General Motors",
+        "f": "Ford",
+        "tm": "Toyota",
+        "rivn": "Rivian",
+    }
+
     async def _normalize_company_name(self, name: str) -> str:
         """
-        Minimal enrichment - normalize company name.
+        Normalize company name using RULE-BASED approach (no LLM hallucination risk).
+
+        Strategy:
+        1. Check if it's a known stock ticker -> expand to full name
+        2. Apply rule-based cleanup (remove suffixes, fix caps)
+        3. Return original if already looks normal
+
+        This approach is reliable and deterministic - no LLM hallucinations.
 
         Examples:
-        - "msft" -> "Microsoft"
-        - "BOEING CO" -> "Boeing"
-        - "amazon.com" -> "Amazon"
-
-        Uses LLM for intelligent normalization.
+        - "msft" -> "Microsoft" (ticker expansion)
+        - "BOEING CO" -> "Boeing" (caps fix + suffix removal)
+        - "amazon.com" -> "Amazon" (domain removal)
+        - "Boeing" -> "Boeing" (already normal, no change)
 
         Args:
             name: Original company name
@@ -321,42 +355,67 @@ If you detect typos, add them to suggested_corrections as {{"field": "corrected_
         Returns:
             Normalized company name
         """
-        prompt = f"""Normalize this company name to its standard, commonly-used form:
+        if not name or not name.strip():
+            return name
 
-Input: "{name}"
+        original = name.strip()
 
-Rules:
-1. Expand common abbreviations (MSFT -> Microsoft, AAPL -> Apple)
-2. Remove legal suffixes unless important (Inc, Corp, LLC)
-3. Fix capitalization to standard form
-4. Remove domain extensions (.com, .io)
-5. Keep the name recognizable and professional
-
-Return ONLY the normalized name, nothing else. If the name is already normal, return it unchanged.
-"""
-
-        try:
-            response = await self.model_router.generate(
-                prompt=prompt,
-                complexity=3,  # LOCAL Ollama
-                use_cache=True
+        # Step 1: Check if it's a known stock ticker
+        name_lower = original.lower().strip()
+        if name_lower in self.TICKER_TO_COMPANY:
+            normalized = self.TICKER_TO_COMPANY[name_lower]
+            self.logger.info(
+                "coordinator_ticker_expanded",
+                original=original,
+                normalized=normalized
             )
-
-            normalized = response.content.strip().strip('"').strip("'")
-
-            # Sanity check - don't return empty or very different names
-            if not normalized or len(normalized) > len(name) * 3:
-                return name
-
             return normalized
 
-        except Exception as e:
-            self.logger.warning(
-                "coordinator_normalization_failed",
-                name=name,
-                error=str(e)
-            )
-            return name  # Return original on failure
+        # Step 2: Rule-based cleanup
+        normalized = original
+
+        # Remove common legal suffixes
+        suffixes_to_remove = [
+            ", Inc.", " Inc.", " Inc",
+            ", Corp.", " Corp.", " Corp",
+            ", LLC", " LLC",
+            ", Ltd.", " Ltd.", " Ltd",
+            ", Co.", " Co.", " Co",
+            ", Corporation", " Corporation",
+            ", Company", " Company",
+            ", Incorporated", " Incorporated",
+        ]
+        for suffix in suffixes_to_remove:
+            if normalized.endswith(suffix):
+                normalized = normalized[:-len(suffix)]
+                break
+
+        # Remove domain extensions
+        domain_extensions = [".com", ".io", ".ai", ".co", ".org", ".net"]
+        for ext in domain_extensions:
+            if normalized.lower().endswith(ext):
+                normalized = normalized[:-len(ext)]
+                break
+
+        # Fix all-caps names (but preserve intentional acronyms like IBM, AMD)
+        if normalized.isupper() and len(normalized) > 4:
+            # Title case for longer all-caps names
+            normalized = normalized.title()
+
+        # Strip whitespace
+        normalized = normalized.strip()
+
+        # If nothing changed, return original
+        if normalized == original:
+            return original
+
+        self.logger.info(
+            "coordinator_name_normalized",
+            original=original,
+            normalized=normalized,
+            method="rule_based"
+        )
+        return normalized
 
     async def _generate_clarifying_questions(self, state: ResearchState) -> str | None:
         """

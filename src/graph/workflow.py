@@ -31,8 +31,33 @@ from ..data_sources.job_boards import JobBoardScraper
 from ..data_sources.product_catalog import ProductMatcher
 
 import structlog
+import sys
 
 logger = structlog.get_logger(__name__)
+
+
+def _print_stage(stage: str, description: str, status: str = "running") -> None:
+    """
+    Print a user-friendly workflow stage indicator.
+
+    Args:
+        stage: Short stage name (e.g., "GATHERING")
+        description: What the stage does
+        status: "running", "complete", or "waiting"
+    """
+    # Status indicators
+    indicators = {
+        "running": "[...]",
+        "complete": "[OK]",
+        "waiting": "[?]",
+        "error": "[!]",
+    }
+    indicator = indicators.get(status, "[...]")
+
+    # Print to stdout for user visibility
+    print(f"\n{indicator} Stage: {stage}")
+    print(f"    {description}")
+    sys.stdout.flush()  # Ensure immediate output
 
 
 class ResearchWorkflow:
@@ -196,17 +221,26 @@ class ResearchWorkflow:
         - Normalize company name
         - Generate clarifying questions if needed
         """
+        account = state.get("account_name", "company")
+        _print_stage("INITIALIZING", f"Validating inputs for {account}...", "running")
+
         logger.info(
             "coordinator_entry_started",
-            account=state.get("account_name")
+            account=account
         )
 
         # Run async process in sync context
         asyncio.run(self.coordinator.process_entry(state))
 
+        needs_human = state.get("waiting_for_human", False)
+        if needs_human:
+            _print_stage("INITIALIZING", f"Need clarification for {account}", "waiting")
+        else:
+            _print_stage("INITIALIZING", f"Ready to research {account}", "complete")
+
         logger.info(
             "coordinator_entry_completed",
-            needs_human=state.get("waiting_for_human", False)
+            needs_human=needs_human
         )
 
         return state
@@ -221,19 +255,32 @@ class ResearchWorkflow:
         - Gather news articles
         - Analyze each source with LLM
         """
+        account = state.get("account_name", "company")
+        _print_stage("GATHERING DATA", f"Searching web, jobs, and news for {account}...", "running")
+
         logger.info(
             "gatherer_started",
-            account=state.get("account_name"),
+            account=account,
             feedback_context=state.get("feedback_context")
         )
 
         # Run async process in sync context
         asyncio.run(self.gatherer.process(state))
 
+        signals_count = len(state.get("signals", []))
+        jobs_count = len(state.get("job_postings", []))
+        news_count = len(state.get("news_items", []))
+
+        _print_stage(
+            "GATHERING DATA",
+            f"Found {signals_count} signals, {jobs_count} jobs, {news_count} news items",
+            "complete"
+        )
+
         logger.info(
             "gatherer_completed",
-            signals_count=len(state.get("signals", [])),
-            jobs_count=len(state.get("job_postings", []))
+            signals_count=signals_count,
+            jobs_count=jobs_count
         )
 
         return state
@@ -248,6 +295,7 @@ class ResearchWorkflow:
         - Generate opportunity hypotheses
         """
         account_name = state.get("account_name", "unknown")
+        _print_stage("IDENTIFYING OPPORTUNITIES", f"Analyzing data and matching products for {account_name}...", "running")
 
         logger.info(
             "identifier_started",
@@ -269,9 +317,16 @@ class ResearchWorkflow:
         # Run async process in sync context
         asyncio.run(identifier.process(state))
 
+        opportunities_count = len(state.get("opportunities", []))
+        _print_stage(
+            "IDENTIFYING OPPORTUNITIES",
+            f"Found {opportunities_count} potential opportunities",
+            "complete"
+        )
+
         logger.info(
             "identifier_completed",
-            opportunities_count=len(state.get("opportunities", []))
+            opportunities_count=opportunities_count
         )
 
         return state
@@ -285,19 +340,32 @@ class ResearchWorkflow:
         - Score confidence for each opportunity
         - Filter low-confidence opportunities
         """
+        account = state.get("account_name", "company")
+        opp_count = len(state.get("opportunities", []))
+        _print_stage("VALIDATING", f"Scoring {opp_count} opportunities and assessing risks...", "running")
+
         logger.info(
             "validator_started",
-            account=state.get("account_name"),
-            opportunities_count=len(state.get("opportunities", []))
+            account=account,
+            opportunities_count=opp_count
         )
 
         # Run async process in sync context
         asyncio.run(self.validator.process(state))
 
+        validated_count = len(state.get("validated_opportunities", []))
+        risks_count = len(state.get("competitive_risks", []))
+
+        _print_stage(
+            "VALIDATING",
+            f"Validated {validated_count} opportunities, identified {risks_count} risks",
+            "complete"
+        )
+
         logger.info(
             "validator_completed",
-            validated_count=len(state.get("validated_opportunities", [])),
-            risks_count=len(state.get("competitive_risks", []))
+            validated_count=validated_count,
+            risks_count=risks_count
         )
 
         return state
@@ -310,13 +378,18 @@ class ResearchWorkflow:
         - Format validated opportunities as report
         - Set up human-in-loop for feedback
         """
+        validated_count = len(state.get("validated_opportunities", []))
+        _print_stage("PREPARING REPORT", f"Formatting {validated_count} validated opportunities...", "running")
+
         logger.info(
             "coordinator_exit_started",
-            opportunities=len(state.get("validated_opportunities", []))
+            opportunities=validated_count
         )
 
         # Run async process in sync context
         asyncio.run(self.coordinator.process_exit(state))
+
+        _print_stage("PREPARING REPORT", "Report ready for review", "complete")
 
         logger.info(
             "coordinator_exit_completed",
@@ -334,6 +407,8 @@ class ResearchWorkflow:
         - Determine routing (gatherer/identifier/validator/complete)
         - Update context for retry if needed
         """
+        _print_stage("PROCESSING FEEDBACK", "Analyzing your feedback...", "running")
+
         logger.info(
             "coordinator_feedback_started",
             feedback_count=len(state.get("human_feedback", []))
@@ -342,9 +417,20 @@ class ResearchWorkflow:
         # Run async process in sync context
         asyncio.run(self.coordinator.process_feedback(state))
 
+        next_route = state.get("next_route", "complete")
+        route_descriptions = {
+            "gatherer": "Will gather more data",
+            "identifier": "Will find different opportunities",
+            "validator": "Will re-evaluate scores",
+            "complete": "Research complete!"
+        }
+        desc = route_descriptions.get(next_route, f"Routing to {next_route}")
+        status = "complete" if next_route == "complete" else "running"
+        _print_stage("PROCESSING FEEDBACK", desc, status)
+
         logger.info(
             "coordinator_feedback_completed",
-            next_route=state.get("next_route")
+            next_route=next_route
         )
 
         return state
@@ -356,6 +442,8 @@ class ResearchWorkflow:
         The graph will interrupt before this node when waiting_for_human is True.
         After human provides input, the workflow resumes.
         """
+        _print_stage("AWAITING INPUT", "Waiting for your response...", "waiting")
+
         logger.info(
             "wait_for_human",
             question=state.get("human_question", "")[:100] if state.get("human_question") else None

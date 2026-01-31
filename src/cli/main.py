@@ -7,10 +7,26 @@ Usage:
     python -m src.cli list-runs
 """
 import argparse
+import io
 import sys
 from typing import Optional
 
 from .commands import research_command, resume_command, list_runs_command
+
+
+def _configure_utf8_output():
+    """
+    Configure UTF-8 output for Windows console.
+
+    Windows console may use cp1252 or other encodings that can't handle
+    all Unicode characters. This ensures UTF-8 output with error handling.
+    """
+    if sys.platform == "win32":
+        # Reconfigure stdout/stderr to use UTF-8 with error replacement
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        if hasattr(sys.stderr, 'reconfigure'):
+            sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -153,6 +169,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     Returns:
         Exit code (0 = success, 1 = error)
     """
+    # Configure UTF-8 output for Windows console
+    _configure_utf8_output()
+
     parser = create_parser()
     args = parser.parse_args(argv)
 
