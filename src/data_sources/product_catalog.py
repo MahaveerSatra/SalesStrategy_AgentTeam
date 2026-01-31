@@ -384,6 +384,176 @@ class ProductCatalogIndexer:
             )
             return []
 
+    async def build_catalog_from_url(self, url: str) -> list[Product]:
+        """
+        Build product catalog by scraping a URL and extracting products with LLM.
+
+        Args:
+            url: URL of the product catalog page
+
+        Returns:
+            List of Product objects extracted from the page
+        """
+        from src.core.model_router import ModelRouter
+
+        try:
+            # Fetch URL content
+            logger.info("fetching_catalog_url", url=url)
+            content = await fetch_url(url)
+
+            if not content:
+                logger.warning("url_fetch_empty", url=url)
+                return []
+
+            # Extract text from HTML
+            text = extract_text(content)
+
+            if not text or len(text) < 100:
+                logger.warning("url_content_too_short", url=url, length=len(text) if text else 0)
+                return []
+
+            # Use LLM to extract product information
+            return await self._extract_products_with_llm(text, source=url)
+
+        except Exception as e:
+            logger.error("url_catalog_extraction_failed", url=url, error=str(e))
+            return []
+
+    async def build_catalog_from_document(self, file_path: str) -> list[Product]:
+        """
+        Build product catalog by reading a document file and extracting products with LLM.
+
+        Supports: .txt, .md, .json
+
+        Args:
+            file_path: Path to the document file
+
+        Returns:
+            List of Product objects extracted from the document
+        """
+        from pathlib import Path
+
+        file_path = Path(file_path)
+
+        if not file_path.exists():
+            logger.error("document_not_found", path=str(file_path))
+            return []
+
+        try:
+            # Read file content
+            logger.info("reading_catalog_document", path=str(file_path))
+
+            if file_path.suffix.lower() == '.json':
+                # JSON files are handled by the regular build_catalog method
+                return self._load_from_json(file_path)
+
+            # Read text content
+            with open(file_path, "r", encoding="utf-8") as f:
+                text = f.read()
+
+            if not text or len(text) < 50:
+                logger.warning("document_content_too_short", path=str(file_path), length=len(text) if text else 0)
+                return []
+
+            # Use LLM to extract product information
+            return await self._extract_products_with_llm(text, source=str(file_path))
+
+        except Exception as e:
+            logger.error("document_catalog_extraction_failed", path=str(file_path), error=str(e))
+            return []
+
+    async def _extract_products_with_llm(self, text: str, source: str) -> list[Product]:
+        """
+        Use LLM to extract structured product information from unstructured text.
+
+        Args:
+            text: Raw text content containing product information
+            source: Source of the text (URL or file path) for logging
+
+        Returns:
+            List of Product objects
+        """
+        from src.core.model_router import ModelRouter
+
+        # Truncate very long content
+        max_chars = 50000
+        if len(text) > max_chars:
+            text = text[:max_chars]
+            logger.info("text_truncated", source=source, max_chars=max_chars)
+
+        prompt = f"""Extract all products/solutions from the following text.
+
+For each product, provide:
+- name: Product name
+- category: Product category or family
+- description: Brief description (1-2 sentences)
+- key_features: List of 3-5 key features
+- use_cases: List of 2-4 common use cases
+- target_personas: List of 2-4 target user types
+
+Return a JSON array of product objects. Only include products/solutions that are clearly described.
+If no products can be extracted, return an empty array [].
+
+Text:
+{text}
+
+JSON Array:"""
+
+        try:
+            model_router = ModelRouter()
+            response = await model_router.generate(
+                prompt=prompt,
+                task_type="extraction",
+                temperature=0.1,  # Low temperature for structured extraction
+                max_tokens=8000
+            )
+
+            # Parse JSON response
+            response_text = response.content.strip()
+
+            # Find JSON array in response
+            start = response_text.find('[')
+            end = response_text.rfind(']') + 1
+
+            if start == -1 or end == 0:
+                logger.warning("no_json_array_in_response", source=source)
+                return []
+
+            json_str = response_text[start:end]
+            products_data = json.loads(json_str)
+
+            # Convert to Product objects
+            products = []
+            for data in products_data:
+                try:
+                    # Ensure required fields have defaults
+                    product_data = {
+                        "name": data.get("name", "Unknown"),
+                        "category": data.get("category", "General"),
+                        "description": data.get("description", ""),
+                        "key_features": data.get("key_features", []),
+                        "use_cases": data.get("use_cases", []),
+                        "target_personas": data.get("target_personas", [])
+                    }
+                    products.append(Product(**product_data))
+                except Exception as e:
+                    logger.warning("product_parse_failed", data=data, error=str(e))
+                    continue
+
+            logger.info(
+                "products_extracted_with_llm",
+                source=source,
+                count=len(products)
+            )
+            return products
+
+        except json.JSONDecodeError as e:
+            logger.error("json_parse_failed", source=source, error=str(e))
+            return []
+        except Exception as e:
+            logger.error("llm_extraction_failed", source=source, error=str(e))
+            return []
+
     async def index_products(self, products: list[Product]) -> None:
         """
         Index products in ChromaDB for semantic search.

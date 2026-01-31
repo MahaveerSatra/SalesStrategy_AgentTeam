@@ -181,7 +181,8 @@ class TestMain:
             research_depth='standard',
             output_dir=None,
             thread_id=None,
-            user_context=None
+            user_context=None,
+            seller_name='MathWorks'
         )
         assert exit_code == 0
 
@@ -204,7 +205,8 @@ class TestMain:
             research_depth='deep',
             output_dir='./out',
             thread_id='test_123',
-            user_context=None
+            user_context=None,
+            seller_name='MathWorks'
         )
         assert exit_code == 0
 
@@ -229,7 +231,8 @@ Known Initiatives: Autonomous vehicle program"""
             research_depth='standard',
             output_dir=None,
             thread_id=None,
-            user_context=context
+            user_context=context,
+            seller_name='MathWorks'
         )
         assert exit_code == 0
 

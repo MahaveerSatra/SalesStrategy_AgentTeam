@@ -79,6 +79,8 @@ def mock_product_matcher():
         ("MATLAB", 0.85),
         ("Simulink", 0.78)
     ]
+    # Add collection_name attribute for logging in workflow
+    matcher.collection_name = "mathworks_products"
     return matcher
 
 

@@ -85,6 +85,7 @@ class ResearchWorkflow:
 
     def __init__(
         self,
+        seller_name: str = "MathWorks",
         model_router: ModelRouter | None = None,
         mcp_client: DuckDuckGoMCPClient | None = None,
         job_scraper: JobBoardScraper | None = None
@@ -93,10 +94,16 @@ class ResearchWorkflow:
         Initialize workflow with dependencies.
 
         Args:
+            seller_name: Name of the seller/vendor company whose products to match.
+                         This is YOUR company (e.g., "MathWorks", "Salesforce").
+                         Products must be indexed first using ProductCatalogIndexer.
             model_router: Optional ModelRouter instance (creates default if None)
             mcp_client: Optional MCP client for web search
             job_scraper: Optional job board scraper
         """
+        # Store seller name - this is the company whose products we're selling
+        self.seller_name = seller_name
+
         # Initialize dependencies
         self.model_router = model_router or ModelRouter()
         self.mcp_client = mcp_client or DuckDuckGoMCPClient()
@@ -113,8 +120,9 @@ class ResearchWorkflow:
             model_router=self.model_router
         )
 
-        # Cache for lazily-created agents (keyed by account_name)
-        self._identifier_cache: dict[str, IdentifierAgent] = {}
+        # Single ProductMatcher for the seller (shared across all account analyses)
+        self._product_matcher: ProductMatcher | None = None
+        self._identifier: IdentifierAgent | None = None
 
         self.graph = self._build_graph()
         self.checkpointer = None
@@ -303,16 +311,33 @@ class ResearchWorkflow:
             feedback_context=state.get("feedback_context")
         )
 
-        # Create or get cached IdentifierAgent for this company
-        if account_name not in self._identifier_cache:
-            product_matcher = ProductMatcher(company_name=account_name)
-            identifier = IdentifierAgent(
-                product_matcher=product_matcher,
-                model_router=self.model_router
-            )
-            self._identifier_cache[account_name] = identifier
+        # Create IdentifierAgent with seller's product catalog (lazily initialized)
+        # The ProductMatcher uses the SELLER's products (e.g., MathWorks),
+        # not the target account's products (e.g., Boeing)
+        if self._identifier is None:
+            try:
+                self._product_matcher = ProductMatcher(company_name=self.seller_name)
+                self._identifier = IdentifierAgent(
+                    product_matcher=self._product_matcher,
+                    model_router=self.model_router
+                )
+                logger.info(
+                    "identifier_initialized",
+                    seller=self.seller_name,
+                    collection=self._product_matcher.collection_name
+                )
+            except Exception as e:
+                logger.error(
+                    "product_catalog_not_indexed",
+                    seller=self.seller_name,
+                    error=str(e)
+                )
+                raise ValueError(
+                    f"Product catalog not indexed for seller '{self.seller_name}'. "
+                    f"Run: python -m src.cli.setup_catalog --seller {self.seller_name}"
+                ) from e
 
-        identifier = self._identifier_cache[account_name]
+        identifier = self._identifier
 
         # Run async process in sync context
         asyncio.run(identifier.process(state))

@@ -11,7 +11,7 @@ import io
 import sys
 from typing import Optional
 
-from .commands import research_command, resume_command, list_runs_command
+from .commands import research_command, resume_command, list_runs_command, setup_catalog_command
 
 
 def _configure_utf8_output():
@@ -125,6 +125,15 @@ Examples:
 - Budget timing
 If not provided and request is generic, system will ask clarifying questions."""
     )
+    research_parser.add_argument(
+        "--seller",
+        "-s",
+        type=str,
+        default="MathWorks",
+        help="""Your company name (the seller). Default: MathWorks.
+Products for this company must be indexed first using 'setup-catalog' command.
+Example: --seller "Salesforce" """
+    )
 
     # ─────────────────────────────────────────────────────────────────────
     # RESUME COMMAND
@@ -156,6 +165,51 @@ If not provided and request is generic, system will ask clarifying questions."""
         description="Show all research runs stored in checkpoint database"
     )
 
+    # ─────────────────────────────────────────────────────────────────────
+    # SETUP-CATALOG COMMAND
+    # ─────────────────────────────────────────────────────────────────────
+    catalog_parser = subparsers.add_parser(
+        "setup-catalog",
+        help="Index product catalog for a seller company",
+        description="""Index product catalog for semantic matching.
+
+This must be run ONCE before using the research command with a seller.
+Products can be loaded from:
+  1. Built-in catalog (MathWorks has 147 products pre-configured)
+  2. JSON file with product definitions
+  3. Web page URL to scrape for products (uses LLM to extract)
+  4. Text/Markdown document with product information
+"""
+    )
+    catalog_parser.add_argument(
+        "--seller",
+        "-s",
+        type=str,
+        required=True,
+        help="Seller company name (e.g., 'MathWorks', 'Salesforce')"
+    )
+    catalog_parser.add_argument(
+        "--catalog-file",
+        "-f",
+        type=str,
+        default=None,
+        help="""Path to product catalog file. Supported formats:
+- JSON: Array of product objects with name, category, description, key_features, use_cases, target_personas
+- TXT/MD: Text description of products (will use LLM to extract structured data)"""
+    )
+    catalog_parser.add_argument(
+        "--catalog-url",
+        "-u",
+        type=str,
+        default=None,
+        help="URL of product catalog page to scrape (e.g., company products page)"
+    )
+    catalog_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-indexing even if catalog already exists"
+    )
+
     return parser
 
 
@@ -184,7 +238,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                 research_depth=args.depth,
                 output_dir=args.output,
                 thread_id=args.thread_id,
-                user_context=args.context
+                user_context=args.context,
+                seller_name=args.seller
             )
             return 0
 
@@ -197,6 +252,15 @@ def main(argv: Optional[list[str]] = None) -> int:
 
         elif args.command == "list-runs":
             list_runs_command()
+            return 0
+
+        elif args.command == "setup-catalog":
+            setup_catalog_command(
+                seller_name=args.seller,
+                catalog_file=args.catalog_file,
+                catalog_url=args.catalog_url,
+                force=args.force
+            )
             return 0
 
         else:

@@ -160,6 +160,21 @@ class CoordinatorAgent(StatelessAgent):
             state["account_name"] = normalized_name
 
         # Step 3: Smart questioning - LLM decides if clarification needed
+        # BUT skip if we already have human feedback (user already answered questions)
+        has_prior_feedback = bool(state.get("human_feedback"))
+
+        if has_prior_feedback:
+            self.logger.info(
+                "coordinator_skipping_questions",
+                reason="human_feedback_exists",
+                feedback_count=len(state.get("human_feedback", []))
+            )
+            # User already provided feedback, proceed without more questions
+            state["waiting_for_human"] = False
+            state["human_question"] = None
+            state["progress"].coordinator_complete = True
+            return
+
         clarifying_question = await self._generate_clarifying_questions(state)
 
         if clarifying_question:

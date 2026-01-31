@@ -32,13 +32,14 @@ def research_command(
     research_depth: str = "standard",
     output_dir: Optional[str] = None,
     thread_id: Optional[str] = None,
-    user_context: Optional[str] = None
+    user_context: Optional[str] = None,
+    seller_name: str = "MathWorks"
 ) -> None:
     """
     Start a new research workflow.
 
     Args:
-        account_name: Company name to research
+        account_name: Company name to research (the TARGET customer)
         industry: Industry vertical
         region: Geographic region (optional)
         research_depth: Research depth (quick/standard/deep)
@@ -47,6 +48,8 @@ def research_command(
         user_context: Additional strategic context for the research (optional).
             If not provided and request is generic, CoordinatorAgent will ask
             clarifying questions to gather context for practical strategic advice.
+        seller_name: Your company name (the SELLER). Products for this company
+            must be indexed first using 'setup-catalog' command.
     """
     print(f"\n{'='*70}")
     print(f"Starting research for: {account_name}")
@@ -77,11 +80,18 @@ def research_command(
 
     print(f"Thread ID: {thread_id}")
     print(f"Research Depth: {depth_enum.value}")
+    print(f"Seller: {seller_name}")
     print()
 
-    # Create workflow
+    # Create workflow with seller's product catalog
     try:
-        workflow = ResearchWorkflow()
+        workflow = ResearchWorkflow(seller_name=seller_name)
+    except ValueError as e:
+        # Product catalog not indexed
+        print(f"\nError: {e}")
+        print(f"\nTo fix this, run:")
+        print(f"  python -m src.cli setup-catalog --seller \"{seller_name}\"")
+        return
     except Exception as e:
         print(f"Error initializing workflow: {e}")
         logger.error("workflow_initialization_failed", error=str(e))
@@ -493,3 +503,90 @@ def _save_reports(state: ResearchState, output_dir: str, thread_id: str) -> None
     except Exception as e:
         print(f"  ✗ Failed to save JSON: {e}")
         logger.error("json_save_failed", error=str(e), path=json_path)
+
+
+def setup_catalog_command(
+    seller_name: str,
+    catalog_file: Optional[str] = None,
+    catalog_url: Optional[str] = None,
+    force: bool = False
+) -> None:
+    """
+    Index product catalog for a seller company.
+
+    Args:
+        seller_name: Name of the seller company
+        catalog_file: Optional path to catalog file (JSON, TXT, MD)
+        catalog_url: Optional URL to scrape for products
+        force: Force re-indexing even if catalog exists
+    """
+    import asyncio
+    from ..data_sources.product_catalog import ProductCatalogIndexer, ProductMatcher
+
+    print(f"\n{'='*70}")
+    print(f"Setting up product catalog for: {seller_name}")
+    print(f"{'='*70}\n")
+
+    # Check if catalog already exists
+    if not force:
+        try:
+            matcher = ProductMatcher(company_name=seller_name)
+            product_count = matcher.collection.count()
+            print(f"Catalog already exists with {product_count} products.")
+            print(f"Use --force to re-index.")
+            return
+        except Exception:
+            pass  # Catalog doesn't exist, proceed with indexing
+
+    # Create indexer
+    indexer = ProductCatalogIndexer(
+        company_name=seller_name,
+        catalog_file=catalog_file
+    )
+
+    async def run_indexing():
+        # Load products from various sources
+        if catalog_url:
+            print(f"Fetching products from URL: {catalog_url}")
+            products = await indexer.build_catalog_from_url(catalog_url)
+        elif catalog_file and catalog_file.endswith('.json'):
+            print(f"Loading products from JSON: {catalog_file}")
+            products = await indexer.build_catalog()
+        elif catalog_file:
+            print(f"Extracting products from document: {catalog_file}")
+            products = await indexer.build_catalog_from_document(catalog_file)
+        else:
+            print(f"Loading built-in catalog for {seller_name}...")
+            products = await indexer.build_catalog()
+
+        if not products:
+            print(f"\nNo products found!")
+            if seller_name.lower() != "mathworks":
+                print(f"\nFor custom companies, provide a catalog source:")
+                print(f"  --catalog-file <path>  : JSON or text file with products")
+                print(f"  --catalog-url <url>    : Web page with product information")
+            return
+
+        print(f"Found {len(products)} products")
+
+        # Index products
+        print("Indexing products in ChromaDB...")
+        await indexer.index_products(products)
+
+        print(f"\n✓ Successfully indexed {len(products)} products for {seller_name}")
+        print(f"  Collection: {indexer.collection_name}")
+        print(f"  Database: {indexer.db_path}")
+
+        # Show sample products
+        print(f"\nSample products:")
+        for product in products[:5]:
+            print(f"  - {product.name} ({product.category})")
+        if len(products) > 5:
+            print(f"  ... and {len(products) - 5} more")
+
+    # Run async indexing
+    try:
+        asyncio.run(run_indexing())
+    except Exception as e:
+        print(f"\nError during indexing: {e}")
+        logger.error("catalog_indexing_failed", error=str(e), seller=seller_name)
