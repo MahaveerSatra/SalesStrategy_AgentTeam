@@ -19,6 +19,7 @@ from src.models.state import (
 from src.core.model_router import ModelRouter
 from src.data_sources.mcp_ddg_client import DuckDuckGoMCPClient
 from src.data_sources.job_boards import JobBoardScraper
+from src.data_sources.product_catalog import ProductMatcher
 
 # Try to import langgraph-dependent modules
 try:
@@ -67,6 +68,18 @@ def mock_job_scraper():
     scraper = AsyncMock()
     scraper.fetch.return_value = []
     return scraper
+
+
+@pytest.fixture
+def mock_product_matcher():
+    """Provide mocked ProductMatcher to avoid ChromaDB dependency."""
+    matcher = AsyncMock(spec=ProductMatcher)
+    # Mock the primary method used by IdentifierAgent
+    matcher.match_requirements_to_products.return_value = [
+        ("MATLAB", 0.85),
+        ("Simulink", 0.78)
+    ]
+    return matcher
 
 
 @pytest.fixture
@@ -128,15 +141,20 @@ class TestWorkflowCheckpointCreation:
 class TestWorkflowPauseResume:
     """Test workflow pause and resume with checkpointing."""
 
+    @patch('src.graph.workflow.ProductMatcher')
     def test_workflow_pauses_at_human_interrupt(
         self,
+        mock_product_matcher_class,
         temp_checkpoint_dir,
         mock_model_router,
         mock_mcp_client,
         mock_job_scraper,
-        initial_state
+        initial_state,
+        mock_product_matcher
     ):
         """Test workflow pauses when waiting_for_human is True."""
+        mock_product_matcher_class.return_value = mock_product_matcher
+
         with patch('src.graph.workflow.settings') as mock_settings:
             mock_settings.checkpoint_dir = temp_checkpoint_dir
 
@@ -157,15 +175,20 @@ class TestWorkflowPauseResume:
             assert result.get("waiting_for_human") is True
             assert result.get("human_question") is not None
 
+    @patch('src.graph.workflow.ProductMatcher')
     def test_workflow_can_resume_from_checkpoint(
         self,
+        mock_product_matcher_class,
         temp_checkpoint_dir,
         mock_model_router,
         mock_mcp_client,
         mock_job_scraper,
-        initial_state
+        initial_state,
+        mock_product_matcher
     ):
         """Test workflow can resume from a checkpoint with human input."""
+        mock_product_matcher_class.return_value = mock_product_matcher
+
         with patch('src.graph.workflow.settings') as mock_settings:
             mock_settings.checkpoint_dir = temp_checkpoint_dir
 
@@ -203,15 +226,20 @@ class TestWorkflowPauseResume:
             # Human feedback should be added
             assert "The software division" in resumed_result.get("human_feedback", [])
 
+    @patch('src.graph.workflow.ProductMatcher')
     def test_get_state_retrieves_checkpoint(
         self,
+        mock_product_matcher_class,
         temp_checkpoint_dir,
         mock_model_router,
         mock_mcp_client,
         mock_job_scraper,
-        initial_state
+        initial_state,
+        mock_product_matcher
     ):
         """Test get_state retrieves state from checkpoint."""
+        mock_product_matcher_class.return_value = mock_product_matcher
+
         with patch('src.graph.workflow.settings') as mock_settings:
             mock_settings.checkpoint_dir = temp_checkpoint_dir
 
@@ -259,15 +287,20 @@ class TestWorkflowPauseResume:
 class TestStatePersistence:
     """Test state field persistence across checkpoints."""
 
+    @patch('src.graph.workflow.ProductMatcher')
     def test_all_state_fields_persisted(
         self,
+        mock_product_matcher_class,
         temp_checkpoint_dir,
         mock_model_router,
         mock_mcp_client,
         mock_job_scraper,
-        initial_state
+        initial_state,
+        mock_product_matcher
     ):
         """Test all ResearchState fields are persisted in checkpoint."""
+        mock_product_matcher_class.return_value = mock_product_matcher
+
         with patch('src.graph.workflow.settings') as mock_settings:
             mock_settings.checkpoint_dir = temp_checkpoint_dir
 
@@ -305,15 +338,20 @@ class TestStatePersistence:
             assert retrieved["user_context"] == "Meeting notes: interested in ML"
             assert len(retrieved["signals"]) == 1
 
+    @patch('src.graph.workflow.ProductMatcher')
     def test_progress_tracking_persisted(
         self,
+        mock_product_matcher_class,
         temp_checkpoint_dir,
         mock_model_router,
         mock_mcp_client,
         mock_job_scraper,
-        initial_state
+        initial_state,
+        mock_product_matcher
     ):
         """Test ResearchProgress is correctly persisted."""
+        mock_product_matcher_class.return_value = mock_product_matcher
+
         with patch('src.graph.workflow.settings') as mock_settings:
             mock_settings.checkpoint_dir = temp_checkpoint_dir
 
@@ -346,14 +384,19 @@ class TestStatePersistence:
 class TestMultiSessionScenarios:
     """Test checkpoint behavior across multiple sessions."""
 
+    @patch('src.graph.workflow.ProductMatcher')
     def test_different_threads_have_separate_checkpoints(
         self,
+        mock_product_matcher_class,
         temp_checkpoint_dir,
         mock_model_router,
         mock_mcp_client,
-        mock_job_scraper
+        mock_job_scraper,
+        mock_product_matcher
     ):
         """Test different thread IDs have independent checkpoints."""
+        mock_product_matcher_class.return_value = mock_product_matcher
+
         with patch('src.graph.workflow.settings') as mock_settings:
             mock_settings.checkpoint_dir = temp_checkpoint_dir
 
@@ -381,14 +424,19 @@ class TestMultiSessionScenarios:
             assert retrieved1["account_name"] == "Company A"
             assert retrieved2["account_name"] == "Company B"
 
+    @patch('src.graph.workflow.ProductMatcher')
     def test_same_thread_overwrites_checkpoint(
         self,
+        mock_product_matcher_class,
         temp_checkpoint_dir,
         mock_model_router,
         mock_mcp_client,
-        mock_job_scraper
+        mock_job_scraper,
+        mock_product_matcher
     ):
         """Test running same thread ID updates the checkpoint."""
+        mock_product_matcher_class.return_value = mock_product_matcher
+
         with patch('src.graph.workflow.settings') as mock_settings:
             mock_settings.checkpoint_dir = temp_checkpoint_dir
 
@@ -443,15 +491,20 @@ class TestCheckpointErrorHandling:
             with pytest.raises((ValueError, KeyError, TypeError)):
                 workflow.resume("nonexistent_thread_xyz")
 
+    @patch('src.graph.workflow.ProductMatcher')
     def test_checkpoint_survives_workflow_error(
         self,
+        mock_product_matcher_class,
         temp_checkpoint_dir,
         mock_model_router,
         mock_mcp_client,
         mock_job_scraper,
-        initial_state
+        initial_state,
+        mock_product_matcher
     ):
         """Test checkpoint is preserved even if workflow errors."""
+        mock_product_matcher_class.return_value = mock_product_matcher
+
         with patch('src.graph.workflow.settings') as mock_settings:
             mock_settings.checkpoint_dir = temp_checkpoint_dir
 
@@ -489,15 +542,20 @@ class TestCheckpointErrorHandling:
 class TestHumanFeedbackInCheckpoint:
     """Test human feedback is properly stored in checkpoints."""
 
+    @patch('src.graph.workflow.ProductMatcher')
     def test_human_feedback_preserved_in_checkpoint(
         self,
+        mock_product_matcher_class,
         temp_checkpoint_dir,
         mock_model_router,
         mock_mcp_client,
         mock_job_scraper,
-        initial_state
+        initial_state,
+        mock_product_matcher
     ):
         """Test human feedback is stored in checkpoint."""
+        mock_product_matcher_class.return_value = mock_product_matcher
+
         with patch('src.graph.workflow.settings') as mock_settings:
             mock_settings.checkpoint_dir = temp_checkpoint_dir
 
@@ -532,15 +590,20 @@ class TestHumanFeedbackInCheckpoint:
             state = workflow.get_state(thread_id)
             assert "The NYC office" in state.get("human_feedback", [])
 
+    @patch('src.graph.workflow.ProductMatcher')
     def test_multiple_feedback_rounds_preserved(
         self,
+        mock_product_matcher_class,
         temp_checkpoint_dir,
         mock_model_router,
         mock_mcp_client,
         mock_job_scraper,
-        initial_state
+        initial_state,
+        mock_product_matcher
     ):
         """Test multiple rounds of feedback are all preserved."""
+        mock_product_matcher_class.return_value = mock_product_matcher
+
         with patch('src.graph.workflow.settings') as mock_settings:
             mock_settings.checkpoint_dir = temp_checkpoint_dir
 
@@ -575,15 +638,20 @@ class TestHumanFeedbackInCheckpoint:
 class TestWorkflowIterationTracking:
     """Test workflow iteration counter in checkpoints."""
 
+    @patch('src.graph.workflow.ProductMatcher')
     def test_workflow_iteration_starts_at_one(
         self,
+        mock_product_matcher_class,
         temp_checkpoint_dir,
         mock_model_router,
         mock_mcp_client,
         mock_job_scraper,
-        initial_state
+        initial_state,
+        mock_product_matcher
     ):
         """Test workflow_iteration starts at 1."""
+        mock_product_matcher_class.return_value = mock_product_matcher
+
         with patch('src.graph.workflow.settings') as mock_settings:
             mock_settings.checkpoint_dir = temp_checkpoint_dir
 
@@ -639,14 +707,19 @@ class TestCheckpointDatabaseIntegrity:
             # LangGraph creates checkpoint tables
             assert len(tables) >= 0  # At minimum, database should be queryable
 
+    @patch('src.graph.workflow.ProductMatcher')
     def test_multiple_workflows_share_database_safely(
         self,
+        mock_product_matcher_class,
         temp_checkpoint_dir,
         mock_model_router,
         mock_mcp_client,
-        mock_job_scraper
+        mock_job_scraper,
+        mock_product_matcher
     ):
         """Test multiple workflow instances can use same checkpoint DB."""
+        mock_product_matcher_class.return_value = mock_product_matcher
+
         with patch('src.graph.workflow.settings') as mock_settings:
             mock_settings.checkpoint_dir = temp_checkpoint_dir
 
