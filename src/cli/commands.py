@@ -31,7 +31,8 @@ def research_command(
     region: Optional[str] = None,
     research_depth: str = "standard",
     output_dir: Optional[str] = None,
-    thread_id: Optional[str] = None
+    thread_id: Optional[str] = None,
+    user_context: Optional[str] = None
 ) -> None:
     """
     Start a new research workflow.
@@ -43,6 +44,9 @@ def research_command(
         research_depth: Research depth (quick/standard/deep)
         output_dir: Directory to save reports (optional)
         thread_id: Custom thread ID (optional, defaults to research_{account_name})
+        user_context: Additional strategic context for the research (optional).
+            If not provided and request is generic, CoordinatorAgent will ask
+            clarifying questions to gather context for practical strategic advice.
     """
     print(f"\n{'='*70}")
     print(f"Starting research for: {account_name}")
@@ -61,6 +65,7 @@ def research_command(
         account_name=account_name,
         industry=industry,
         region=region,
+        user_context=user_context,
         research_depth=depth_enum
     )
 

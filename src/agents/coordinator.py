@@ -360,12 +360,15 @@ Return ONLY the normalized name, nothing else. If the name is already normal, re
 
     async def _generate_clarifying_questions(self, state: ResearchState) -> str | None:
         """
-        Smart questioning - LLM decides if clarification needed.
+        Smart questioning - LLM decides if clarification needed for strategic advice.
 
         Considers:
-        - Missing optional fields (region, user_context)
+        - Missing strategic context (sales objective, relationship, competitive situation)
         - Ambiguous inputs (e.g., "Amazon" - AWS or Retail?)
-        - Research depth appropriateness
+        - Whether we have enough info to provide ACTIONABLE recommendations
+
+        The goal is to provide PRACTICAL STRATEGIC ADVICE, not generic research.
+        Without context, we can only provide generic outputs that aren't useful.
 
         Args:
             state: Current research state
@@ -373,35 +376,56 @@ Return ONLY the normalized name, nothing else. If the name is already normal, re
         Returns:
             Question string if clarification would improve results, else None
         """
-        prompt = f"""Evaluate if clarifying questions would SIGNIFICANTLY improve research results:
+        user_context = state.get("user_context") or ""
+        has_meaningful_context = len(user_context.strip()) > 50  # More than a sentence
+
+        prompt = f"""Evaluate if clarifying questions are needed to provide PRACTICAL STRATEGIC ADVICE.
 
 Account Name: {state["account_name"]}
 Industry: {state["industry"]}
 Region: {state.get("region") or "Not specified"}
-Additional Context: {state.get("user_context") or "Not specified"}
+Additional Context: {user_context or "None provided"}
 Research Depth: {state["research_depth"].value}
 
-Consider:
-1. Is the company name ambiguous? (e.g., "Amazon" could be AWS, Retail, or both)
-2. Would knowing the geographic region substantially help focus the research?
-3. Is additional context needed to identify relevant sales opportunities?
-4. Is the research depth appropriate for the company size?
+Your goal is to help a sales professional prepare for customer engagement. Generic research
+without context produces generic advice that isn't actionable.
 
-IMPORTANT: Only ask if clarification would SIGNIFICANTLY improve results.
-If the inputs are reasonably clear, do NOT ask questions - just return null.
+KEY STRATEGIC CONTEXT CHECKLIST (check what's missing):
+1. SALES OBJECTIVE - What's the purpose? (discovery call, QBR, renewal, expansion, new logo)
+2. RELATIONSHIP STATUS - New prospect or existing customer? How long?
+3. CURRENT PRODUCTS - What do they already own? (helps identify upsell vs cross-sell)
+4. KNOWN INITIATIVES - Any specific projects, pain points, or goals mentioned?
+5. COMPETITIVE SITUATION - Any competitor products being evaluated or in use?
+6. BUDGET/TIMING - Any known budget cycles or decision timelines?
+
+DECISION RULES:
+- If "Additional Context" is "None provided" or very sparse → ASK questions (we need context for strategic advice)
+- If context mentions specific products, initiatives, or sales objectives → DON'T ask (we have enough)
+- If company name is ambiguous (Amazon, GE, etc.) → ASK for clarification
+- If research is clearly just exploratory with no sales objective → ASK what they want to achieve
 
 Return JSON:
 {{
-    "needs_clarification": false,
-    "questions": null,
-    "reasoning": "Inputs are sufficiently clear for research"
+    "needs_clarification": true/false,
+    "questions": "Your strategic questions here (2-4 questions, focused on sales context)",
+    "reasoning": "Why this context would help provide actionable advice"
 }}
 
-OR if clarification needed:
+Example questions to ask when context is sparse:
+"To provide actionable strategic advice for {state["account_name"]}, I'd like to understand:
+
+1. What's your sales objective? (e.g., preparing for discovery call, QBR, expansion opportunity)
+2. What's your current relationship? (new prospect, existing customer - if so, what products do they have?)
+3. Are there any specific initiatives, pain points, or competitive threats you're aware of?
+4. Any particular product areas you want me to focus on?
+
+This context will help me identify the most relevant opportunities and talking points."
+
+If context IS sufficient (mentions objectives, products, or specific focus areas), return:
 {{
-    "needs_clarification": true,
-    "questions": "Your 1-2 focused questions here",
-    "reasoning": "Why this clarification would significantly help"
+    "needs_clarification": false,
+    "questions": null,
+    "reasoning": "Context provides enough information for strategic research"
 }}
 """
 

@@ -95,6 +95,20 @@ Examples:
         default=None,
         help="Custom thread ID (defaults to auto-generated)"
     )
+    research_parser.add_argument(
+        "--context",
+        "-c",
+        type=str,
+        default=None,
+        help="""Additional context for strategic research. Include details like:
+- Sales objective (discovery, QBR, renewal)
+- Relationship status (new prospect, existing customer)
+- Current products they own
+- Known initiatives or pain points
+- Competitive threats
+- Budget timing
+If not provided and request is generic, system will ask clarifying questions."""
+    )
 
     # ─────────────────────────────────────────────────────────────────────
     # RESUME COMMAND
@@ -150,7 +164,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                 region=args.region,
                 research_depth=args.depth,
                 output_dir=args.output,
-                thread_id=args.thread_id
+                thread_id=args.thread_id,
+                user_context=args.context
             )
             return 0
 

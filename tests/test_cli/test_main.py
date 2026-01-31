@@ -97,6 +97,40 @@ class TestCreateParser:
         assert args.output == './out'
         assert args.thread_id == 'test_123'
 
+    def test_research_context_flag(self):
+        """Test that --context flag is available."""
+        parser = create_parser()
+        context = "Sales objective: Discovery call. Existing customer with MATLAB."
+        args = parser.parse_args([
+            'research', 'Boeing',
+            '--industry', 'aerospace',
+            '--context', context
+        ])
+
+        assert args.context == context
+
+    def test_research_context_short_flag(self):
+        """Test that -c short flag works for context."""
+        parser = create_parser()
+        context = "Preparing for QBR meeting."
+        args = parser.parse_args([
+            'research', 'Boeing',
+            '-i', 'aerospace',
+            '-c', context
+        ])
+
+        assert args.context == context
+
+    def test_research_context_default_none(self):
+        """Test that context defaults to None if not provided."""
+        parser = create_parser()
+        args = parser.parse_args([
+            'research', 'Boeing',
+            '--industry', 'aerospace'
+        ])
+
+        assert args.context is None
+
     def test_resume_optional_output(self):
         """Test resume command with optional output."""
         parser = create_parser()
@@ -146,7 +180,8 @@ class TestMain:
             region=None,
             research_depth='standard',
             output_dir=None,
-            thread_id=None
+            thread_id=None,
+            user_context=None
         )
         assert exit_code == 0
 
@@ -168,7 +203,33 @@ class TestMain:
             region='NA',
             research_depth='deep',
             output_dir='./out',
-            thread_id='test_123'
+            thread_id='test_123',
+            user_context=None
+        )
+        assert exit_code == 0
+
+    @patch('src.cli.main.research_command')
+    def test_research_with_context(self, mock_research_cmd):
+        """Test research command with context argument."""
+        context = """Sales Objective: QBR preparation
+Relationship: Existing customer since 2020
+Current Products: MATLAB, Simulink
+Known Initiatives: Autonomous vehicle program"""
+
+        exit_code = main([
+            'research', 'Boeing',
+            '--industry', 'aerospace',
+            '--context', context
+        ])
+
+        mock_research_cmd.assert_called_once_with(
+            account_name='Boeing',
+            industry='aerospace',
+            region=None,
+            research_depth='standard',
+            output_dir=None,
+            thread_id=None,
+            user_context=context
         )
         assert exit_code == 0
 

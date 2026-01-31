@@ -154,6 +154,54 @@ class TestResearchCommand:
         assert state['region'] == "North America"
         assert state['research_depth'] == ResearchDepth.DEEP
 
+    @patch('src.cli.commands.ResearchWorkflow')
+    @patch('src.cli.commands._run_with_human_loop')
+    @patch('builtins.print')
+    def test_research_with_user_context(self, mock_print, mock_run_loop, mock_workflow_class):
+        """Test research with user context for strategic advice."""
+        mock_workflow = Mock()
+        mock_workflow_class.return_value = mock_workflow
+        result_state = create_complete_state()
+        mock_run_loop.return_value = result_state
+
+        context = """Sales Objective: Prepare for Q1 QBR meeting
+Relationship: Existing customer since 2020 - MATLAB + Simulink site license
+Known Initiatives: Autonomous vehicle program launching Q2
+Pain Points: Simulation too slow, need HIL testing
+Competitive Threat: Ansys SCADE being evaluated"""
+
+        research_command(
+            account_name="Boeing",
+            industry="aerospace",
+            user_context=context
+        )
+
+        # Verify state created with context
+        args = mock_run_loop.call_args[0]
+        state = args[1]
+        assert state['account_name'] == "Boeing"
+        assert state['user_context'] == context
+
+    @patch('src.cli.commands.ResearchWorkflow')
+    @patch('src.cli.commands._run_with_human_loop')
+    @patch('builtins.print')
+    def test_research_without_context_defaults_none(self, mock_print, mock_run_loop, mock_workflow_class):
+        """Test that user_context defaults to None when not provided."""
+        mock_workflow = Mock()
+        mock_workflow_class.return_value = mock_workflow
+        result_state = create_complete_state()
+        mock_run_loop.return_value = result_state
+
+        research_command(
+            account_name="Tesla",
+            industry="automotive"
+        )
+
+        # Verify state created without context
+        args = mock_run_loop.call_args[0]
+        state = args[1]
+        assert state['user_context'] is None
+
 
 class TestResumeCommand:
     """Tests for resume_command function."""

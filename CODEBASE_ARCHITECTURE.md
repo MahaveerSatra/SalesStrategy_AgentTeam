@@ -2,7 +2,7 @@
 
 **Last Updated**: 2026-01-31 (Evening)
 **Status**: Phase 4 IN PROGRESS - All Integration Tests FIXED, Ready for Demos
-**Test Status**: ✅ 447 tests total | ✅ 426 passing (fast) | ✅ 0 skipped | 21 slow E2E
+**Test Status**: ✅ 453 tests total | ✅ 432 passing (fast) | ✅ 0 skipped | 21 slow E2E
 
 ---
 
@@ -12,9 +12,9 @@
 
 1. **Project**: Multi-agent system for enterprise account research using LangGraph
 2. **Current Phase**: Phase 4 IN PROGRESS - All integration tests fixed, ready for demos
-3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 447 tests + 139 MathWorks products + E2E ChromaDB tests (ALL 7 passing)
+3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 453 tests + 139 MathWorks products + E2E ChromaDB tests (ALL 7 passing)
 4. **What's Next**: Run real company demos (Boeing, Tesla, Rivian)
-5. **Test Coverage**: 447 total tests (426 passing fast, 0 skipped, 21 slow E2E)
+5. **Test Coverage**: 453 total tests (432 passing fast, 0 skipped, 21 slow E2E)
 6. **System Status**: ✅ All integration tests passing - ready for production demos
 7. **Product Catalog**: Expanded to 139 MathWorks products (was 20) - full catalog from mathworks.com
 
@@ -201,8 +201,8 @@ User asked: *"How can we test that ChromaDB actually works with my project and C
 **All 7 E2E ChromaDB integration tests now passing!**
 
 **Test Suite Status**:
-- ✅ 447 total tests (93 CLI + 347 other + 7 E2E ChromaDB)
-- ✅ 426 passing (excluding 21 slow Ollama E2E)
+- ✅ 453 total tests (93 CLI + 347 other + 7 E2E ChromaDB)
+- ✅ 432 passing (excluding 21 slow Ollama E2E)
 - ✅ 0 skipped tests - all integration tests fixed!
 
 **Previous Implementation** (2026-01-30 Evening):
@@ -219,8 +219,18 @@ User asked: *"How can we test that ChromaDB actually works with my project and C
 
 **Usage**:
 ```bash
-# Start new research
+# Start new research (basic - system will ask clarifying questions for strategic context)
 python -m src.cli research "Boeing" --industry aerospace --output ./reports
+
+# Start research WITH strategic context (recommended for practical advice)
+python -m src.cli research "Boeing" --industry aerospace --context "
+Sales Objective: Q1 QBR preparation
+Relationship: Existing customer - MATLAB + Simulink site license
+Known Initiatives: Autonomous vehicle program, DO-178C certification
+Pain Points: Simulation too slow, need HIL testing
+Competitive Threat: Ansys SCADE evaluation
+Focus: Polyspace and certification tools
+" --output ./reports
 
 # Resume interrupted research
 python -m src.cli resume <thread_id>
@@ -229,8 +239,11 @@ python -m src.cli resume <thread_id>
 python -m src.cli list-runs
 ```
 
+**Context Flag** (`--context` / `-c`): Provides strategic context for actionable advice.
+Without context, the CoordinatorAgent asks clarifying questions before research.
+
 **Latest Verification** (2026-01-31 Evening):
-- ✅ **447 total tests** - 426 passing (fast), 0 skipped, 21 slow E2E
+- ✅ **453 total tests** - 432 passing (fast), 0 skipped, 21 slow E2E
 - ✅ CLI tests complete - 93 new tests added and passing
 - ✅ Checkpointing tests fixed - 12 previously failing tests now passing
 - ✅ MathWorks product catalog expanded - 139 products (was 20)
@@ -411,8 +424,8 @@ result = AnalysisResult.model_validate_json(response.content)
 | Phase 4 | ⏳ IN PROGRESS | Testing (✅), CLI (✅), CLI Tests (✅), **Demos & Materials (next)** |
 
 **Test Coverage**:
-- 447 total tests (93 CLI + 347 other + 7 E2E ChromaDB)
-- 426 passing (fast tests)
+- 453 total tests (93 CLI + 347 other + 7 E2E ChromaDB)
+- 432 passing (fast tests)
 - 0 skipped tests - ALL integration tests fixed!
 - 21 slow Ollama E2E tests
 - 100% pass rate on all fast tests
@@ -702,9 +715,10 @@ Coordinator Exit (presents report)
 
 **Features**:
 - Start new research: `python -m src.cli research "Boeing" --industry aerospace`
+- Add strategic context: `--context "Sales objective, relationship status, known initiatives..."`
 - Resume workflows: `python -m src.cli resume <thread_id>`
 - List previous runs: `python -m src.cli list-runs`
-- Human-in-loop interactive prompts
+- Human-in-loop interactive prompts (asks clarifying questions when context is sparse)
 - Multiple output formats (terminal summary, markdown report, JSON export)
 - Progress tracking and checkpointing
 
@@ -736,7 +750,7 @@ Coordinator Exit (presents report)
 | Other test files (core, router, data sources) | 86 | Infrastructure | ✅ |
 
 **Total Tests**: 447 tests
-- **426 passing** (fast tests, excluding slow E2E)
+- **432 passing** (fast tests, excluding slow E2E)
 - **0 skipped** - ALL integration tests fixed! (2026-01-31 Evening)
 - **21 slow E2E** tests (marked with `@pytest.mark.slow`)
 - **100% pass rate** on all fast tests
@@ -945,8 +959,19 @@ Test files created:
 # Activate environment
 .\venv\Scripts\Activate.ps1
 
-# Start new research
+# Start new research (basic - will ask clarifying questions)
 python -m src.cli research "Boeing" --industry aerospace
+
+# Start research with strategic context (recommended)
+python -m src.cli research "Boeing" --industry aerospace --context "
+Sales Objective: Discovery call preparation
+Relationship: New prospect
+Known Initiatives: Autonomous refueling drone program (MQ-25)
+Competitive Threat: Using Python for simulation
+Focus: Simulink, Aerospace Blockset
+"
+
+# Other options
 python -m src.cli research "Tesla" --industry automotive --region "North America" --depth deep
 python -m src.cli research "Rivian" --industry automotive --output ./reports
 
@@ -1731,7 +1756,7 @@ UPDATED:
 *Last verified: 2026-01-31 Evening*
 
 **System Status**:
-- ✅ 447 total tests (426 passing fast, 0 skipped, 21 slow E2E)
+- ✅ 453 total tests (432 passing fast, 0 skipped, 21 slow E2E)
 - ✅ CLI interface complete and tested (93 tests)
 - ✅ Product catalog expanded to 139 MathWorks products
 - ✅ **ALL integration tests passing** - including 7 E2E ChromaDB tests
