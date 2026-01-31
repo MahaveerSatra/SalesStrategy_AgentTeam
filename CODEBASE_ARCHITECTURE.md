@@ -1,8 +1,8 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-01-31 (Afternoon)
-**Status**: Phase 4 IN PROGRESS - E2E ChromaDB Tests, Fixing Integration Tests
-**Test Status**: ✅ 447 tests total | ✅ 423 passing (fast) | ⏳ 3 need fixes | 21 slow E2E
+**Last Updated**: 2026-01-31 (Evening)
+**Status**: Phase 4 IN PROGRESS - All Integration Tests FIXED, Ready for Demos
+**Test Status**: ✅ 447 tests total | ✅ 426 passing (fast) | ✅ 0 skipped | 21 slow E2E
 
 ---
 
@@ -11,11 +11,11 @@
 **READ THIS FIRST** when restoring context after clearing chat:
 
 1. **Project**: Multi-agent system for enterprise account research using LangGraph
-2. **Current Phase**: Phase 4 IN PROGRESS - Fixing E2E integration tests for ChromaDB
-3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 447 tests + 139 MathWorks products + E2E ChromaDB tests (4 passing)
-4. **What's Next**: Fix 3 skipped integration tests, then run real company demos (Boeing, Tesla, Rivian)
-5. **Test Coverage**: 447 total tests (423 passing fast, 3 skipped need fixes, 21 slow E2E)
-6. **System Status**: ⏳ Fixing integration tests - see Lesson 3 below about not skipping hard tests
+2. **Current Phase**: Phase 4 IN PROGRESS - All integration tests fixed, ready for demos
+3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 447 tests + 139 MathWorks products + E2E ChromaDB tests (ALL 7 passing)
+4. **What's Next**: Run real company demos (Boeing, Tesla, Rivian)
+5. **Test Coverage**: 447 total tests (426 passing fast, 0 skipped, 21 slow E2E)
+6. **System Status**: ✅ All integration tests passing - ready for production demos
 7. **Product Catalog**: Expanded to 139 MathWorks products (was 20) - full catalog from mathworks.com
 
 ### Quick Start Guide
@@ -49,7 +49,7 @@ python -m src.cli resume <thread_id>
 python -m src.cli list-runs
 ```
 
-**Next Task**: Fix 3 skipped integration tests (IdentifierAgent with real ChromaDB), then run real company demos.
+**Next Task**: Run real company demos (Boeing, Tesla, Rivian) - all integration tests now passing!
 
 ---
 
@@ -123,20 +123,31 @@ python -m src.cli list-runs
   2. Requirement extraction → product matching works end-to-end
   3. The 139 products are actually usable by the system
 
-**Current Status**: ⏳ **IN PROGRESS** - Fixing the integration tests properly (not skipping)
+**Current Status**: ✅ **COMPLETE** - All 3 integration tests now passing (2026-01-31 Evening)
 
-**Correct Approach**:
-1. Create simpler integration tests (not full workflow tests)
-2. Start with real indexed ChromaDB
-3. Run IdentifierAgent.process() with realistic state
-4. Verify it extracts requirements and matches products
-5. Fix AsyncMock issues properly (not skip them)
+**Solution Applied**:
+1. Fixed mock setup - IdentifierAgent uses `model_router.generate()` not `run_agent()`
+2. Mock responses return MagicMock with `.content` attribute containing proper JSON
+3. Two responses needed per test: requirements extraction + opportunity generation
+4. For workflow test: simplified to test IdentifierAgent → ProductMatcher → ChromaDB chain directly
+5. Avoided LangGraph checkpointing serialization issues with focused integration test
+
+**What's REAL vs MOCKED in these tests**:
+| Component | Status | Notes |
+|-----------|--------|-------|
+| ChromaDB | ✅ REAL | Products indexed in actual ChromaDB database |
+| ProductMatcher | ✅ REAL | Performs actual semantic vector search |
+| Sentence Transformers | ✅ REAL | Real embeddings using `all-MiniLM-L6-v2` |
+| IdentifierAgent.process() | ✅ REAL | Real agent logic executing |
+| ModelRouter (LLM) | 🔶 MOCKED | LLM calls mocked (standard practice - slow, expensive, non-deterministic) |
+
+**The critical integration chain is REAL**: `IdentifierAgent → ProductMatcher → ChromaDB`
 
 **Takeaway**: Tests exist to verify the system works. Skipping hard tests defeats the purpose. If a test is too complex, simplify it - don't skip it.
 
 ---
 
-### Current Session Context (2026-01-31 Morning)
+### Current Session Context (2026-01-31 Evening)
 
 **✅ CLI IMPLEMENTATION & TESTING COMPLETE** (2026-01-31):
 
@@ -183,16 +194,16 @@ User asked: *"How can we test that ChromaDB actually works with my project and C
 - ✅ `test_product_matcher_with_real_chromadb` - Tests semantic product matching
 - ✅ `test_product_matcher_confidence_scores` - Validates confidence scores (0.0-1.0)
 - ✅ `test_chromadb_persistence` - Confirms ChromaDB persists across sessions
-- ⏳ `test_identifier_agent_with_real_chromadb` - **NEEDS FIX** (currently skipped)
-- ⏳ `test_identifier_extracts_tech_requirements` - **NEEDS FIX** (currently skipped)
-- ⏳ `test_workflow_with_real_chromadb` - **NEEDS FIX** (currently skipped)
+- ✅ `test_identifier_agent_with_real_chromadb` - **FIXED** (2026-01-31)
+- ✅ `test_identifier_extracts_tech_requirements` - **FIXED** (2026-01-31)
+- ✅ `test_workflow_with_real_chromadb` - **FIXED** (2026-01-31)
 
-**Current Task**: Fix the 3 skipped integration tests (see Lesson 3 above)
+**All 7 E2E ChromaDB integration tests now passing!**
 
 **Test Suite Status**:
 - ✅ 447 total tests (93 CLI + 347 other + 7 E2E ChromaDB)
-- ✅ 423 passing (excluding 21 slow Ollama E2E + 3 skipped ChromaDB)
-- ⏳ 3 tests need proper fixes (not acceptable to leave skipped)
+- ✅ 426 passing (excluding 21 slow Ollama E2E)
+- ✅ 0 skipped tests - all integration tests fixed!
 
 **Previous Implementation** (2026-01-30 Evening):
 - ✅ Created complete CLI package (`src/cli/`)
@@ -218,13 +229,13 @@ python -m src.cli resume <thread_id>
 python -m src.cli list-runs
 ```
 
-**Latest Verification** (2026-01-31 Afternoon):
-- ✅ **447 total tests** - 423 passing (fast), 3 skipped need fixes, 21 slow E2E
+**Latest Verification** (2026-01-31 Evening):
+- ✅ **447 total tests** - 426 passing (fast), 0 skipped, 21 slow E2E
 - ✅ CLI tests complete - 93 new tests added and passing
 - ✅ Checkpointing tests fixed - 12 previously failing tests now passing
 - ✅ MathWorks product catalog expanded - 139 products (was 20)
-- ✅ E2E ChromaDB tests created - 4 passing, 3 skipped (being fixed)
-- ⏳ **IN PROGRESS**: Fixing 3 skipped integration tests (see Lesson 3)
+- ✅ **E2E ChromaDB tests ALL PASSING** - 7 tests (was 4 passing, 3 skipped)
+- ✅ **COMPLETE**: Fixed 3 integration tests that were previously skipped (see Lesson 3)
 
 **Previously Completed** (2026-01-29):
 - ✅ Created `tests/test_integration/test_e2e_ollama.py` with 21 E2E tests using real Ollama
@@ -268,12 +279,12 @@ pip install lxml sentence_transformers chromadb
 2. ✅ ~~Write CLI tests~~ - **COMPLETE** (93 tests added, all passing)
 3. ✅ ~~Fix checkpointing test failures~~ - **COMPLETE** (12 tests fixed)
 4. ✅ ~~Expand MathWorks product catalog~~ - **COMPLETE** (139 products indexed)
-5. ⏳ **Fix 3 skipped E2E integration tests** - **CURRENT TASK**
-   - `test_identifier_agent_with_real_chromadb` - Tests IdentifierAgent uses ProductMatcher
-   - `test_identifier_extracts_tech_requirements` - Tests full requirement pipeline
-   - `test_workflow_with_real_chromadb` - Tests complete CLI→Workflow→ChromaDB chain
-   - See Lesson 3: Never skip hard tests
-6. **Run real company demos** (Boeing, Tesla, Rivian) - After fixing tests
+5. ✅ ~~Fix 3 skipped E2E integration tests~~ - **COMPLETE** (2026-01-31)
+   - `test_identifier_agent_with_real_chromadb` - ✅ FIXED
+   - `test_identifier_extracts_tech_requirements` - ✅ FIXED
+   - `test_workflow_with_real_chromadb` - ✅ FIXED
+   - See Lesson 3 for solution details
+6. ⏳ **Run real company demos** (Boeing, Tesla, Rivian) - **CURRENT TASK**
 7. Create demo materials (README update, LinkedIn post, interview guide)
 
 ---
@@ -401,10 +412,10 @@ result = AnalysisResult.model_validate_json(response.content)
 
 **Test Coverage**:
 - 447 total tests (93 CLI + 347 other + 7 E2E ChromaDB)
-- 423 passing (fast tests, excluding skipped)
-- 3 skipped tests need fixes (see Lesson 3)
+- 426 passing (fast tests)
+- 0 skipped tests - ALL integration tests fixed!
 - 21 slow Ollama E2E tests
-- 100% pass rate on non-skipped fast tests
+- 100% pass rate on all fast tests
 
 ---
 
@@ -720,15 +731,15 @@ Coordinator Exit (presents report)
 | `tests/test_integration/test_checkpointing.py` | 17 | SQLite checkpointing | ✅ **FIXED** (was 5/17, now 17/17) |
 | `tests/test_integration/test_realistic_fixtures.py` | 28 | Realistic fixture tests | ✅ Real Data |
 | `tests/test_integration/test_e2e_ollama.py` | 21 | E2E tests with real Ollama | ✅ Real LLM + Structured Outputs |
-| `tests/test_integration/test_e2e_full_workflow.py` | 7 | E2E tests with real ChromaDB | ✅ 4 passing, ⏳ 3 need fixes |
+| `tests/test_integration/test_e2e_full_workflow.py` | 7 | E2E tests with real ChromaDB | ✅ ALL 7 PASSING (fixed 2026-01-31) |
 | `tests/test_utils/test_json_parsing.py` | 36 | JSON parsing utility tests | ✅ |
 | Other test files (core, router, data sources) | 86 | Infrastructure | ✅ |
 
 **Total Tests**: 447 tests
-- **423 passing** (fast tests, excluding slow E2E and skipped)
-- **3 skipped** tests need fixes (IdentifierAgent integration - see Lesson 3)
+- **426 passing** (fast tests, excluding slow E2E)
+- **0 skipped** - ALL integration tests fixed! (2026-01-31 Evening)
 - **21 slow E2E** tests (marked with `@pytest.mark.slow`)
-- **100% pass rate** on non-skipped fast tests
+- **100% pass rate** on all fast tests
 
 **Note**: Run `pytest -m "not slow"` to skip E2E tests for faster CI runs.
 
@@ -1717,13 +1728,13 @@ UPDATED:
 
 ## Document Status Summary
 
-*Last verified: 2026-01-31 Afternoon*
+*Last verified: 2026-01-31 Evening*
 
 **System Status**:
-- ✅ 447 total tests (423 passing fast, 3 skipped need fixes, 21 slow E2E)
+- ✅ 447 total tests (426 passing fast, 0 skipped, 21 slow E2E)
 - ✅ CLI interface complete and tested (93 tests)
 - ✅ Product catalog expanded to 139 MathWorks products
-- ⏳ **IN PROGRESS**: Fixing 3 skipped integration tests (see Lesson 3)
+- ✅ **ALL integration tests passing** - including 7 E2E ChromaDB tests
 
 **Production Readiness**:
 - ~7,000+ lines of production code
@@ -1732,13 +1743,11 @@ UPDATED:
 - 139 MathWorks products indexed in ChromaDB
 - Multiple output formats (terminal, markdown, JSON)
 - Checkpointing and resume capability
+- All integration tests verify critical paths
 
 **Next Immediate Actions**:
-1. ⏳ **Fix 3 skipped integration tests** - IdentifierAgent with real ChromaDB (CURRENT)
-   - Create simpler integration tests (not complex workflow mocking)
-   - Verify IdentifierAgent.process() uses ProductMatcher correctly
-   - See Lesson 3: Never skip hard tests
-2. **Real Company Demos** - Run research on Boeing, Tesla, Rivian (AFTER tests fixed)
+1. ✅ ~~Fix 3 skipped integration tests~~ - **COMPLETE** (2026-01-31 Evening)
+2. ⏳ **Real Company Demos** - Run research on Boeing, Tesla, Rivian (CURRENT TASK)
 3. **Demo Materials** - Update README, create LinkedIn post, interview guide
 
 **How to Use This System**:
