@@ -5,7 +5,7 @@ Comprehensive test coverage with mocked dependencies.
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime
-from pydantic import HttpUrl
+# HttpUrl removed - using plain strings for msgpack compatibility
 
 from src.agents.gatherer import GathererAgent
 from src.models.state import ResearchState, Signal, ResearchProgress, ResearchDepth, create_initial_state
@@ -65,14 +65,14 @@ def sample_search_results():
     return [
         SearchResult(
             title="Acme Corp - Official Site",
-            url=HttpUrl("https://acme.com"),
+            url="https://acme.com",
             snippet="Leading provider of enterprise solutions",
             source="duckduckgo",
             timestamp=datetime.now()
         ),
         SearchResult(
             title="Acme Corp Technology Stack",
-            url=HttpUrl("https://stackshare.io/acme"),
+            url="https://stackshare.io/acme",
             snippet="Acme uses Python, React, and AWS",
             source="duckduckgo",
             timestamp=datetime.now()
@@ -88,7 +88,7 @@ def sample_job_postings():
             title="Senior Software Engineer",
             company="Acme Corp",
             location="Boston, MA",
-            url=HttpUrl("https://acme.com/careers/123"),
+            url="https://acme.com/careers/123",
             description="Build scalable systems using Python and AWS",
             posted_date=datetime.now(),
             technologies=["Python", "AWS", "Docker"],
@@ -99,7 +99,7 @@ def sample_job_postings():
             title="Machine Learning Engineer",
             company="Acme Corp",
             location="Remote",
-            url=HttpUrl("https://acme.com/careers/124"),
+            url="https://acme.com/careers/124",
             description="Develop ML models using TensorFlow",
             posted_date=datetime.now(),
             technologies=["Python", "TensorFlow", "Kubernetes"],
@@ -115,14 +115,14 @@ def sample_news_items():
     return [
         NewsItem(
             title="Acme Corp Expands Cloud Services",
-            url=HttpUrl("https://news.example.com/acme-cloud"),
+            url="https://news.example.com/acme-cloud",
             summary="Acme announces new cloud platform for enterprises",
             source="TechNews",
             published_date=datetime.now()
         ),
         NewsItem(
             title="Acme Corp Raises $50M Series B",
-            url=HttpUrl("https://news.example.com/acme-funding"),
+            url="https://news.example.com/acme-funding",
             summary="Acme secures funding to expand AI capabilities",
             source="VentureBeat",
             published_date=datetime.now()

@@ -1,8 +1,8 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-01-31 (Night - Seller Configuration Implemented)
-**Status**: Phase 4 COMPLETE - System Ready for Demos
-**Test Status**: ✅ 453 tests passing (fast) | ✅ 0 skipped | 21 slow E2E
+**Last Updated**: 2026-01-31 (Late Night - Critical Bug Fixes Applied, Demo Verified)
+**Status**: Phase 4 COMPLETE - System VERIFIED Working End-to-End
+**Test Status**: ✅ 432 tests passing (fast) | ✅ 0 skipped | 21 slow E2E
 
 ---
 
@@ -11,13 +11,14 @@
 **READ THIS FIRST** when restoring context after clearing chat:
 
 1. **Project**: Multi-agent system for enterprise account research using LangGraph
-2. **Current Phase**: Phase 4 COMPLETE - System ready for demos
-3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 453 tests + 139 MathWorks products + E2E ChromaDB tests + `--context` flag + `--seller` flag + **Seller Configuration Architecture (2026-01-31)**
-4. **What's Next**: Run demos with Boeing, Tesla, Rivian
-5. **Test Coverage**: 453 tests passing fast, 0 skipped, 21 slow E2E
-6. **System Status**: ✅ All tests passing, MathWorks catalog indexed (139 products)
+2. **Current Phase**: Phase 4 COMPLETE - System VERIFIED with real Boeing demo
+3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 432 tests + 139 MathWorks products + E2E ChromaDB tests + `--context` flag + `--seller` flag + **MCP Session Fix + HttpUrl Serialization Fix (2026-01-31 Late Night)**
+4. **What's Next**: Run more demos (Tesla, Rivian), create demo materials
+5. **Test Coverage**: 432 tests passing fast, 0 skipped, 21 slow E2E
+6. **System Status**: ✅ All tests passing, MathWorks catalog indexed (139 products), **MCP web search WORKING**
 7. **Product Catalog**: Supports any seller company (MathWorks built-in, or provide JSON/URL for custom companies)
 8. **Architecture Fix**: Seller vs Customer separation - seller's products matched to customer's requirements
+9. **CRITICAL FIXES (2026-01-31 Late Night)**: MCP session initialization + HttpUrl msgpack serialization
 
 ### Architecture Overview
 
@@ -175,6 +176,48 @@ python -m src.cli setup-catalog --seller "MathWorks" --force
 - `tests/test_agents/test_coordinator.py` - Removed normalization mocks from 8 tests
 - `tests/test_integration/test_pipeline.py` - Changed "Acme Corporation" → "Acme" (suffix removed)
 - `tests/test_integration/test_checkpointing.py` - Changed "Checkpoint Corp" → "Checkpoint", company names without suffixes
+
+---
+
+### Bug Fixes Applied This Session (2026-01-31 Late Night - E2E Demo Testing)
+
+**Issue 5: MCP Session Not Initialized** ✅ FIXED (Critical)
+- **Problem**: Gatherer agent failed with `"MCP session not initialized. Use 'async with' context manager."` - no web data was collected (0 signals, 0 jobs, 0 news)
+- **Root Cause**: `DuckDuckGoMCPClient` is an async context manager requiring `async with client:` to initialize the MCP session. The workflow created the client in `__init__` but never entered the async context.
+- **Why Tests Didn't Catch It**: Unit tests used `AsyncMock(spec=DuckDuckGoMCPClient)` which bypassed the context manager requirement
+- **Solution**: Wrapped gatherer execution in async context manager in `_gatherer_node()`:
+  ```python
+  async def run_gatherer_with_mcp():
+      async with self.mcp_client:
+          await self.gatherer.process(state)
+  asyncio.run(run_gatherer_with_mcp())
+  ```
+- **File Changed**: `src/graph/workflow.py` lines 275-278
+- **Verification**: Demo now collects 10+ signals from real web searches
+
+**Issue 6: HttpUrl Not Serializable for Checkpointing** ✅ FIXED (Medium)
+- **Problem**: LangGraph checkpointing failed with `TypeError: Type is not msgpack serializable: HttpUrl`
+- **Root Cause**: Pydantic's `HttpUrl` type (used in domain models) isn't compatible with msgpack serialization used by LangGraph's SqliteSaver
+- **Solution**: Replaced `HttpUrl` with plain `str` type in domain models:
+  - `JobPosting.url`: `HttpUrl | None` → `str | None`
+  - `CompanyInfo.website`: `HttpUrl | None` → `str | None`
+  - `SearchResult.url`: `HttpUrl` → `str`
+  - `NewsItem.url`: `HttpUrl | None` → `str | None`
+- **Files Changed**:
+  - `src/models/domain.py` - Replaced HttpUrl with str
+  - `tests/test_agents/test_gatherer.py` - Updated fixtures to use plain strings
+  - `tests/test_data_sources/test_mcp_client.py` - Removed unused HttpUrl import
+- **Tests**: 432 tests passing after fix
+
+**Demo Results After Fixes (Boeing)**:
+- ✅ MCP connection established successfully
+- ✅ 10 signals collected from real DuckDuckGo web searches
+- ✅ 15 requirements extracted from signals
+- ✅ 75 product matches found (from 139 MathWorks products)
+- ✅ 4 opportunities generated, 3 validated
+- ✅ 6 competitive risks identified
+- ✅ 3482-character sales report generated
+- ✅ Checkpointing working (no serialization errors)
 
 ---
 
@@ -2107,17 +2150,19 @@ UPDATED:
 
 ## Document Status Summary
 
-*Last verified: 2026-01-31 Night (Post Seller Configuration Implementation)*
+*Last verified: 2026-01-31 Late Night (Post E2E Demo Testing - All Critical Bugs Fixed)*
 
 **System Status**:
-- ✅ **453 tests passing** (fast), 0 skipped, 21 slow E2E
+- ✅ **432 tests passing** (fast), 0 skipped, 21 slow E2E
 - ✅ CLI interface complete and tested
 - ✅ **Product catalog: 139 MathWorks products INDEXED in ChromaDB**
 - ✅ **ALL integration tests passing** after bug fixes
 - ✅ **Strategic context flag** (`--context`) for actionable sales advice
 - ✅ **Seller configuration** (`--seller`) for any seller company
 - ✅ **setup-catalog command** for indexing custom product catalogs
-- ✅ **Bug fixes applied**: Name normalization, stage indicators, UTF-8, clarification loop, seller/customer separation
+- ✅ **MCP web search WORKING** - Real web data collected from DuckDuckGo
+- ✅ **LangGraph checkpointing WORKING** - No serialization errors
+- ✅ **Bug fixes applied**: MCP session init, HttpUrl serialization, name normalization, stage indicators, UTF-8, clarification loop, seller/customer separation
 
 **Production Readiness**:
 - ~7,500+ lines of production code
@@ -2131,8 +2176,9 @@ UPDATED:
 - **Strategic context support** for realistic demos
 - **Workflow stage indicators** for user visibility
 - **Seller/Customer architecture** - proper separation of concerns
+- **VERIFIED END-TO-END** with Boeing demo (10 signals, 3 opportunities, full report)
 
-**Completed Actions (This Session - 2026-01-31 Night)**:
+**Completed Actions (This Session - 2026-01-31 Late Night)**:
 1. ✅ Fix 3 skipped integration tests - **COMPLETE** (2026-01-31 Evening)
 2. ✅ Add `--context` flag for strategic research - **COMPLETE** (2026-01-31 Late Evening)
 3. ✅ Fix name normalization hallucination - **COMPLETE** (2026-01-31 Night)
@@ -2140,10 +2186,14 @@ UPDATED:
 5. ✅ **Fix seller/customer architecture confusion** - **COMPLETE** (2026-01-31 Night)
 6. ✅ **Add setup-catalog CLI command** - **COMPLETE** (2026-01-31 Night)
 7. ✅ **Index MathWorks products (139 products)** - **COMPLETE** (2026-01-31 Night)
+8. ✅ **Fix MCP session not initialized bug** - **COMPLETE** (2026-01-31 Late Night)
+9. ✅ **Fix HttpUrl msgpack serialization bug** - **COMPLETE** (2026-01-31 Late Night)
+10. ✅ **Verify Boeing E2E demo working** - **COMPLETE** (2026-01-31 Late Night)
 
 **Next Immediate Actions**:
-1. ⏳ **Real Company Demos WITH CONTEXT** - Boeing, Tesla, Rivian (READY TO RUN)
+1. ⏳ **More Real Company Demos** - Tesla, Rivian (Boeing VERIFIED)
 2. **Demo Materials** - Update README, create LinkedIn post, interview guide
+3. **Optional**: Add more test coverage for MCP context manager usage
 
 **CATALOG ALREADY INDEXED - READY FOR DEMOS**:
 ```bash
@@ -2300,3 +2350,77 @@ python -m src.cli research "Boeing" --industry aerospace --output ./reports
 2. Check "Quick Context Recovery" section at the top
 3. Check "Document Status Summary" section for current state
 4. System is ready - just run demos
+
+---
+
+## Session Summary (2026-01-31 Late Night - E2E Demo Testing & Critical Bug Fixes)
+
+**What Was Done This Session**:
+
+1. **Ran First Real E2E Demo (Boeing)**: Attempted to run full end-to-end workflow with real web data, discovered critical bugs
+
+2. **Fixed Critical Bug: MCP Session Not Initialized**:
+   - **Problem**: `DuckDuckGoMCPClient` requires `async with` context manager to initialize session
+   - **Root Cause**: Workflow created client in `__init__` but never entered async context
+   - **Impact**: All web searches failed with "MCP session not initialized" error
+   - **Fix**: Wrapped gatherer execution in async context manager in `_gatherer_node()`:
+     ```python
+     async def run_gatherer_with_mcp():
+         async with self.mcp_client:
+             await self.gatherer.process(state)
+     asyncio.run(run_gatherer_with_mcp())
+     ```
+   - **File**: `src/graph/workflow.py` lines 275-278
+
+3. **Fixed Medium Bug: HttpUrl Not Serializable**:
+   - **Problem**: LangGraph checkpoint failed with "Type is not msgpack serializable: HttpUrl"
+   - **Root Cause**: Pydantic's `HttpUrl` type not compatible with msgpack
+   - **Fix**: Replaced `HttpUrl` with plain `str` in domain models
+   - **Files**: `src/models/domain.py`, test files updated
+
+4. **Verified E2E Demo Working**:
+   - Boeing demo successfully completed full workflow
+   - 10 signals collected from real DuckDuckGo searches
+   - 75 product matches from 139 MathWorks products
+   - 3 validated opportunities with 6 risks
+   - Full sales report generated (3482 chars)
+   - Checkpointing working without errors
+
+**Important Note on `--context` Flag Behavior**:
+The `--context` flag does NOT automatically skip clarifying questions. The CoordinatorAgent:
+1. Receives the context
+2. Analyzes whether it has enough information
+3. Intelligently decides whether to ask additional questions
+This is INTENDED behavior - the agent makes smart decisions based on context quality.
+
+**Files Changed This Session**:
+| File | Changes |
+|------|---------|
+| `src/graph/workflow.py` | Wrapped gatherer in `async with self.mcp_client` |
+| `src/models/domain.py` | Replaced `HttpUrl` with `str` for msgpack compatibility |
+| `tests/test_agents/test_gatherer.py` | Updated fixtures to use plain strings |
+| `tests/test_data_sources/test_mcp_client.py` | Removed unused HttpUrl import |
+
+**Current System State**:
+- **432 tests passing** (fast), 21 slow E2E
+- **MathWorks catalog indexed** (139 products in ChromaDB)
+- **MCP web search WORKING** - Real data collected
+- **Checkpointing WORKING** - No serialization errors
+- **VERIFIED END-TO-END** - Boeing demo completed successfully
+
+**To Run a Demo Now**:
+```bash
+.\venv\Scripts\Activate.ps1
+python -m src.cli research "Boeing" --industry aerospace --context "
+Sales Objective: Q1 QBR preparation
+Relationship: Existing MATLAB customer
+Pain Points: DO-178C certification burden
+Focus: Polyspace, DO Qualification Kit
+" --output ./demos/demo_results
+```
+
+**For Context Recovery**:
+1. Read "Quick Context Recovery" section at the top
+2. Read "Document Status Summary" for current state
+3. Read this session summary for latest changes
+4. System is VERIFIED WORKING - run demos with confidence

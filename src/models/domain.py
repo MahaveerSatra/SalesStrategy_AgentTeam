@@ -3,7 +3,7 @@ Domain models for business entities.
 """
 from datetime import datetime
 from typing import Any
-from pydantic import BaseModel, Field, HttpUrl, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class JobPosting(BaseModel):
@@ -14,7 +14,7 @@ class JobPosting(BaseModel):
     description: str
     posted_date: datetime | None = None
     location: str | None = None
-    url: HttpUrl | None = None
+    url: str | None = None  # Plain str for msgpack serialization compatibility
     
     # Extracted/inferred fields
     required_skills: list[str] = Field(default_factory=list)
@@ -33,7 +33,7 @@ class CompanyInfo(BaseModel):
     
     name: str
     industry: str
-    website: HttpUrl | None = None
+    website: str | None = None  # Plain str for msgpack serialization compatibility
     size: str | None = None  # "1-50", "51-200", etc.
     headquarters: str | None = None
     founded_year: int | None = None
@@ -50,7 +50,7 @@ class SearchResult(BaseModel):
     """A search result from web search."""
 
     title: str
-    url: HttpUrl
+    url: str  # Plain str for msgpack serialization compatibility
     snippet: str
     source: str = "duckduckgo"
     timestamp: datetime = Field(default_factory=datetime.now)
@@ -62,7 +62,7 @@ class NewsItem(BaseModel):
     title: str
     source: str
     published_date: datetime | None = None
-    url: HttpUrl | None = None
+    url: str | None = None  # Plain str for msgpack serialization compatibility
     summary: str
 
     # Analysis

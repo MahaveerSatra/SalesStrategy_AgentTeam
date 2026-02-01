@@ -272,8 +272,13 @@ class ResearchWorkflow:
             feedback_context=state.get("feedback_context")
         )
 
-        # Run async process in sync context
-        asyncio.run(self.gatherer.process(state))
+        # Run async process in sync context with proper MCP session initialization
+        # The MCP client requires async context manager to initialize the session
+        async def run_gatherer_with_mcp():
+            async with self.mcp_client:
+                await self.gatherer.process(state)
+
+        asyncio.run(run_gatherer_with_mcp())
 
         signals_count = len(state.get("signals", []))
         jobs_count = len(state.get("job_postings", []))

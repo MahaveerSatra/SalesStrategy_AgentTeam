@@ -6,7 +6,7 @@ For integration testing against real DuckDuckGo, see test_mcp_client_integration
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from pydantic import HttpUrl
+# HttpUrl import removed - using plain strings
 from src.data_sources.mcp_ddg_client import DuckDuckGoMCPClient
 from src.models.domain import SearchResult
 
