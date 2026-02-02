@@ -8,8 +8,19 @@ Usage:
 """
 import argparse
 import io
+import os
 import sys
 from typing import Optional
+
+# Suppress noisy library output BEFORE importing anything else
+# This must happen before sentence-transformers, litellm, or chromadb are imported
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["LITELLM_LOG"] = "ERROR"
+
+# Disable tqdm progress bars globally for sentence-transformers
+os.environ["TQDM_DISABLE"] = "1"
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 
 from .commands import research_command, resume_command, list_runs_command, setup_catalog_command
 

@@ -1,6 +1,6 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-01-31 (Late Night - Critical Bug Fixes Applied, Demo Verified)
+**Last Updated**: 2026-02-02 (CLI Fixes - Path Resolution + Logging Noise Suppression)
 **Status**: Phase 4 COMPLETE - System VERIFIED Working End-to-End
 **Test Status**: ✅ 432 tests passing (fast) | ✅ 0 skipped | 21 slow E2E
 
@@ -12,13 +12,14 @@
 
 1. **Project**: Multi-agent system for enterprise account research using LangGraph
 2. **Current Phase**: Phase 4 COMPLETE - System VERIFIED with real Boeing demo
-3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 432 tests + 139 MathWorks products + E2E ChromaDB tests + `--context` flag + `--seller` flag + **MCP Session Fix + HttpUrl Serialization Fix (2026-01-31 Late Night)**
-4. **What's Next**: Run more demos (Tesla, Rivian), create demo materials
+3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 432 tests + 139 MathWorks products + E2E ChromaDB tests + `--context` flag + `--seller` flag + MCP Session Fix + HttpUrl Serialization Fix + **CLI Path Resolution Fix + Logging Noise Suppression (2026-02-02)**
+4. **What's Next**: **Investigate agent prompts for quality improvement**, then run more demos (Tesla, Rivian), create demo materials
 5. **Test Coverage**: 432 tests passing fast, 0 skipped, 21 slow E2E
 6. **System Status**: ✅ All tests passing, MathWorks catalog indexed (139 products), **MCP web search WORKING**
 7. **Product Catalog**: Supports any seller company (MathWorks built-in, or provide JSON/URL for custom companies)
 8. **Architecture Fix**: Seller vs Customer separation - seller's products matched to customer's requirements
 9. **CRITICAL FIXES (2026-01-31 Late Night)**: MCP session initialization + HttpUrl msgpack serialization
+10. **CLI FIXES (2026-02-02)**: Output path resolution + noisy library logging suppression
 
 ### Architecture Overview
 
@@ -113,6 +114,59 @@ python -m src.cli setup-catalog --seller "MathWorks" --force
   }
 ]
 ```
+
+---
+
+### Bug Fixes Applied This Session (2026-02-02 - CLI Improvements)
+
+**Issue 7: Output Files Saved to Wrong Location** ✅ FIXED (High Impact)
+- **Problem**: When running `python -m src.cli research "Boeing" --output demos/demo_results`, reports were saved to `C:\Users\Mahaveer\.claude\projects\...` (Claude Code's working directory) instead of the project's `demos/demo_results/` folder
+- **Root Cause**: Relative paths in `--output` flag resolved against the current working directory (CWD), not the project root. When running through Claude Code or from a different directory, the CWD was not the project folder.
+- **Solution**: Added path resolution helpers in `src/cli/commands.py`:
+  - `_get_project_root()` - Returns the project root directory (where `src/` is located)
+  - `_resolve_output_path()` - Converts relative paths to absolute paths relative to project root
+  - Updated `_save_reports()` to use resolved paths
+  - Updated `research_command()` and `resume_command()` to display resolved paths to user
+- **Files Changed**:
+  - `src/cli/commands.py` - Added path resolution functions, updated `_save_reports()`, `research_command()`, `resume_command()`
+- **Verification**: All 99 CLI tests passing
+
+**Issue 8: Noisy Terminal Output During Research** ✅ FIXED (Medium Impact)
+- **Problem**: Terminal output during research was cluttered with:
+  - `Batches: 100%|██████████|` progress bars (from sentence-transformers)
+  - `embeddings.position_ids | UNEXPECTED` warnings (from transformers)
+  - `LiteLLM:INFO: utils.py:3748 - LiteLLM completion()...` logging (from litellm)
+  - Pydantic serialization warnings
+- **Root Cause**: Third-party libraries (sentence-transformers, transformers, litellm, pydantic) have verbose default logging that wasn't being suppressed
+- **Solution**:
+  - Added `_suppress_noisy_libraries()` function in `src/utils/logging.py`
+  - Set environment variables BEFORE importing libraries in `src/cli/main.py`:
+    - `TQDM_DISABLE=1` - Disables tqdm progress bars
+    - `TRANSFORMERS_VERBOSITY=error` - Suppresses transformer warnings
+    - `LITELLM_LOG=ERROR` - Suppresses LiteLLM INFO logs
+    - `HF_HUB_DISABLE_PROGRESS_BARS=1` - Disables HuggingFace progress bars
+  - Set log levels for noisy loggers to WARNING or ERROR
+  - Added `warnings.filterwarnings()` for pydantic and HuggingFace warnings
+- **Files Changed**:
+  - `src/utils/logging.py` - Added `_suppress_noisy_libraries()` function
+  - `src/cli/main.py` - Added early environment variable setup before imports
+- **Verification**: Terminal output now clean during research operations
+
+---
+
+### Next Steps (Action Items)
+
+1. **⏳ NEXT: Investigate Agent Prompts for Quality Improvement**
+   - User reported quality issues with research output
+   - Review prompts in each agent:
+     - `src/agents/coordinator.py` - Entry/exit, clarifying questions
+     - `src/agents/gatherer.py` - Data collection and analysis
+     - `src/agents/identifier.py` - Opportunity identification
+     - `src/agents/validator.py` - Scoring and risk assessment
+   - Identify specific quality issues and improve prompts
+
+2. **Run More Demos** (Boeing, Tesla, Rivian) with strategic context
+3. **Create Demo Materials** (README update, LinkedIn post, interview guide)
 
 ---
 

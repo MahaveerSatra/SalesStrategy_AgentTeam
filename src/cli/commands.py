@@ -9,6 +9,7 @@ Provides the core command logic for:
 import os
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 import structlog
 
@@ -23,6 +24,42 @@ from .formatters import (
 from ..config import settings
 
 logger = structlog.get_logger(__name__)
+
+
+def _get_project_root() -> Path:
+    """
+    Get the project root directory.
+
+    Returns the directory containing the 'src' folder, which is the project root.
+    This ensures consistent path resolution regardless of current working directory.
+    """
+    # This file is at: src/cli/commands.py
+    # Project root is 2 levels up from this file
+    return Path(__file__).parent.parent.parent.resolve()
+
+
+def _resolve_output_path(output_dir: str) -> str:
+    """
+    Resolve output directory path to an absolute path.
+
+    If the path is relative, it's resolved against the project root directory.
+    If the path is already absolute, it's returned as-is.
+
+    Args:
+        output_dir: Output directory path (relative or absolute)
+
+    Returns:
+        Absolute path string
+    """
+    path = Path(output_dir)
+
+    if path.is_absolute():
+        return str(path)
+
+    # Resolve relative path against project root
+    project_root = _get_project_root()
+    resolved = (project_root / path).resolve()
+    return str(resolved)
 
 
 def research_command(
@@ -113,15 +150,17 @@ def research_command(
     print("\n" + format_terminal_summary(result))
 
     # Save report if output directory specified
+    resolved_output = None
     if output_dir:
+        resolved_output = _resolve_output_path(output_dir)
         _save_reports(result, output_dir, thread_id)
 
     # Show next steps
     if not result.get('waiting_for_human'):
         print(f"\n✓ Research complete!")
         print(f"  Thread ID: {thread_id}")
-        if output_dir:
-            print(f"  Reports saved to: {output_dir}")
+        if resolved_output:
+            print(f"  Reports saved to: {resolved_output}")
     else:
         print(f"\n⏸  Research paused for feedback.")
         print(f"  Resume with: python -m src.cli resume {thread_id}")
@@ -219,15 +258,17 @@ def resume_command(
     print("\n" + format_terminal_summary(result))
 
     # Save report if output directory specified
+    resolved_output = None
     if output_dir:
+        resolved_output = _resolve_output_path(output_dir)
         _save_reports(result, output_dir, thread_id)
 
     # Show next steps
     if not result.get('waiting_for_human'):
         print(f"\n✓ Research complete!")
         print(f"  Thread ID: {thread_id}")
-        if output_dir:
-            print(f"  Reports saved to: {output_dir}")
+        if resolved_output:
+            print(f"  Reports saved to: {resolved_output}")
     else:
         print(f"\n⏸  Research paused for feedback.")
         print(f"  Resume with: python -m src.cli resume {thread_id}")
@@ -477,17 +518,20 @@ def _save_reports(state: ResearchState, output_dir: str, thread_id: str) -> None
 
     Args:
         state: Research state
-        output_dir: Output directory
+        output_dir: Output directory (relative paths resolved against project root)
         thread_id: Thread ID for filename
     """
+    # Resolve output directory to absolute path (relative to project root)
+    resolved_output_dir = _resolve_output_path(output_dir)
+
     # Create output directory
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(resolved_output_dir, exist_ok=True)
 
     # Sanitize thread ID for filename
     safe_thread_id = thread_id.replace("/", "_").replace("\\", "_")
 
     # Save markdown report
-    md_path = os.path.join(output_dir, f"{safe_thread_id}_report.md")
+    md_path = os.path.join(resolved_output_dir, f"{safe_thread_id}_report.md")
     try:
         save_report(state, md_path, format="markdown")
         print(f"  ✓ Markdown report: {md_path}")
@@ -496,7 +540,7 @@ def _save_reports(state: ResearchState, output_dir: str, thread_id: str) -> None
         logger.error("markdown_save_failed", error=str(e), path=md_path)
 
     # Save JSON export
-    json_path = os.path.join(output_dir, f"{safe_thread_id}_data.json")
+    json_path = os.path.join(resolved_output_dir, f"{safe_thread_id}_data.json")
     try:
         save_report(state, json_path, format="json")
         print(f"  ✓ JSON export: {json_path}")
