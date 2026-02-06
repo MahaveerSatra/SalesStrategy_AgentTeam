@@ -1,8 +1,8 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-02-02 (CLI Fixes - Path Resolution + Logging Noise Suppression)
-**Status**: Phase 4 COMPLETE - System VERIFIED Working End-to-End
-**Test Status**: ✅ 432 tests passing (fast) | ✅ 0 skipped | 21 slow E2E
+**Last Updated**: 2026-02-06 (Coordinator Agent Prompt Improvements - Phase 5 Started)
+**Status**: Phase 5 IN PROGRESS - Agent Prompt Quality Improvements
+**Test Status**: ✅ 453 tests passing (fast) | ✅ 0 skipped | 21 slow E2E
 
 ---
 
@@ -11,15 +11,21 @@
 **READ THIS FIRST** when restoring context after clearing chat:
 
 1. **Project**: Multi-agent system for enterprise account research using LangGraph
-2. **Current Phase**: Phase 4 COMPLETE - System VERIFIED with real Boeing demo
-3. **What's Done**: All 4 agents + LangGraph workflow + human-in-loop + 432 tests + 139 MathWorks products + E2E ChromaDB tests + `--context` flag + `--seller` flag + MCP Session Fix + HttpUrl Serialization Fix + **CLI Path Resolution Fix + Logging Noise Suppression (2026-02-02)**
-4. **What's Next**: **Investigate agent prompts for quality improvement**, then run more demos (Tesla, Rivian), create demo materials
-5. **Test Coverage**: 432 tests passing fast, 0 skipped, 21 slow E2E
+2. **Current Phase**: Phase 5 IN PROGRESS - **Agent Prompt Quality Improvements**
+3. **What's Done**:
+   - All 4 agents + LangGraph workflow + human-in-loop + 453 tests
+   - 139 MathWorks products indexed
+   - `--context` flag + `--seller` flag (seller_name now REQUIRED)
+   - MCP Session Fix + HttpUrl Serialization Fix
+   - CLI Path Resolution Fix + Logging Noise Suppression
+   - **✅ COORDINATOR AGENT PROMPTS IMPROVED (2026-02-06)**
+4. **What's Next**: **Improve Gatherer Agent prompts**, then Identifier, then Validator
+5. **Test Coverage**: 453 tests passing fast, 0 skipped, 21 slow E2E
 6. **System Status**: ✅ All tests passing, MathWorks catalog indexed (139 products), **MCP web search WORKING**
 7. **Product Catalog**: Supports any seller company (MathWorks built-in, or provide JSON/URL for custom companies)
-8. **Architecture Fix**: Seller vs Customer separation - seller's products matched to customer's requirements
+8. **Architecture Fix**: `seller_name` is now REQUIRED (not hardcoded) - true multi-seller support
 9. **CRITICAL FIXES (2026-01-31 Late Night)**: MCP session initialization + HttpUrl msgpack serialization
-10. **CLI FIXES (2026-02-02)**: Output path resolution + noisy library logging suppression
+10. **PROMPT IMPROVEMENTS (2026-02-06)**: Coordinator Agent prompts overhauled for 100x quality
 
 ### Architecture Overview
 
@@ -156,17 +162,98 @@ python -m src.cli setup-catalog --seller "MathWorks" --force
 
 ### Next Steps (Action Items)
 
-1. **⏳ NEXT: Investigate Agent Prompts for Quality Improvement**
-   - User reported quality issues with research output
-   - Review prompts in each agent:
-     - `src/agents/coordinator.py` - Entry/exit, clarifying questions
-     - `src/agents/gatherer.py` - Data collection and analysis
-     - `src/agents/identifier.py` - Opportunity identification
-     - `src/agents/validator.py` - Scoring and risk assessment
-   - Identify specific quality issues and improve prompts
+1. **✅ DONE: Coordinator Agent Prompts Improved** (2026-02-06)
+   - See "Prompt Improvements (2026-02-06)" section below for details
 
-2. **Run More Demos** (Boeing, Tesla, Rivian) with strategic context
-3. **Create Demo Materials** (README update, LinkedIn post, interview guide)
+2. **⏳ NEXT: Improve Gatherer Agent Prompts**
+   - File: `src/agents/gatherer.py`
+   - Focus: Data collection quality, search query formulation, signal extraction
+   - Goal: Better web search queries, more relevant job posting analysis
+
+3. **⏳ PENDING: Improve Identifier Agent Prompts**
+   - File: `src/agents/identifier.py`
+   - Focus: Product-to-need matching, opportunity identification
+   - Goal: More accurate product recommendations, better rationale
+
+4. **⏳ PENDING: Improve Validator Agent Prompts**
+   - File: `src/agents/validator.py`
+   - Focus: Confidence scoring, risk assessment
+   - Goal: More calibrated confidence scores, better risk identification
+
+5. **Run More Demos** (Boeing, Tesla, Rivian) with strategic context
+6. **Create Demo Materials** (README update, LinkedIn post, interview guide)
+
+---
+
+### Prompt Improvements (2026-02-06) - Coordinator Agent
+
+**Session Goal**: Improve agent prompts for 100x quality improvement
+
+#### Changes Made to `src/agents/coordinator.py`:
+
+**1. Input Validation Prompt** (`_validate_inputs`)
+- Added seller-customer fit check
+- Added researchability assessment
+- Added context quality validation
+- Added enrichment suggestions (e.g., "Consider specifying AWS vs Amazon Retail")
+- Decision rule: Only block for BLOCKING issues (gibberish, fake company)
+
+**2. Clarifying Questions Prompt** (`_generate_clarifying_questions`)
+- Changed from ultra-conservative to MODERATE
+- Fast-path: Skip questions if rich context provided (>100 chars or mentions objectives)
+- Only ask 1-2 quick questions when it would significantly improve research
+- Multiple choice format when possible (faster to answer)
+- Will ask about: ambiguous company names, sales stage if no context
+- Won't ask about: budget, timeline, pain points (we'll find those)
+
+**3. Report Formatting Prompt** (`_format_report`) - MAJOR OVERHAUL
+- Reduced from 10 sections to 5 sections (crisp, actionable)
+- Max tokens: 5000 (was 8000)
+- Uses complexity=7 (more capable model for critical output)
+- Key rules enforced:
+  - NO HALLUCINATIONS - Only cite evidence from actual data
+  - BE SPECIFIC - Quote actual job titles, news, signals
+  - SIGNAL QUALITY - Flag when evidence is weak (STRONG/MODERATE/WEAK)
+  - Transparency builds trust
+
+**Report Format (5 sections):**
+```
+## 🎯 Executive Summary (3 sentences max)
+## 💡 Top Opportunities (max 3, with decision maker, evidence, pitch)
+## 🎤 Discovery Questions (Top 4 that reference actual findings)
+## ⚠️ Risks & Competition (with counter-positioning)
+## 🚀 Next Steps (2-3 actions with timing drivers)
+```
+
+**4. Feedback Intent Parsing Prompt** (`_parse_feedback_intent`)
+- Priority-ordered decision rules
+- Clear trigger words for each route (COMPLETE/GATHERER/IDENTIFIER/VALIDATOR)
+- Default to COMPLETE if ambiguous but positive
+- Better examples
+
+**5. Context for Retry Prompt** (`_update_context_for_retry`)
+- Agent-specific instructions (what each agent does)
+- SPECIFIC, ACTIONABLE guidance
+- Directive language ("Research X", "Focus on Y", "Avoid Z")
+
+#### State Model Changes:
+
+**`src/models/state.py`:**
+- `seller_name` is now REQUIRED (not optional with default)
+- `create_initial_state()` signature: `create_initial_state(account_name, industry, seller_name, ...)`
+
+#### Test Updates:
+- All 453 tests updated to include `seller_name="TestSeller"` parameter
+- Files updated:
+  - `tests/test_agents/test_coordinator.py`
+  - `tests/test_agents/test_gatherer.py`
+  - `tests/test_agents/test_identifier.py`
+  - `tests/test_agents/test_validator.py`
+  - `tests/test_integration/test_checkpointing.py`
+  - `tests/test_integration/test_e2e_full_workflow.py`
+  - `tests/test_integration/test_error_recovery.py`
+  - `tests/test_integration/test_feedback_loops.py`
+  - `tests/test_integration/test_pipeline.py`
 
 ---
 

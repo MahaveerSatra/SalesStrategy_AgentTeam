@@ -44,6 +44,7 @@ def initial_state():
     return create_initial_state(
         account_name="Acme Corp",
         industry="Technology",
+        seller_name="TestSeller",
         region="North America",
         research_depth=ResearchDepth.STANDARD
     )
@@ -55,6 +56,7 @@ def state_with_opportunities():
     state = create_initial_state(
         account_name="Acme Corp",
         industry="Technology",
+        seller_name="TestSeller",
         research_depth=ResearchDepth.STANDARD
     )
 
@@ -204,7 +206,8 @@ class TestCoordinatorEntryValidInputs:
         """Test company name normalization using rule-based ticker expansion."""
         state = create_initial_state(
             account_name="msft",  # Known ticker
-            industry="Technology"
+            industry="Technology",
+            seller_name="TestSeller"
         )
 
         # Mock responses (normalization is now rule-based, no LLM call)
@@ -239,7 +242,8 @@ class TestCoordinatorEntryInvalidInputs:
         """Test that missing account_name triggers validation error."""
         state = create_initial_state(
             account_name="",
-            industry="Technology"
+            industry="Technology",
+            seller_name="TestSeller"
         )
 
         # Execute
@@ -262,7 +266,8 @@ class TestCoordinatorEntryInvalidInputs:
         """Test that missing industry triggers validation error."""
         state = create_initial_state(
             account_name="Acme Corp",
-            industry=""
+            industry="",
+            seller_name="TestSeller"
         )
 
         # Execute
@@ -303,7 +308,8 @@ class TestCoordinatorEntryInvalidInputs:
         """Test that suggested corrections are applied."""
         state = create_initial_state(
             account_name="Microsft",  # Typo
-            industry="Techology"  # Typo
+            industry="Techology",  # Typo
+            seller_name="TestSeller"
         )
 
         validation_response = MagicMock()
@@ -339,7 +345,8 @@ class TestCoordinatorEntrySmartQuestioning:
         """Test that questions are generated when LLM determines they would help."""
         state = create_initial_state(
             account_name="Amazon",  # Ambiguous - AWS or Retail?
-            industry="Technology"
+            industry="Technology",
+            seller_name="TestSeller"
         )
 
         validation_response = MagicMock()
@@ -458,7 +465,8 @@ class TestCoordinatorEntryEdgeCases:
         """Test that stock tickers are correctly expanded to company names."""
         state = create_initial_state(
             account_name="MSFT",
-            industry="Technology"
+            industry="Technology",
+            seller_name="TestSeller"
         )
 
         validation_response = MagicMock()
@@ -557,7 +565,8 @@ Please review the analysis above. You can:
         """Test fallback report when no opportunities exist."""
         state = create_initial_state(
             account_name="Acme Corp",
-            industry="Technology"
+            industry="Technology",
+            seller_name="TestSeller"
         )
         state["progress"].validator_complete = True
         state["validated_opportunities"] = []

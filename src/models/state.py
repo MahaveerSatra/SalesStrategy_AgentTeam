@@ -94,6 +94,7 @@ class ResearchState(TypedDict):
     region: str | None
     user_context: str | None  # Optional meeting notes, etc.
     research_depth: ResearchDepth
+    seller_name: str  # The seller/vendor company (e.g., "MathWorks")
     
     # Research data (collected by Intelligence Gatherer)
     signals: list[Signal]
@@ -136,13 +137,14 @@ class ResearchState(TypedDict):
 def create_initial_state(
     account_name: str,
     industry: str,
+    seller_name: str,  # Required - the company whose products we're selling
     region: str | None = None,
     user_context: str | None = None,
     research_depth: ResearchDepth = ResearchDepth.STANDARD
 ) -> ResearchState:
     """Create initial state for a new research workflow."""
     now = datetime.now()
-    
+
     return ResearchState(
         # Input
         account_name=account_name,
@@ -150,6 +152,7 @@ def create_initial_state(
         region=region,
         user_context=user_context,
         research_depth=research_depth,
+        seller_name=seller_name,
         
         # Empty collections
         signals=[],

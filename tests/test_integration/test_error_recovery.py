@@ -90,7 +90,7 @@ def initial_state():
     """Provide initial state."""
     return create_initial_state(
         account_name="ErrorTest Corp",
-        industry="Technology",
+        industry="Technology", seller_name="TestSeller",
         research_depth=ResearchDepth.STANDARD
     )
 

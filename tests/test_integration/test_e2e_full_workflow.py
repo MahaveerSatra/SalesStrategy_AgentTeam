@@ -586,7 +586,7 @@ class TestFullWorkflowE2E:
         # Create state simulating what gatherer would produce
         state = create_initial_state(
             account_name="Boeing",
-            industry="aerospace",
+            industry="aerospace", seller_name="TestSeller",
             region="North America",
             user_context="Aerospace manufacturer developing autonomous systems"
         )

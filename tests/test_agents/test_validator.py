@@ -177,7 +177,7 @@ def initial_state(sample_signals, sample_opportunities):
     """Provide initial research state with gathered data and identified opportunities."""
     state = create_initial_state(
         account_name="Acme Corp",
-        industry="Technology",
+        industry="Technology", seller_name="TestSeller",
         region="North America",
         research_depth=ResearchDepth.STANDARD
     )
@@ -198,7 +198,7 @@ def empty_opportunities_state():
     """Provide state with no opportunities to validate."""
     state = create_initial_state(
         account_name="Empty Corp",
-        industry="Unknown",
+        industry="Unknown", seller_name="TestSeller",
         research_depth=ResearchDepth.QUICK
     )
     state["opportunities"] = []
@@ -744,7 +744,7 @@ class TestConfidenceFiltering:
         """Test that all high confidence opportunities pass the filter."""
         state = create_initial_state(
             account_name="High Confidence Corp",
-            industry="Tech"
+            industry="Tech", seller_name="TestSeller"
         )
         state["signals"] = sample_signals
         state["opportunities"] = high_confidence_opportunities
@@ -779,7 +779,7 @@ class TestConfidenceFiltering:
         """Test that all low confidence opportunities are filtered out."""
         state = create_initial_state(
             account_name="Low Confidence Corp",
-            industry="Tech"
+            industry="Tech", seller_name="TestSeller"
         )
         state["signals"] = sample_signals
         state["opportunities"] = low_confidence_opportunities
@@ -944,7 +944,7 @@ class TestEdgeCases:
         """Test handling opportunities that have no evidence signals."""
         state = create_initial_state(
             account_name="Test Corp",
-            industry="Tech"
+            industry="Tech", seller_name="TestSeller"
         )
         state["signals"] = []
         state["opportunities"] = [
@@ -990,7 +990,7 @@ class TestEdgeCases:
         """Test that very long signal content is truncated properly."""
         state = create_initial_state(
             account_name="Test Corp",
-            industry="Tech"
+            industry="Tech", seller_name="TestSeller"
         )
         # Create signal with very long content
         long_content = "x" * 10000
@@ -1031,7 +1031,7 @@ class TestEdgeCases:
         """Test handling many opportunities without overflow."""
         state = create_initial_state(
             account_name="Test Corp",
-            industry="Tech"
+            industry="Tech", seller_name="TestSeller"
         )
         state["signals"] = sample_signals
         # Create 50 opportunities
@@ -1161,7 +1161,7 @@ class TestRealWorldScenarios:
         """Test validation when many competitor signals are present."""
         state = create_initial_state(
             account_name="CompetitorHeavy Corp",
-            industry="Enterprise Software"
+            industry="Enterprise Software", seller_name="TestSeller"
         )
         state["signals"] = [
             Signal(
@@ -1228,7 +1228,7 @@ class TestRealWorldScenarios:
         """Test validation when strong buying signals are present."""
         state = create_initial_state(
             account_name="ReadyToBuy Corp",
-            industry="Manufacturing"
+            industry="Manufacturing", seller_name="TestSeller"
         )
         state["signals"] = [
             Signal(
@@ -1303,7 +1303,7 @@ class TestRealWorldScenarios:
         """Test validation when budget constraints are evident."""
         state = create_initial_state(
             account_name="Tight Budget Inc",
-            industry="Retail"
+            industry="Retail", seller_name="TestSeller"
         )
         state["signals"] = [
             Signal(

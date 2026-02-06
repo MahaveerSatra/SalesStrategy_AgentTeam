@@ -96,7 +96,7 @@ def initial_state():
     # removes suffixes like "Corporation", "Inc", etc.
     return create_initial_state(
         account_name="Acme",
-        industry="Technology",
+        industry="Technology", seller_name="TestSeller",
         region="North America",
         research_depth=ResearchDepth.STANDARD
     )
@@ -664,7 +664,7 @@ class TestPipelineWithResearchDepths:
         """Test QUICK research depth uses minimal sources."""
         state = create_initial_state(
             account_name="Quick Corp",
-            industry="Tech",
+            industry="Tech", seller_name="TestSeller",
             research_depth=ResearchDepth.QUICK
         )
         state["progress"].coordinator_complete = True
@@ -691,7 +691,7 @@ class TestPipelineWithResearchDepths:
         """Test DEEP research depth behavior."""
         state = create_initial_state(
             account_name="Deep Corp",
-            industry="Tech",
+            industry="Tech", seller_name="TestSeller",
             research_depth=ResearchDepth.DEEP
         )
         state["progress"].coordinator_complete = True

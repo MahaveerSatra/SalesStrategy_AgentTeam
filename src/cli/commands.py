@@ -100,13 +100,14 @@ def research_command(
         print("Valid options: quick, standard, deep")
         return
 
-    # Create initial state
+    # Create initial state with seller context
     initial_state = create_initial_state(
         account_name=account_name,
         industry=industry,
         region=region,
         user_context=user_context,
-        research_depth=depth_enum
+        research_depth=depth_enum,
+        seller_name=seller_name
     )
 
     # Generate thread ID

@@ -229,30 +229,66 @@ class CoordinatorAgent(StatelessAgent):
             errors.append("Industry is required but was not provided.")
             return errors  # Can't continue without industry
 
-        # LLM-based validation for quality
-        prompt = f"""Validate this research request for potential issues:
+        # LLM-based validation for quality and researchability
+        seller_name = state.get("seller_name", "our company")  # type: ignore
+        prompt = f"""You are validating a sales research request. Your job is to ensure we can deliver HIGH-QUALITY, ACTIONABLE intelligence.
 
+═══════════════════════════════════════════════════════════════
+RESEARCH REQUEST
+═══════════════════════════════════════════════════════════════
 Account Name: {account_name}
 Industry: {industry}
 Region: {state.get("region", "Not specified")}
+Seller Company: {seller_name}
 Additional Context: {state.get("user_context", "Not provided")}
 
-Check for:
-1. Is the account name a plausible company name? (not gibberish like "asdfgh")
-2. Is the industry a recognized business category?
-3. Any obvious typos that should be corrected?
-4. Any red flags or concerns?
+═══════════════════════════════════════════════════════════════
+VALIDATION CHECKS
+═══════════════════════════════════════════════════════════════
+
+1. **COMPANY VALIDITY**
+   - Is this a real, researchable company? (not gibberish, placeholder, or test data)
+   - Is it specific enough? ("Amazon" is ambiguous - AWS? Retail? Which subsidiary?)
+   - Common typos to catch: "Microsft" → "Microsoft", "Gogle" → "Google"
+
+2. **INDUSTRY ALIGNMENT**
+   - Is the industry correctly matched to the company?
+   - Example error: "Boeing" with industry "retail" should suggest "aerospace"
+
+3. **RESEARCHABILITY ASSESSMENT**
+   - Can we find meaningful public data about this company?
+   - Is it a private company with limited public info? (flag as concern, don't block)
+   - Is it a subsidiary that should be researched as parent company?
+
+4. **SELLER-CUSTOMER FIT CHECK**
+   - Does {seller_name}'s typical customer profile match this account?
+   - Flag if the account seems outside typical target market (but don't block)
+
+5. **CONTEXT QUALITY**
+   - If context provided, does it make sense?
+   - Flag contradictions (e.g., "new prospect" but mentions "renewal")
+
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════
 
 Return JSON:
 {{
-    "is_valid": true,
-    "errors": [],
-    "suggested_corrections": {{}},
-    "concerns": []
+    "is_valid": true/false,
+    "errors": ["List of blocking errors that prevent research"],
+    "suggested_corrections": {{
+        "account_name": "Corrected name if typo detected",
+        "industry": "Corrected industry if mismatched"
+    }},
+    "concerns": ["Non-blocking concerns to note (e.g., 'Private company - limited public data')"],
+    "enrichment_suggestions": ["Helpful additions (e.g., 'Consider specifying AWS vs Amazon Retail')"]
 }}
 
-If there are issues, set is_valid to false and populate errors array.
-If you detect typos, add them to suggested_corrections as {{"field": "corrected_value"}}.
+DECISION RULES:
+- Only set is_valid=false for BLOCKING issues (gibberish input, clearly fake company)
+- Typos should be auto-corrected, not block validation
+- Concerns are informational - research proceeds but user is informed
+- When in doubt, ALLOW the research to proceed (false negatives are worse than false positives)
 """
 
         try:
@@ -434,72 +470,108 @@ If you detect typos, add them to suggested_corrections as {{"field": "corrected_
 
     async def _generate_clarifying_questions(self, state: ResearchState) -> str | None:
         """
-        Smart questioning - LLM decides if clarification needed for strategic advice.
+        MODERATE questioning - ask when it would significantly improve output quality.
 
-        Considers:
-        - Missing strategic context (sales objective, relationship, competitive situation)
-        - Ambiguous inputs (e.g., "Amazon" - AWS or Retail?)
-        - Whether we have enough info to provide ACTIONABLE recommendations
-
-        The goal is to provide PRACTICAL STRATEGIC ADVICE, not generic research.
-        Without context, we can only provide generic outputs that aren't useful.
+        PHILOSOPHY: Balance between action and quality. Ask 1-2 focused questions
+        when the answer would materially change our research approach.
 
         Args:
             state: Current research state
 
         Returns:
-            Question string if clarification would improve results, else None
+            Question string if clarification would significantly improve results, else None
         """
         user_context = state.get("user_context") or ""
-        has_meaningful_context = len(user_context.strip()) > 50  # More than a sentence
+        seller_name = state.get("seller_name", "our company")  # type: ignore
+        account_name = state["account_name"]
+        industry = state["industry"]
 
-        prompt = f"""Evaluate if clarifying questions are needed to provide PRACTICAL STRATEGIC ADVICE.
+        # FAST PATH: If user provided rich context, skip questions
+        # Rich context = mentions specific objectives, products, or situations
+        rich_context_signals = [
+            len(user_context.strip()) > 100,  # Substantial context provided
+            "renewal" in user_context.lower() and "expansion" in user_context.lower(),
+            "competitor" in user_context.lower(),
+            "pain" in user_context.lower() and "point" in user_context.lower(),
+            "qbr" in user_context.lower(),
+            "demo" in user_context.lower(),
+        ]
 
-Account Name: {state["account_name"]}
-Industry: {state["industry"]}
+        if any(rich_context_signals):
+            self.logger.info(
+                "coordinator_skipping_questions_rich_context",
+                context_length=len(user_context)
+            )
+            return None
+
+        prompt = f"""You help sales reps prepare for customer meetings. Decide if 1-2 quick questions would significantly improve the research.
+
+═══════════════════════════════════════════════════════════════
+RESEARCH REQUEST
+═══════════════════════════════════════════════════════════════
+Account: {account_name}
+Industry: {industry}
+Seller: {seller_name}
 Region: {state.get("region") or "Not specified"}
-Additional Context: {user_context or "None provided"}
-Research Depth: {state["research_depth"].value}
+Context: {user_context or "None provided"}
 
-Your goal is to help a sales professional prepare for customer engagement. Generic research
-without context produces generic advice that isn't actionable.
+═══════════════════════════════════════════════════════════════
+DECISION FRAMEWORK
+═══════════════════════════════════════════════════════════════
 
-KEY STRATEGIC CONTEXT CHECKLIST (check what's missing):
-1. SALES OBJECTIVE - What's the purpose? (discovery call, QBR, renewal, expansion, new logo)
-2. RELATIONSHIP STATUS - New prospect or existing customer? How long?
-3. CURRENT PRODUCTS - What do they already own? (helps identify upsell vs cross-sell)
-4. KNOWN INITIATIVES - Any specific projects, pain points, or goals mentioned?
-5. COMPETITIVE SITUATION - Any competitor products being evaluated or in use?
-6. BUDGET/TIMING - Any known budget cycles or decision timelines?
+**ASK QUESTIONS if (any of these):**
+1. Company name is ambiguous (Amazon AWS vs Retail, GE divisions, etc.)
+2. No context provided AND knowing the sales stage would change the research
+   - Discovery call vs QBR vs Renewal = very different research focus
+3. Industry seems mismatched with company (may be a typo or error)
 
-DECISION RULES:
-- If "Additional Context" is "None provided" or very sparse → ASK questions (we need context for strategic advice)
-- If context mentions specific products, initiatives, or sales objectives → DON'T ask (we have enough)
-- If company name is ambiguous (Amazon, GE, etc.) → ASK for clarification
-- If research is clearly just exploratory with no sales objective → ASK what they want to achieve
+**DO NOT ASK if:**
+- Context already mentions meeting type, objective, or specific focus
+- Company and industry are clear
+- User just wants general research (that's fine, we can deliver value)
+
+═══════════════════════════════════════════════════════════════
+QUESTION GUIDELINES
+═══════════════════════════════════════════════════════════════
+
+If asking, keep it to 1-2 QUICK questions max:
+- Make them multiple choice when possible (faster to answer)
+- Focus on what would CHANGE the research output
+- Don't ask for nice-to-have info
+
+Good questions:
+- "Quick clarification: Is this AWS or Amazon Retail?"
+- "What's the meeting type? (Discovery / QBR / Renewal / Other)"
+- "Any specific product areas to focus on, or should I research broadly?"
+
+Bad questions (don't ask these):
+- "What's your relationship history?" (we'll research either way)
+- "What's their budget?" (that's for the sales call)
+- "What are their pain points?" (we'll FIND those)
+
+═══════════════════════════════════════════════════════════════
+OUTPUT
+═══════════════════════════════════════════════════════════════
 
 Return JSON:
 {{
     "needs_clarification": true/false,
-    "questions": "Your strategic questions here (2-4 questions, focused on sales context)",
-    "reasoning": "Why this context would help provide actionable advice"
+    "questions": "1-2 quick questions if needed, null otherwise",
+    "reasoning": "Brief explanation"
 }}
 
-Example questions to ask when context is sparse:
-"To provide actionable strategic advice for {state["account_name"]}, I'd like to understand:
+Example when context is empty and question would help:
+{{
+    "needs_clarification": true,
+    "questions": "Quick question to focus the research:\\n\\nWhat type of meeting is this for?\\n- Discovery call (new prospect)\\n- QBR (existing customer)\\n- Renewal discussion\\n- Expansion opportunity\\n- General research (I'll cover all angles)",
+    "reasoning": "No context provided - knowing the sales stage will focus the research on relevant opportunities"
+}}
 
-1. What's your sales objective? (e.g., preparing for discovery call, QBR, expansion opportunity)
-2. What's your current relationship? (new prospect, existing customer - if so, what products do they have?)
-3. Are there any specific initiatives, pain points, or competitive threats you're aware of?
-4. Any particular product areas you want me to focus on?
-
-This context will help me identify the most relevant opportunities and talking points."
-
-If context IS sufficient (mentions objectives, products, or specific focus areas), return:
+Example when we can proceed:
 {{
     "needs_clarification": false,
     "questions": null,
-    "reasoning": "Context provides enough information for strategic research"
+    "reasoning": "Company and industry are clear, will provide comprehensive research"
 }}
 """
 
@@ -593,83 +665,173 @@ If context IS sufficient (mentions objectives, products, or specific focus areas
 
     async def _format_report(self, state: ResearchState) -> str:
         """
-        Format validated opportunities as human-readable report.
+        Format validated opportunities as human-readable sales briefing.
+
+        This is the PRIMARY OUTPUT the sales rep sees. Quality here = quality of entire system.
+
+        Incorporates:
+        - Seller product expertise (what problems our products solve)
+        - Signal quality gates (explicit when evidence is weak)
+        - Persona-level decision makers for each opportunity
+        - Consultative discovery questions that challenge status quo
+        - Cialdini's 6 principles of persuasion throughout
 
         Report structure:
-        - Executive Summary
-        - Top Opportunities (sorted by confidence)
-        - Evidence for each opportunity
-        - Competitive Risks
-        - Feedback prompt
+        - Executive Summary (with Liking principle - shared values)
+        - Top Opportunities (with Authority, Unity principles)
+        - Signal Quality Assessment (transparency builds trust)
+        - Competitive Landscape
+        - Discovery Questions (with Consistency principle)
+        - Pre-Meeting Checklist (with Social Proof principle)
+        - Recommended Next Steps (with Scarcity, Reciprocity principles)
 
         Args:
             state: Current research state
 
         Returns:
-            Formatted report string
+            Formatted sales briefing string
         """
         opportunities = state.get("validated_opportunities", [])
         risks = state.get("competitive_risks", [])
+        signals = state.get("signals", [])
+        job_postings = state.get("job_postings", [])
         account = state["account_name"]
         industry = state["industry"]
-        signals_count = len(state.get("signals", []))
-        jobs_count = len(state.get("job_postings", []))
+        user_context = state.get("user_context", "")
+        seller_name = state.get("seller_name", "our company")  # type: ignore
 
-        # Build opportunities JSON for LLM
+        # Build opportunities JSON for LLM with full evidence
         opps_data = []
         for opp in opportunities:
             if isinstance(opp, Opportunity):
-                opps_data.append(opp.model_dump())
+                opp_dict = opp.model_dump()
+                # Include evidence details for citation
+                opp_dict["evidence_details"] = [
+                    {"source": e.source, "type": e.signal_type, "content": e.content[:200]}
+                    for e in opp.evidence[:3]  # Top 3 evidence items
+                ] if opp.evidence else []
+                opps_data.append(opp_dict)
             elif isinstance(opp, dict):
                 opps_data.append(opp)
 
-        prompt = f"""Create a professional sales intelligence report for {account} ({industry}).
+        # Build signals summary for context
+        signals_summary = []
+        for sig in signals[:10]:  # Top 10 signals
+            if hasattr(sig, 'model_dump'):
+                signals_summary.append({
+                    "type": sig.signal_type,
+                    "source": sig.source,
+                    "content": sig.content[:150],
+                    "confidence": sig.confidence
+                })
+            elif isinstance(sig, dict):
+                signals_summary.append({
+                    "type": sig.get("signal_type", "unknown"),
+                    "source": sig.get("source", "unknown"),
+                    "content": sig.get("content", "")[:150],
+                    "confidence": sig.get("confidence", 0.5)
+                })
 
-Research Summary:
-- Signals collected: {signals_count}
-- Job postings analyzed: {jobs_count}
-- Validated opportunities: {len(opportunities)}
+        # Build job postings summary
+        jobs_summary = []
+        for job in job_postings[:5]:  # Top 5 jobs
+            if hasattr(job, 'model_dump'):
+                jobs_summary.append({
+                    "title": job.title,
+                    "department": getattr(job, 'department', 'Unknown'),
+                    "key_requirements": getattr(job, 'requirements', [])[:3]
+                })
+            elif isinstance(job, dict):
+                jobs_summary.append({
+                    "title": job.get("title", "Unknown"),
+                    "department": job.get("department", "Unknown"),
+                    "key_requirements": job.get("requirements", [])[:3]
+                })
 
-Validated Opportunities:
-{json.dumps(opps_data, indent=2, default=str)}
+        prompt = f"""You are creating a CRISP, ACTIONABLE sales briefing. Be concise - every word must earn its place.
 
-Competitive Risks:
-{json.dumps(risks, indent=2) if risks else "None identified"}
+CUSTOMER: {account} ({industry})
+SELLER: {seller_name}
+CONTEXT: {user_context or "General research"}
 
-Create a report with these sections:
+DATA COLLECTED:
+- {len(signals)} signals | {len(job_postings)} job postings | {len(opportunities)} opportunities
 
-## Executive Summary
-(2-3 sentences summarizing the key findings and top recommendation)
+SIGNALS: {json.dumps(signals_summary, indent=2, default=str)}
+JOBS: {json.dumps(jobs_summary, indent=2, default=str)}
+OPPORTUNITIES: {json.dumps(opps_data, indent=2, default=str)}
+RISKS: {json.dumps(risks, indent=2) if risks else "None"}
 
-## Top Opportunities
-(For each opportunity, include:
-- Product name and confidence score
-- Why they likely need this product (rationale)
-- Key evidence supporting this opportunity
-- Suggested talking points)
+═══════════════════════════════════════════════════════════════════════════════
+CRITICAL RULES
+═══════════════════════════════════════════════════════════════════════════════
+1. NO HALLUCINATIONS - Only cite evidence that exists in the data above
+2. BE SPECIFIC - Quote actual job titles, news, or signals. No generic statements.
+3. BE CONCISE - Max 5 sections. User can ask for more detail if needed.
+4. SIGNAL QUALITY - Flag when evidence is weak. Transparency builds trust.
 
-## Competitive Landscape
-(Any risks or competitive concerns to be aware of)
+═══════════════════════════════════════════════════════════════════════════════
+REPORT FORMAT (5 SECTIONS MAX)
+═══════════════════════════════════════════════════════════════════════════════
 
-## Recommended Next Steps
-(2-3 actionable next steps for the sales team)
+## 🎯 Executive Summary (3 sentences max)
+- #1 opportunity + WHY NOW (cite the specific trigger/signal)
+- Potential business impact
+- Key risk or caveat if evidence is thin
 
 ---
 
-After the report, include this exact text:
-"Please review the analysis above. You can:
-- Reply 'approved' or 'looks good' to finalize
-- Ask me to 'dig deeper' on specific areas
-- Request 'different opportunities' if these don't fit
-- Share any concerns for me to address"
+## 💡 Top Opportunities
+
+For each opportunity (max 3):
+
+### [Product] — [X]% confidence | Signal: STRONG/MODERATE/WEAK
+
+**Decision Maker:** [Title] - [why they care, 1 line]
+
+**Evidence:** "[Quote the actual signal/job posting/news]" — Source: [where from]
+
+**The Pitch:** "We help {industry} teams [specific outcome]. Our [product] enables [capability]."
+
+**If evidence is WEAK, state:** "⚠️ Needs verification: [what to ask to confirm]"
+
+---
+
+## 🎤 Discovery Questions (Top 4)
+
+Questions that reference the ACTUAL research findings:
+1. "I saw you're hiring for [actual job title]. What's driving that?"
+2. "Your [actual signal] suggests [inference]. How is that initiative going?"
+3. "[Status quo challenge based on industry]"
+4. "[Commitment/pilot question]"
+
+---
+
+## ⚠️ Risks & Competition
+
+- **[Risk/Competitor]:** [Our counter-positioning, 1 line]
+- **Weak signals to verify:** [List any opportunities with thin evidence]
+
+---
+
+## 🚀 Next Steps (2-3 actions)
+
+1. **Immediate:** [Action] — Why now: [timing driver]
+2. **Value-first offer:** [Free resource/audit to offer]
+3. **Follow-up:** [Specific next step]
+
+---
+💬 **Feedback:** 'approved' to finalize | 'dig deeper on X' for more research | 'different angle' for other opportunities
 """
 
         try:
+            # Use higher complexity for report generation - this is the PRIMARY OUTPUT
+            # the sales rep sees, so quality here matters most
             response = await self.model_router.generate(
                 prompt=prompt,
-                complexity=3,  # LOCAL Ollama
-                use_cache=False,  # Don't cache reports
-                max_tokens=3000
+                complexity=7,  # Use more capable model for critical output
+                use_cache=False,  # Don't cache reports - each should be fresh
+                max_tokens=5000  # Crisp report - user can ask for more detail
             )
 
             return response.content
@@ -824,29 +986,70 @@ After the report, include this exact text:
         Returns:
             WorkflowRoute based on LLM classification
         """
-        prompt = f"""Analyze this human feedback and classify the appropriate action:
+        prompt = f"""You are a feedback router. Analyze the user's feedback and determine the SINGLE best action.
 
-Feedback: "{feedback}"
+═══════════════════════════════════════════════════════════════
+USER FEEDBACK
+═══════════════════════════════════════════════════════════════
+"{feedback}"
 
-Classify as ONE of:
-- GATHERER: User wants more data, deeper research, additional sources, more information about specific topics
-- IDENTIFIER: User wants different opportunities, other products, new angles, alternative suggestions
-- VALIDATOR: User questions confidence scores, thinks ratings are too high/low, wants re-evaluation
-- COMPLETE: User is satisfied, approves the report, says looks good, done, accepted
+═══════════════════════════════════════════════════════════════
+ROUTING OPTIONS (Choose ONE)
+═══════════════════════════════════════════════════════════════
 
-Examples:
-- "dig deeper on their cloud initiatives" -> GATHERER
-- "find opportunities for different products" -> IDENTIFIER
-- "the confidence seems too high for Simulink" -> VALIDATOR
-- "looks good, approved" -> COMPLETE
-- "need more information about their hiring" -> GATHERER
-- "what about other toolboxes?" -> IDENTIFIER
+**COMPLETE** - User is satisfied, work is done
+- Trigger words: "approved", "looks good", "great", "perfect", "done", "thanks", "ship it", "good to go", "accepted", "finalize", "save"
+- Positive sentiment without specific change requests
+- DEFAULT if feedback is ambiguous but positive
+
+**GATHERER** - User wants MORE DATA on specific topics
+- Trigger words: "dig deeper", "more info", "research more", "find out about", "what about their [X]", "explore", "investigate"
+- User identifies a TOPIC they want more information about
+- Not about finding different products, but getting more evidence
+
+**IDENTIFIER** - User wants DIFFERENT OPPORTUNITIES
+- Trigger words: "different products", "other opportunities", "new angle", "what else", "alternatives", "not these products"
+- User is not satisfied with the PRODUCTS suggested
+- Wants to explore different product matches, not more data on current ones
+
+**VALIDATOR** - User questions CONFIDENCE SCORES
+- Trigger words: "confidence too high", "confidence too low", "re-evaluate", "re-score", "seems off", "disagree with rating"
+- User specifically mentions scores or confidence levels
+- Rare - only use when explicitly about scoring
+
+═══════════════════════════════════════════════════════════════
+DECISION PRIORITY
+═══════════════════════════════════════════════════════════════
+
+1. If ANY approval language present → COMPLETE
+2. If questioning scores specifically → VALIDATOR
+3. If wants different products → IDENTIFIER
+4. If wants more research on topics → GATHERER
+5. If unclear → COMPLETE (assume satisfaction)
+
+═══════════════════════════════════════════════════════════════
+EXAMPLES
+═══════════════════════════════════════════════════════════════
+
+"looks good, approved" → COMPLETE
+"this is great, thanks!" → COMPLETE
+"dig deeper on their cloud initiatives" → GATHERER
+"tell me more about their hiring in AI" → GATHERER
+"what about opportunities for Simulink instead?" → IDENTIFIER
+"find different products to pitch" → IDENTIFIER
+"the 85% confidence on MATLAB seems too high" → VALIDATOR
+"ok" → COMPLETE (ambiguous but not negative)
+"interesting" → COMPLETE (not requesting changes)
+
+═══════════════════════════════════════════════════════════════
+OUTPUT
+═══════════════════════════════════════════════════════════════
 
 Return JSON:
 {{
-    "route": "GATHERER" | "IDENTIFIER" | "VALIDATOR" | "COMPLETE",
-    "reasoning": "Brief explanation of classification",
-    "context_for_retry": "Specific guidance for the next agent based on feedback"
+    "route": "COMPLETE" | "GATHERER" | "IDENTIFIER" | "VALIDATOR",
+    "reasoning": "One sentence explaining why this route was chosen",
+    "context_for_retry": "If not COMPLETE, specific instructions for the agent (e.g., 'Research their cloud migration initiatives')"
 }}
 """
 
@@ -925,16 +1128,59 @@ Return JSON:
             route: Determined routing decision
             feedback: Original human feedback
         """
-        # Build context based on route
-        prompt = f"""Extract specific guidance for the {route.value} agent from this feedback:
+        # Build context based on route - provide SPECIFIC, ACTIONABLE instructions
+        agent_instructions = {
+            WorkflowRoute.GATHERER: """
+The GATHERER agent collects data from web searches, job postings, and news.
+Tell it EXACTLY what topics to research and what sources to prioritize.
+Example: "Research Boeing's cloud migration initiatives. Focus on: AWS partnerships, hiring for cloud architects, recent announcements about digital transformation."
+""",
+            WorkflowRoute.IDENTIFIER: """
+The IDENTIFIER agent matches seller products to customer needs.
+Tell it EXACTLY what product categories to explore or avoid.
+Example: "Focus on data visualization and analytics products. Skip infrastructure products - they already have a solution there."
+""",
+            WorkflowRoute.VALIDATOR: """
+The VALIDATOR agent scores opportunities and assesses risks.
+Tell it EXACTLY which scores to re-evaluate and why.
+Example: "Re-evaluate MATLAB confidence. User thinks 85% is too high because Boeing primarily uses Python. Consider language preferences in scoring."
+"""
+        }
 
-Feedback: "{feedback}"
-Route: {route.value}
+        prompt = f"""You are translating user feedback into SPECIFIC INSTRUCTIONS for the {route.value} agent.
 
-What specific adjustments should the {route.value} agent make?
-Be concise and actionable.
+═══════════════════════════════════════════════════════════════
+USER FEEDBACK
+═══════════════════════════════════════════════════════════════
+"{feedback}"
 
-Return only the guidance text, no JSON.
+═══════════════════════════════════════════════════════════════
+AGENT CONTEXT
+═══════════════════════════════════════════════════════════════
+{agent_instructions.get(route, "Provide specific actionable guidance.")}
+
+═══════════════════════════════════════════════════════════════
+YOUR TASK
+═══════════════════════════════════════════════════════════════
+
+Convert the user's feedback into a CLEAR, ACTIONABLE instruction.
+
+Rules:
+1. Be SPECIFIC - name exact topics, products, or areas to focus on
+2. Be DIRECTIVE - use imperative language ("Research X", "Focus on Y", "Avoid Z")
+3. Be CONCISE - one paragraph max
+4. EXTRACT intent - even if user was vague, make it specific
+
+Examples:
+- User: "dig deeper on cloud" → "Research their cloud infrastructure initiatives. Look for: cloud migration projects, AWS/Azure/GCP partnerships, DevOps hiring, containerization mentions in job posts."
+- User: "what about analytics?" → "Focus on analytics and data science products. Look for opportunities with: dashboards, reporting tools, data visualization, BI platforms. De-prioritize current product suggestions."
+- User: "confidence seems off" → "Re-evaluate all confidence scores. User expressed general skepticism. Apply stricter evidence requirements and lower scores where evidence is circumstantial."
+
+═══════════════════════════════════════════════════════════════
+OUTPUT
+═══════════════════════════════════════════════════════════════
+
+Return ONLY the instruction text (no JSON, no preamble). Start directly with the action.
 """
 
         try:

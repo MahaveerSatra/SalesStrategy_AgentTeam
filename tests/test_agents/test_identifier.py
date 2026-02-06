@@ -118,7 +118,7 @@ def initial_state(sample_signals, sample_job_postings):
     """Provide initial research state with gathered data."""
     state = create_initial_state(
         account_name="Acme Corp",
-        industry="Technology",
+        industry="Technology", seller_name="TestSeller",
         region="North America",
         research_depth=ResearchDepth.STANDARD
     )
@@ -134,7 +134,7 @@ def empty_state():
     """Provide state with no gathered data."""
     state = create_initial_state(
         account_name="Empty Corp",
-        industry="Unknown",
+        industry="Unknown", seller_name="TestSeller",
         research_depth=ResearchDepth.QUICK
     )
     return state
@@ -888,7 +888,7 @@ class TestEdgeCases:
         """Test handling when signals list is empty."""
         state = create_initial_state(
             account_name="Test Corp",
-            industry="Tech"
+            industry="Tech", seller_name="TestSeller"
         )
         state["signals"] = []
         state["job_postings"] = []
@@ -913,7 +913,7 @@ class TestEdgeCases:
         """Test handling signals with non-string content."""
         state = create_initial_state(
             account_name="Test Corp",
-            industry="Tech"
+            industry="Tech", seller_name="TestSeller"
         )
         # Signal with dict content (edge case)
         signal_with_dict = Signal(

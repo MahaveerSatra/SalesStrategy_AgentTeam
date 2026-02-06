@@ -89,7 +89,7 @@ def initial_state():
     """Provide initial research state."""
     return create_initial_state(
         account_name="Checkpoint",
-        industry="Technology",
+        industry="Technology", seller_name="TestSeller",
         region="North America",
         research_depth=ResearchDepth.STANDARD
     )
@@ -413,8 +413,8 @@ class TestMultiSessionScenarios:
             )
 
             # Run two different research sessions
-            state1 = create_initial_state("Company A", "Tech")
-            state2 = create_initial_state("Company B", "Finance")
+            state1 = create_initial_state("Company A", "Tech", "TestSeller")
+            state2 = create_initial_state("Company B", "Finance", "TestSeller")
 
             workflow.run(state1, thread_id="thread_company_a")
             workflow.run(state2, thread_id="thread_company_b")
@@ -455,11 +455,11 @@ class TestMultiSessionScenarios:
             thread_id = "shared_thread"
 
             # First run (using name without suffix as rule-based normalization removes suffixes)
-            state1 = create_initial_state("FirstCo", "Tech")
+            state1 = create_initial_state("FirstCo", "Tech", "TestSeller")
             workflow.run(state1, thread_id=thread_id)
 
             # Second run with same thread ID
-            state2 = create_initial_state("SecondCo", "Finance")
+            state2 = create_initial_state("SecondCo", "Finance", "TestSeller")
             workflow.run(state2, thread_id=thread_id)
 
             # Latest should be stored
@@ -742,8 +742,8 @@ class TestCheckpointDatabaseIntegrity:
                 job_scraper=mock_job_scraper
             )
 
-            state1 = create_initial_state("Company 1", "Tech")
-            state2 = create_initial_state("Company 2", "Finance")
+            state1 = create_initial_state("Company 1", "Tech", "TestSeller")
+            state2 = create_initial_state("Company 2", "Finance", "TestSeller")
 
             workflow1.run(state1, thread_id="workflow1_thread")
             workflow2.run(state2, thread_id="workflow2_thread")

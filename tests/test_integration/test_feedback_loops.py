@@ -90,7 +90,7 @@ def completed_pipeline_state():
     """Provide state that has completed full pipeline with report."""
     state = create_initial_state(
         account_name="FeedbackTest Corp",
-        industry="Technology",
+        industry="Technology", seller_name="TestSeller",
         region="North America",
         research_depth=ResearchDepth.STANDARD
     )

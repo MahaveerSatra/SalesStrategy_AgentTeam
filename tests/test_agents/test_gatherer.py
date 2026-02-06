@@ -135,7 +135,7 @@ def initial_state():
     """Provide initial research state with company_domain for testing."""
     state = create_initial_state(
         account_name="Acme Corp",
-        industry="Technology",
+        industry="Technology", seller_name="TestSeller",
         region="North America",
         research_depth=ResearchDepth.STANDARD
     )
@@ -570,7 +570,7 @@ class TestGathererAgentStateModifications:
         # Create state without company_domain (field doesn't exist in ResearchState)
         state = create_initial_state(
             account_name="Acme Corp",
-            industry="Technology"
+            industry="Technology", seller_name="TestSeller"
         )
 
         # Setup mocks
