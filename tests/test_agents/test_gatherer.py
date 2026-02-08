@@ -31,20 +31,70 @@ def mock_job_scraper():
 
 @pytest.fixture
 def mock_model_router():
-    """Provide mocked model router for LLM analysis."""
+    """Provide mocked model router for LLM analysis with all schema types."""
     router = AsyncMock(spec=ModelRouter)
 
-    # Mock response for LLM analysis
-    mock_response = MagicMock()
-    mock_response.content = """{
-        "confidence": 0.85,
-        "summary": "This is an LLM-generated summary of the source content.",
-        "source_type": "official_company_site",
-        "key_facts": ["Fact 1", "Fact 2"],
-        "keywords": ["keyword1", "keyword2"],
-        "relevance": "high"
-    }"""
-    router.generate.return_value = mock_response
+    def generate_response(prompt, **kwargs):
+        """Return appropriate mock response based on prompt content."""
+        mock_response = MagicMock()
+
+        # Detect prompt type and return appropriate schema
+        if "QUERY CATEGORIES" in prompt or "Generate targeted search queries" in prompt:
+            # SearchQueryGeneration schema
+            mock_response.content = """{
+                "queries": [
+                    {"category": "tech_stack", "query": "Acme Corp technology stack", "priority": 1},
+                    {"category": "hiring", "query": "Acme Corp hiring engineers", "priority": 2},
+                    {"category": "strategic", "query": "Acme Corp digital transformation", "priority": 3}
+                ]
+            }"""
+        elif "JOB POSTING" in prompt or "job posting" in prompt.lower():
+            # JobPostingAnalysis schema
+            mock_response.content = """{
+                "confidence": 0.85,
+                "summary": "This role indicates investment in cloud infrastructure.",
+                "technologies_required": ["Python", "AWS"],
+                "technologies_desired": ["Kubernetes"],
+                "urgency": "medium",
+                "seniority": "senior",
+                "team_indicators": "Growing team of 10+",
+                "seller_relevance": "high",
+                "potential_champion": true,
+                "sales_insight": "This role could benefit from our automation tools."
+            }"""
+        elif "BUYING SIGNALS" in prompt or "Sales Research Analyst" in prompt:
+            # SalesSourceAnalysis schema
+            mock_response.content = """{
+                "confidence": 0.85,
+                "summary": "This is an LLM-generated summary focused on sales insights.",
+                "source_type": "official_company_site",
+                "sales_relevance": "high",
+                "buying_signals": {
+                    "technologies": ["Python", "AWS"],
+                    "hiring_for": ["Engineers"],
+                    "budget_indicators": ["Investing $10M in cloud"],
+                    "urgency_signals": ["Q2 deadline"],
+                    "decision_makers": ["CTO John Smith"],
+                    "pain_points": ["Legacy system issues"],
+                    "competitors_mentioned": ["Competitor X"]
+                },
+                "key_facts": ["Fact 1", "Fact 2"],
+                "keywords": ["keyword1", "keyword2"]
+            }"""
+        else:
+            # Default/legacy SourceAnalysis schema (for backwards compatibility)
+            mock_response.content = """{
+                "confidence": 0.85,
+                "summary": "This is an LLM-generated summary of the source content.",
+                "source_type": "official_company_site",
+                "key_facts": ["Fact 1", "Fact 2"],
+                "keywords": ["keyword1", "keyword2"],
+                "relevance": "high"
+            }"""
+
+        return mock_response
+
+    router.generate.side_effect = generate_response
 
     return router
 
@@ -183,7 +233,7 @@ class TestGathererAgentSuccessfulDataGathering:
         sample_news_items
     ):
         """Test successful data collection from all sources."""
-        # Setup mocks
+        # Setup mocks - search returns results for each query category
         mock_mcp_client.search.return_value = sample_search_results
         mock_mcp_client.search_news.return_value = sample_news_items
         mock_mcp_client.fetch_content.return_value = "<html><body>Sample webpage content</body></html>"
@@ -195,24 +245,29 @@ class TestGathererAgentSuccessfulDataGathering:
         # Verify signals created
         assert len(initial_state["signals"]) > 0
 
-        # Check search signals (now with LLM analysis)
+        # Check search signals (now with sales-focused LLM analysis)
+        # Note: With 3 query categories and 2 results each, but deduplication by URL
+        # means we get 2 unique search signals (same URLs returned for each query)
         search_signals = [s for s in initial_state["signals"] if s.signal_type == "web_search"]
-        assert len(search_signals) == 2
+        assert len(search_signals) == 2  # Deduplicated by URL
         assert search_signals[0].source == "duckduckgo"
         assert search_signals[0].confidence == 0.85  # From mocked LLM response
         assert "source_type" in search_signals[0].metadata
+        assert "sales_relevance" in search_signals[0].metadata
+        assert "buying_signals" in search_signals[0].metadata
         assert "key_facts" in search_signals[0].metadata
         assert "keywords" in search_signals[0].metadata
 
-        # Check hiring signals
+        # Check hiring signals (now with LLM analysis)
         hiring_signals = [s for s in initial_state["signals"] if s.signal_type == "hiring"]
         assert len(hiring_signals) == 2
         assert hiring_signals[0].source == "job_boards"
-        assert hiring_signals[0].confidence == 0.9
+        assert hiring_signals[0].confidence == 0.85  # From mocked LLM response
+        assert "seller_relevance" in hiring_signals[0].metadata
 
-        # Check news signals
+        # Check news signals (3 news queries, but deduplicated)
         news_signals = [s for s in initial_state["signals"] if s.signal_type == "news"]
-        assert len(news_signals) == 2
+        assert len(news_signals) == 2  # Deduplicated by URL
         assert news_signals[0].source == "duckduckgo_news"
         assert news_signals[0].confidence == 0.7
 
@@ -220,7 +275,7 @@ class TestGathererAgentSuccessfulDataGathering:
         assert len(initial_state["job_postings"]) == 2
         assert initial_state["job_postings"][0]["title"] == "Senior Software Engineer"
 
-        # Verify news items stored
+        # Verify news items stored (deduplicated)
         assert len(initial_state["news_items"]) == 2
         assert initial_state["news_items"][0]["title"] == "Acme Corp Expands Cloud Services"
 
@@ -253,8 +308,9 @@ class TestGathererAgentSuccessfulDataGathering:
         # Execute
         await gatherer_agent.process(initial_state)
 
-        # Verify search and news signals created
-        assert len(initial_state["signals"]) == 4  # 2 search (LLM analyzed) + 2 news
+        # Verify search and news signals created (deduplicated)
+        # 2 search results (deduplicated across 3 queries) + 2 news items (deduplicated across 3 news queries)
+        assert len(initial_state["signals"]) == 4  # 2 search + 2 news (deduplicated)
         assert len(initial_state["job_postings"]) == 0
         assert len(initial_state["tech_stack"]) == 0
 
@@ -276,7 +332,7 @@ class TestGathererAgentPartialFailures:
         sample_news_items
     ):
         """Test when search fails but job/news succeed."""
-        # Setup mocks - search raises exception
+        # Setup mocks - search raises exception for all query categories
         mock_mcp_client.search.side_effect = Exception("Search API error")
         mock_mcp_client.search_news.return_value = sample_news_items
         mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
@@ -285,15 +341,18 @@ class TestGathererAgentPartialFailures:
         # Execute - should not raise, handles exception
         await gatherer_agent.process(initial_state)
 
-        # Verify error logged in state
-        assert len(initial_state["error_messages"]) > 0
-        assert "Web search failed" in initial_state["error_messages"][0]
+        # Search query failures are logged as warnings, not added to error_messages
+        # This is because individual query failures shouldn't block the workflow
+
+        # Verify no search signals created (all queries failed)
+        search_signals = [s for s in initial_state["signals"] if s.signal_type == "web_search"]
+        assert len(search_signals) == 0
 
         # Verify job and news signals still created
         hiring_signals = [s for s in initial_state["signals"] if s.signal_type == "hiring"]
         news_signals = [s for s in initial_state["signals"] if s.signal_type == "news"]
         assert len(hiring_signals) == 2
-        assert len(news_signals) == 2
+        assert len(news_signals) == 2  # Deduplicated
 
         # Still marks complete
         assert initial_state["progress"].gatherer_complete is True
@@ -318,15 +377,15 @@ class TestGathererAgentPartialFailures:
         # Execute
         await gatherer_agent.process(initial_state)
 
-        # Verify error logged
+        # Verify error logged for job failure
         assert len(initial_state["error_messages"]) > 0
         assert "Job posting collection failed" in initial_state["error_messages"][0]
 
-        # Verify search and news signals created
+        # Verify search and news signals created (deduplicated)
         search_signals = [s for s in initial_state["signals"] if s.signal_type == "web_search"]
         news_signals = [s for s in initial_state["signals"] if s.signal_type == "news"]
-        assert len(search_signals) == 2
-        assert len(news_signals) == 2
+        assert len(search_signals) == 2  # Deduplicated across 3 queries
+        assert len(news_signals) == 2  # Deduplicated across 3 news queries
 
         # Job postings empty, tech stack empty
         assert len(initial_state["job_postings"]) == 0
@@ -346,7 +405,7 @@ class TestGathererAgentPartialFailures:
         sample_job_postings
     ):
         """Test when news fails but search/jobs succeed."""
-        # Setup mocks - news raises exception
+        # Setup mocks - news raises exception for all news queries
         mock_mcp_client.search.return_value = sample_search_results
         mock_mcp_client.search_news.side_effect = Exception("News API rate limited")
         mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
@@ -355,17 +414,16 @@ class TestGathererAgentPartialFailures:
         # Execute
         await gatherer_agent.process(initial_state)
 
-        # Verify error logged
-        assert len(initial_state["error_messages"]) > 0
-        assert "News collection failed" in initial_state["error_messages"][0]
+        # News query failures are logged as warnings, not added to error_messages
+        # This is because individual query failures shouldn't block the workflow
 
         # Verify search and job signals created
         search_signals = [s for s in initial_state["signals"] if s.signal_type == "web_search"]
         hiring_signals = [s for s in initial_state["signals"] if s.signal_type == "hiring"]
-        assert len(search_signals) == 2
+        assert len(search_signals) == 2  # Deduplicated
         assert len(hiring_signals) == 2
 
-        # News items empty
+        # News items empty (all queries failed)
         assert len(initial_state["news_items"]) == 0
 
         # Still marks complete
@@ -393,8 +451,10 @@ class TestGathererAgentCompleteFailures:
         # Execute - should handle gracefully
         await gatherer_agent.process(initial_state)
 
-        # Verify all errors logged
-        assert len(initial_state["error_messages"]) == 3
+        # Job failure is added to error_messages
+        # Search and news query failures are logged as warnings (not in error_messages)
+        assert len(initial_state["error_messages"]) == 1
+        assert "Job posting collection failed" in initial_state["error_messages"][0]
 
         # Verify empty results
         assert len(initial_state["signals"]) == 0
@@ -515,12 +575,20 @@ class TestGathererAgentParallelExecution:
         # Execute
         await gatherer_agent.process(initial_state)
 
-        # Verify all sources were called
-        mock_mcp_client.search.assert_called_once()
-        mock_mcp_client.search_news.assert_called_once()
+        # Verify search was called multiple times (once per query category from _build_queries)
+        # The mock returns 3 queries, so search should be called 3 times
+        assert mock_mcp_client.search.call_count == 3
+
+        # News search called 3 times (top 3 strategic queries from _build_news_queries)
+        assert mock_mcp_client.search_news.call_count == 3
+
+        # Job scraper called once
         mock_job_scraper.fetch.assert_called_once()
 
-        # Verify results collected (2 search with LLM + 2 jobs + 2 news)
+        # Verify results collected:
+        # - 2 unique search results (deduplicated across 3 queries)
+        # - 2 job postings (with LLM analysis)
+        # - 2 news items (deduplicated across 3 news queries)
         assert len(initial_state["signals"]) == 6
         assert initial_state["progress"].gatherer_complete is True
 
@@ -541,7 +609,7 @@ class TestGathererAgentStateModifications:
         # Get initial state reference
         original_state_id = id(initial_state)
 
-        # Setup mocks
+        # Setup mocks - search returns same results for all queries (will be deduplicated)
         mock_mcp_client.search.return_value = sample_search_results
         mock_mcp_client.search_news.return_value = []
         mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
@@ -553,8 +621,8 @@ class TestGathererAgentStateModifications:
         # Verify same state object (modified in-place)
         assert id(initial_state) == original_state_id
 
-        # Verify fields populated
-        assert len(initial_state["signals"]) > 0
+        # Verify fields populated (2 search signals, deduplicated across queries)
+        assert len(initial_state["signals"]) == 2
         assert initial_state["progress"].gatherer_complete is True
 
     @pytest.mark.asyncio
@@ -573,7 +641,7 @@ class TestGathererAgentStateModifications:
             industry="Technology", seller_name="TestSeller"
         )
 
-        # Setup mocks
+        # Setup mocks - same results for all queries (will be deduplicated)
         mock_mcp_client.search.return_value = sample_search_results
         mock_mcp_client.search_news.return_value = sample_news_items
         mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
@@ -585,12 +653,12 @@ class TestGathererAgentStateModifications:
         # Verify job scraper NOT called (empty domain results in early return)
         mock_job_scraper.fetch.assert_not_called()
 
-        # Verify search and news data still collected
+        # Verify search and news data still collected (deduplicated)
         assert len(state["signals"]) > 0
         search_signals = [s for s in state["signals"] if s.signal_type == "web_search"]
         news_signals = [s for s in state["signals"] if s.signal_type == "news"]
-        assert len(search_signals) == 2
-        assert len(news_signals) == 2
+        assert len(search_signals) == 2  # Deduplicated across queries
+        assert len(news_signals) == 2  # Deduplicated across queries
 
         # No job postings
         assert len(state["job_postings"]) == 0

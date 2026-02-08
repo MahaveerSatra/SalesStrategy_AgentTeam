@@ -12,7 +12,12 @@ import structlog
 from src.core.base_agent import StatelessAgent
 from src.utils.json_parsing import extract_json_from_llm_response, JSONParseError
 from src.models.state import ResearchState, Signal, ResearchDepth
-from src.models.llm_schemas import SourceAnalysis
+from src.models.llm_schemas import (
+    SourceAnalysis,
+    SearchQueryGeneration,
+    SalesSourceAnalysis,
+    JobPostingAnalysis,
+)
 from src.data_sources.mcp_ddg_client import DuckDuckGoMCPClient
 from src.data_sources.job_boards import JobBoardScraper
 from src.core.model_router import ModelRouter
@@ -69,24 +74,25 @@ class GathererAgent(StatelessAgent):
 
     async def process(self, state: ResearchState) -> None:
         """
-        Collect and analyze data from multiple sources.
+        Collect and analyze data from multiple sources for sales intelligence.
 
         This method:
-        1. Extracts ALL context fields from state
-        2. Builds context-aware search queries
+        1. Extracts ALL context fields from state (including seller_name)
+        2. Builds MULTIPLE targeted search queries using LLM
         3. Determines max_results based on research_depth
-        4. Fetches raw data from sources
-        5. Analyzes EACH source with LLM
-        6. Creates rich Signal objects with metadata
+        4. Fetches raw data from sources in parallel
+        5. Analyzes EACH source with LLM for sales intelligence
+        6. Creates rich Signal objects with buying signals
 
         Args:
             state: Current research state (modified in-place)
         """
-        # Extract ALL context fields
+        # Extract ALL context fields including seller context
         account = state["account_name"]
         industry = state.get("industry", "")
         region = state.get("region", "")
         user_context = state.get("user_context", "")
+        seller_name = state.get("seller_name", "")  # type: ignore
         depth = state["research_depth"]
 
         self.logger.info(
@@ -94,27 +100,34 @@ class GathererAgent(StatelessAgent):
             account=account,
             industry=industry,
             region=region,
+            seller=seller_name,
             user_context=user_context[:50] if user_context else None,
             depth=depth.value
         )
 
-        # Build rich, context-aware queries
-        company_info_query = self._build_query(account, industry, region, user_context)
-        news_query = f"{account} news technology"
-        if industry:
-            news_query += f" {industry}"
+        # Build multiple targeted search queries using LLM
+        search_queries = await self._build_queries(
+            account_name=account,
+            industry=industry,
+            seller_name=seller_name,
+            user_context=user_context
+        )
+
+        # Build strategic news queries
+        news_queries = self._build_news_queries(account, industry)
 
         # Determine max_results based on research_depth
-        max_results = {
-            ResearchDepth.QUICK: 5,
-            ResearchDepth.STANDARD: 10,
-            ResearchDepth.DEEP: 20
+        max_results_per_query = {
+            ResearchDepth.QUICK: 3,
+            ResearchDepth.STANDARD: 5,
+            ResearchDepth.DEEP: 8
         }[depth]
 
         self.logger.info(
             "gatherer_fetching_data",
-            sources=3,
-            max_results=max_results,
+            search_queries=len(search_queries),
+            news_queries=len(news_queries),
+            max_results_per_query=max_results_per_query,
             depth=depth.value
         )
 
@@ -122,43 +135,81 @@ class GathererAgent(StatelessAgent):
         # Can be added dynamically for testing or future enhancement
         company_domain = state.get("company_domain", "")  # type: ignore
 
+        # Execute multiple targeted searches in parallel
         try:
-            search_results, job_postings, news_items = await asyncio.gather(
-                self._search_company_info(company_info_query, max_results),
+            # Build search tasks for each query
+            search_tasks = [
+                self._search_company_info(q["query"], max_results_per_query)
+                for q in search_queries
+            ]
+
+            # Build news search tasks
+            news_tasks = [
+                self._search_news(nq, max_results=3)
+                for nq in news_queries
+            ]
+
+            # Run all searches in parallel
+            all_results = await asyncio.gather(
+                *search_tasks,
                 self._fetch_job_postings(account, company_domain),
-                self._search_news(news_query, max_results=5),
-                return_exceptions=True  # Continue even if some fail
+                *news_tasks,
+                return_exceptions=True
             )
+
+            # Split results: search results, job postings, news items
+            num_search = len(search_queries)
+            num_news = len(news_queries)
+
+            search_results_list = all_results[:num_search]
+            job_postings = all_results[num_search]
+            news_results_list = all_results[num_search + 1:]
+
         except Exception as e:
             self.logger.error("gatherer_parallel_fetch_failed", error=str(e))
-            # Initialize with empty lists if total failure
-            search_results = []
+            search_results_list = []
             job_postings = []
-            news_items = []
+            news_results_list = []
 
-        # Process search results -> Analyze EACH with LLM -> Signal objects
-        if isinstance(search_results, Exception):
-            self.logger.warning(
-                "search_failed",
-                error=str(search_results),
-                error_type=type(search_results).__name__
-            )
-            state["error_messages"].append(f"Web search failed: {search_results}")
-        elif search_results:
-            self.logger.info("analyzing_search_results", count=len(search_results))
-            for result in search_results:
+        # Process search results from all queries -> Analyze EACH with LLM
+        all_search_results = []
+        seen_urls = set()  # Deduplicate across queries
+
+        for idx, results in enumerate(search_results_list):
+            if isinstance(results, Exception):
+                query_info = search_queries[idx] if idx < len(search_queries) else {}
+                self.logger.warning(
+                    "search_query_failed",
+                    category=query_info.get("category", "unknown"),
+                    error=str(results)
+                )
+                continue
+            if results:
+                for r in results:
+                    url_str = str(r.url)
+                    if url_str not in seen_urls:
+                        seen_urls.add(url_str)
+                        all_search_results.append(r)
+
+        self.logger.info("search_results_collected", total=len(all_search_results))
+
+        # Analyze each search result with sales-focused LLM analysis
+        if all_search_results:
+            self.logger.info("analyzing_search_results", count=len(all_search_results))
+            for result in all_search_results:
                 try:
                     # Fetch full webpage content
                     full_content = await self.mcp_client.fetch_content(str(result.url))
 
-                    # Analyze with LLM (Tier 1 Ollama)
+                    # Analyze with sales-focused LLM (Tier 1 Ollama)
                     analyzed_signal = await self._analyze_source_with_llm(
                         url=str(result.url),
                         title=result.title,
                         snippet=result.snippet,
                         full_content=full_content,
                         account_name=account,
-                        industry=industry
+                        industry=industry,
+                        seller_name=seller_name
                     )
 
                     state["signals"].append(analyzed_signal)
@@ -183,9 +234,9 @@ class GathererAgent(StatelessAgent):
                     )
                     state["signals"].append(signal)
 
-            self.logger.info("search_signals_added", count=len(search_results))
+            self.logger.info("search_signals_added", count=len(all_search_results))
 
-        # Process job postings
+        # Process job postings with LLM analysis for sales intelligence
         if isinstance(job_postings, Exception):
             self.logger.warning(
                 "job_fetch_failed",
@@ -198,40 +249,63 @@ class GathererAgent(StatelessAgent):
             state["job_postings"] = [jp.model_dump() for jp in job_postings]
             self.logger.info("job_postings_added", count=len(job_postings))
 
-            # Create signals from job postings
+            # Analyze each job posting with LLM for sales intelligence
             for job in job_postings:
                 try:
+                    analyzed_signal = await self._analyze_job_posting_with_llm(
+                        job=job.model_dump(),
+                        account_name=account,
+                        seller_name=seller_name
+                    )
+                    state["signals"].append(analyzed_signal)
+                except Exception as e:
+                    self.logger.warning(
+                        "job_analysis_failed",
+                        job_title=job.title if hasattr(job, 'title') else "unknown",
+                        error=str(e)
+                    )
+                    # Fallback: Create signal without LLM analysis
                     signal = Signal(
                         source="job_boards",
                         signal_type="hiring",
                         content=f"{job.title} - {job.company}",
                         timestamp=datetime.now(),
-                        confidence=0.9,
+                        confidence=0.7,  # Lower confidence without analysis
                         metadata={
                             "location": job.location or "Unknown",
                             "technologies": job.technologies,
-                            "url": str(job.url) if job.url else ""
+                            "url": str(job.url) if job.url else "",
+                            "analysis_failed": True
                         }
                     )
                     state["signals"].append(signal)
-                except Exception as e:
-                    self.logger.warning("job_signal_creation_failed", error=str(e))
 
-        # Process news items
-        if isinstance(news_items, Exception):
-            self.logger.warning(
-                "news_fetch_failed",
-                error=str(news_items),
-                error_type=type(news_items).__name__
-            )
-            state["error_messages"].append(f"News collection failed: {news_items}")
-        elif news_items:
+        # Process news items from all news queries
+        all_news_items = []
+        seen_news_urls = set()
+
+        for idx, news_results in enumerate(news_results_list):
+            if isinstance(news_results, Exception):
+                self.logger.warning(
+                    "news_query_failed",
+                    query_idx=idx,
+                    error=str(news_results)
+                )
+                continue
+            if news_results:
+                for news in news_results:
+                    url_str = str(news.url) if news.url else news.title
+                    if url_str not in seen_news_urls:
+                        seen_news_urls.add(url_str)
+                        all_news_items.append(news)
+
+        if all_news_items:
             # Convert NewsItem objects to dicts for state storage
-            state["news_items"] = [news.model_dump() for news in news_items]
-            self.logger.info("news_items_added", count=len(news_items))
+            state["news_items"] = [news.model_dump() for news in all_news_items]
+            self.logger.info("news_items_added", count=len(all_news_items))
 
             # Create signals from news items
-            for news in news_items:
+            for news in all_news_items:
                 try:
                     signal = Signal(
                         source="duckduckgo_news",
@@ -373,39 +447,136 @@ class GathererAgent(StatelessAgent):
         # Return sorted list for consistent ordering
         return sorted(list(tech_stack))
 
-    def _build_query(
+    async def _build_queries(
         self,
         account_name: str,
         industry: str,
-        region: str,
+        seller_name: str,
         user_context: str
-    ) -> str:
+    ) -> list[dict]:
         """
-        Build rich, context-aware search query.
+        Generate multiple targeted search queries for sales research using LLM.
+
+        Args:
+            account_name: Company name to research
+            industry: Industry vertical
+            seller_name: Seller company (whose products we're trying to sell)
+            user_context: Additional context from user
+
+        Returns:
+            List of query dicts with category, query, and priority
+        """
+        prompt = f"""Generate targeted search queries to research {account_name} as a potential customer for {seller_name}.
+
+═══════════════════════════════════════════════════════════════
+CONTEXT
+═══════════════════════════════════════════════════════════════
+Account: {account_name}
+Industry: {industry or "Not specified"}
+Seller: {seller_name or "Not specified"}
+User Context: {user_context or "None"}
+
+═══════════════════════════════════════════════════════════════
+QUERY CATEGORIES (generate 1 query per category)
+═══════════════════════════════════════════════════════════════
+
+1. **TECH STACK & TOOLS** (priority 1)
+   Goal: Find what technologies they currently use
+   Pattern: "{account_name} engineering tech stack" or "{account_name} software tools platform"
+
+2. **HIRING SIGNALS** (priority 2)
+   Goal: Find what skills/roles they're hiring for (indicates investment areas)
+   Pattern: "{account_name} hiring engineers" or "{account_name} careers technology"
+
+3. **STRATEGIC INITIATIVES** (priority 3)
+   Goal: Find digital transformation, modernization, expansion projects
+   Pattern: "{account_name} digital transformation" or "{account_name} technology investment"
+
+4. **PARTNERSHIPS & VENDORS** (priority 4)
+   Goal: Find existing technology partnerships (potential displacement opportunities)
+   Pattern: "{account_name} partnership technology" or "{account_name} vendor software"
+
+5. **CHALLENGES & PAIN POINTS** (priority 5)
+   Goal: Find public statements about challenges they're solving
+   Pattern: "{account_name} challenges engineering" or "{account_name} {industry} problems"
+
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════
+
+Return JSON:
+{{
+    "queries": [
+        {{"category": "tech_stack", "query": "...", "priority": 1}},
+        {{"category": "hiring", "query": "...", "priority": 2}},
+        {{"category": "strategic", "query": "...", "priority": 3}},
+        {{"category": "partnerships", "query": "...", "priority": 4}},
+        {{"category": "challenges", "query": "...", "priority": 5}}
+    ]
+}}
+
+RULES:
+- Keep queries concise (3-6 words max after company name)
+- Always start query with "{account_name}"
+- DO NOT include special characters or quotes in queries
+- Prioritize queries that would reveal {seller_name} sales opportunities
+"""
+
+        try:
+            response = await self.model_router.generate(
+                prompt=prompt,
+                complexity=3,  # LOCAL Ollama
+                temperature=0,
+                use_cache=True,
+                response_format=SearchQueryGeneration.model_json_schema()
+            )
+
+            try:
+                result = SearchQueryGeneration.model_validate_json(response.content)
+            except Exception as pydantic_error:
+                self.logger.warning(
+                    "query_generation_pydantic_failed",
+                    error=str(pydantic_error)
+                )
+                raw_result = extract_json_from_llm_response(response.content)
+                result = SearchQueryGeneration.model_validate(raw_result)
+
+            # Convert to list of dicts
+            queries = [
+                {"category": q.category, "query": q.query, "priority": q.priority}
+                for q in result.queries
+            ]
+
+            self.logger.info("search_queries_generated", count=len(queries))
+            return queries
+
+        except Exception as e:
+            self.logger.warning("query_generation_failed", error=str(e))
+            # Fallback to basic queries
+            return [
+                {"category": "general", "query": f"{account_name} company information {industry}", "priority": 1},
+                {"category": "tech", "query": f"{account_name} technology stack", "priority": 2},
+                {"category": "hiring", "query": f"{account_name} hiring jobs", "priority": 3},
+            ]
+
+    def _build_news_queries(self, account_name: str, industry: str) -> list[str]:
+        """
+        Generate top 3 strategic news queries for sales intelligence.
 
         Args:
             account_name: Company name
             industry: Industry vertical
-            region: Geographic region
-            user_context: Additional context from user
 
         Returns:
-            Enriched search query string
+            List of news search queries
         """
-        query_parts = [account_name, "company information"]
+        queries = [
+            f"{account_name} technology investment digital transformation",
+            f"{account_name} partnership announcement expansion",
+            f"{account_name} leadership change CTO CIO technology",
+        ]
 
-        if industry:
-            query_parts.append(industry)
-
-        if region:
-            query_parts.append(region)
-
-        if user_context:
-            # Extract key terms from user context (first 100 chars)
-            context_snippet = user_context[:100].strip()
-            query_parts.append(context_snippet)
-
-        return " ".join(query_parts)
+        return queries
 
     async def _analyze_source_with_llm(
         self,
@@ -414,28 +585,30 @@ class GathererAgent(StatelessAgent):
         snippet: str,
         full_content: str,
         account_name: str,
-        industry: str
+        industry: str,
+        seller_name: str = ""
     ) -> Signal:
         """
-        Use LLM to analyze source and assign confidence.
+        Use LLM to analyze source for SALES INTELLIGENCE.
 
-        LLM analyzes:
-        - Source authority (official site vs blog vs news)
-        - Content relevance to account research
-        - Factual quality (facts vs speculation)
-        - Extracts key facts, keywords
-        - Assigns confidence score (0.0-1.0)
+        This is a Sales Research Analyst that extracts:
+        - Source authority and reliability
+        - Sales relevance (not just general relevance)
+        - BUYING SIGNALS (technologies, hiring, budget, urgency, decision-makers)
+        - Key facts and keywords
+        - Confidence score based on sales value
 
         Args:
             url: Source URL
             title: Page title
             snippet: Search result snippet
             full_content: Full webpage content
-            account_name: Company being researched
+            account_name: Company being researched (customer)
             industry: Company industry
+            seller_name: Seller company (whose products we're trying to sell)
 
         Returns:
-            Signal object with LLM-analyzed metadata
+            Signal object with sales-focused metadata and buying signals
         """
         # Check cache first
         cache_key = hash(url)
@@ -443,80 +616,131 @@ class GathererAgent(StatelessAgent):
             self.logger.debug("analysis_cache_hit", url=url[:50])
             return self._analysis_cache[cache_key]
 
-        prompt = f"""Analyze this source about {account_name} ({industry}):
+        prompt = f"""You are a Sales Research Analyst helping {seller_name or "the sales team"} sell to {account_name}.
 
+═══════════════════════════════════════════════════════════════
+SOURCE DATA
+═══════════════════════════════════════════════════════════════
 URL: {url}
 Title: {title}
 Snippet: {snippet}
-Content (first 2000 chars): {full_content[:2000]}
+Content (first 3000 chars): {full_content[:3000]}
 
-Tasks:
-1. Assess source reliability (official/news/blog)
-2. Rate relevance to {account_name} research (high/medium/low)
-3. Identify key facts (not speculation)
-4. Extract keywords and technologies
-5. Assign confidence (0.0-1.0):
-   - 0.9-1.0: Official company source with facts
-   - 0.7-0.8: Reputable news/industry source
-   - 0.5-0.6: Blog with citations
-   - 0.0-0.4: Unreliable/irrelevant
-6. Summarize key information (2-3 sentences)
+═══════════════════════════════════════════════════════════════
+ANALYSIS TASKS
+═══════════════════════════════════════════════════════════════
+
+1. **SOURCE AUTHORITY** (affects confidence)
+   - Official company source (investor relations, press releases, careers) = HIGH
+   - Reputable news (Reuters, industry publications) = MEDIUM-HIGH
+   - Blog/third-party analysis = MEDIUM
+   - Forum/social media = LOW
+
+2. **SALES RELEVANCE** - Does this help sell {seller_name or "our"} products?
+   - HIGH: Reveals needs, tech stack, hiring, initiatives we can address
+   - MEDIUM: General company info useful for context
+   - LOW: Irrelevant to sales conversation
+
+3. **BUYING SIGNALS** - Extract any of these:
+   - technologies: What technologies they use or mention needing
+   - hiring_for: Roles being hired (indicates investment areas)
+   - budget_indicators: Investment mentions ("allocated $X", "investing in...")
+   - urgency_signals: Deadlines, acceleration, critical initiatives
+   - decision_makers: Titles or names of technology decision-makers
+   - pain_points: Challenges they've publicly mentioned
+   - competitors_mentioned: Vendors/competitors (displacement opportunities)
+
+4. **KEY FACTS** - Only VERIFIABLE facts, not speculation
+
+═══════════════════════════════════════════════════════════════
+CONFIDENCE SCORING
+═══════════════════════════════════════════════════════════════
+0.9-1.0: Official company source with recent, sales-relevant facts
+0.7-0.8: Reputable news with sales-relevant insights
+0.5-0.6: Third-party source with useful context
+0.3-0.4: Tangentially relevant or dated information
+0.0-0.2: Irrelevant or unreliable source
+
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════
 
 Return JSON:
 {{
     "confidence": 0.85,
-    "summary": "...",
-    "source_type": "official_company_site",
+    "summary": "2-3 sentence summary focused on sales-relevant insights",
+    "source_type": "official_company_site|news|blog|forum|other",
+    "sales_relevance": "high|medium|low",
+    "buying_signals": {{
+        "technologies": ["tech1", "tech2"],
+        "hiring_for": ["role1", "role2"],
+        "budget_indicators": ["indicator1"],
+        "urgency_signals": ["signal1"],
+        "decision_makers": ["title1"],
+        "pain_points": ["pain1"],
+        "competitors_mentioned": ["competitor1"]
+    }},
     "key_facts": ["fact1", "fact2"],
-    "keywords": ["keyword1", "keyword2"],
-    "relevance": "high"
+    "keywords": ["keyword1", "keyword2"]
 }}"""
 
         try:
-            # Use ModelRouter with complexity=3 (routes to Tier 1 Ollama)
-            # Use structured output for guaranteed valid JSON
+            # Use ModelRouter with complexity=3 (routes to Tier 1 LOCAL Ollama)
             response = await self.model_router.generate(
                 prompt=prompt,
-                complexity=3,  # Simple classification/summarization - LOCAL Ollama
-                temperature=0,  # Deterministic for structured output
+                complexity=3,  # LOCAL Ollama for cost efficiency
+                temperature=0,
                 use_cache=True,
-                response_format=SourceAnalysis.model_json_schema()
+                response_format=SalesSourceAnalysis.model_json_schema()
             )
 
-            # Parse with Pydantic - guaranteed to work with structured output
+            # Parse with Pydantic
             try:
-                analysis = SourceAnalysis.model_validate_json(response.content)
+                analysis = SalesSourceAnalysis.model_validate_json(response.content)
             except Exception as pydantic_error:
-                # Fallback to robust JSON extraction if Pydantic validation fails
                 self.logger.warning(
                     "pydantic_validation_failed_using_fallback",
                     url=url[:50],
                     error=str(pydantic_error)
                 )
                 raw_analysis = extract_json_from_llm_response(response.content)
-                analysis = SourceAnalysis.model_validate(raw_analysis)
+                analysis = SalesSourceAnalysis.model_validate(raw_analysis)
 
-            # Create Signal with LLM-analyzed data
+            # Create Signal with sales-focused metadata
             signal = Signal(
                 source="duckduckgo",
                 signal_type="web_search",
-                content=analysis.summary,  # LLM summary
+                content=analysis.summary,
                 timestamp=datetime.now(),
-                confidence=analysis.confidence,  # LLM-assigned
+                confidence=analysis.confidence,
                 metadata={
                     "url": url,
                     "title": title,
                     "source_type": analysis.source_type,
+                    "sales_relevance": analysis.sales_relevance,
+                    "buying_signals": {
+                        "technologies": analysis.buying_signals.technologies,
+                        "hiring_for": analysis.buying_signals.hiring_for,
+                        "budget_indicators": analysis.buying_signals.budget_indicators,
+                        "urgency_signals": analysis.buying_signals.urgency_signals,
+                        "decision_makers": analysis.buying_signals.decision_makers,
+                        "pain_points": analysis.buying_signals.pain_points,
+                        "competitors_mentioned": analysis.buying_signals.competitors_mentioned,
+                    },
                     "key_facts": analysis.key_facts,
                     "keywords": analysis.keywords,
-                    "relevance": analysis.relevance,
                     "original_snippet": snippet
                 }
             )
 
             # Cache for future lookups
             self._analysis_cache[cache_key] = signal
-            self.logger.debug("analysis_completed", url=url[:50], confidence=signal.confidence)
+            self.logger.debug(
+                "analysis_completed",
+                url=url[:50],
+                confidence=signal.confidence,
+                sales_relevance=analysis.sales_relevance
+            )
 
             return signal
 
@@ -525,6 +749,149 @@ Return JSON:
             raise
         except Exception as e:
             self.logger.error("llm_analysis_failed", url=url[:50], error=str(e))
+            raise
+
+    async def _analyze_job_posting_with_llm(
+        self,
+        job: dict,
+        account_name: str,
+        seller_name: str
+    ) -> Signal:
+        """
+        Use LLM to analyze job posting for sales intelligence.
+
+        Extracts:
+        - Technologies required/desired
+        - Hiring urgency
+        - Team size indicators
+        - Seller relevance
+        - Potential product champions
+
+        Args:
+            job: Job posting dict
+            account_name: Company being researched
+            seller_name: Seller company
+
+        Returns:
+            Signal object with job analysis metadata
+        """
+        job_title = job.get("title", "Unknown")
+        job_description = job.get("description", "")
+        job_location = job.get("location", "Unknown")
+        job_skills = job.get("required_skills", [])
+        job_technologies = job.get("technologies", [])
+
+        prompt = f"""Analyze this job posting from {account_name} for sales intelligence relevant to {seller_name or "our products"}.
+
+═══════════════════════════════════════════════════════════════
+JOB POSTING
+═══════════════════════════════════════════════════════════════
+Title: {job_title}
+Location: {job_location}
+Required Skills: {", ".join(job_skills) if job_skills else "Not specified"}
+Technologies: {", ".join(job_technologies) if job_technologies else "Not specified"}
+Description: {job_description[:2000] if job_description else "Not provided"}
+
+═══════════════════════════════════════════════════════════════
+EXTRACT SALES INTELLIGENCE
+═══════════════════════════════════════════════════════════════
+
+1. **ROLE ANALYSIS**
+   - What does this hiring indicate about company priorities?
+   - Is this a new team/initiative or backfill?
+   - Seniority level (entry/mid/senior/leadership)
+
+2. **TECHNOLOGY SIGNALS**
+   - What technologies are required vs preferred?
+   - Any tools they want to adopt vs already use?
+
+3. **URGENCY INDICATORS**
+   - "Immediate start", "ASAP", "urgent" = high
+   - Standard posting = medium
+   - Evergreen/talent pool = low
+
+4. **BUDGET SIGNALS**
+   - Team size mentions ("join team of 50+")
+   - Multiple similar roles = scaling investment
+
+5. **{seller_name or "SELLER"} RELEVANCE**
+   - Could {seller_name or "our"} products help this role/team?
+   - Is this role a potential champion/user?
+
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════
+
+Return JSON:
+{{
+    "confidence": 0.85,
+    "summary": "What this hiring tells us about sales opportunity",
+    "technologies_required": ["tech1", "tech2"],
+    "technologies_desired": ["tech3"],
+    "urgency": "high|medium|low",
+    "seniority": "entry|mid|senior|leadership",
+    "team_indicators": "Team size/growth info if mentioned",
+    "seller_relevance": "high|medium|low",
+    "potential_champion": true,
+    "sales_insight": "How {seller_name or "we"} could help this role/team"
+}}"""
+
+        try:
+            response = await self.model_router.generate(
+                prompt=prompt,
+                complexity=3,  # LOCAL Ollama
+                temperature=0,
+                use_cache=True,
+                response_format=JobPostingAnalysis.model_json_schema()
+            )
+
+            try:
+                analysis = JobPostingAnalysis.model_validate_json(response.content)
+            except Exception as pydantic_error:
+                self.logger.warning(
+                    "job_analysis_pydantic_failed",
+                    job_title=job_title,
+                    error=str(pydantic_error)
+                )
+                raw_analysis = extract_json_from_llm_response(response.content)
+                analysis = JobPostingAnalysis.model_validate(raw_analysis)
+
+            # Create Signal with job analysis
+            signal = Signal(
+                source="job_boards",
+                signal_type="hiring",
+                content=analysis.summary,
+                timestamp=datetime.now(),
+                confidence=analysis.confidence,
+                metadata={
+                    "job_title": job_title,
+                    "location": job_location,
+                    "url": job.get("url", ""),
+                    "technologies_required": analysis.technologies_required,
+                    "technologies_desired": analysis.technologies_desired,
+                    "urgency": analysis.urgency,
+                    "seniority": analysis.seniority,
+                    "team_indicators": analysis.team_indicators,
+                    "seller_relevance": analysis.seller_relevance,
+                    "potential_champion": analysis.potential_champion,
+                    "sales_insight": analysis.sales_insight
+                }
+            )
+
+            self.logger.debug(
+                "job_analysis_completed",
+                job_title=job_title,
+                confidence=signal.confidence,
+                seller_relevance=analysis.seller_relevance
+            )
+
+            return signal
+
+        except (json.JSONDecodeError, JSONParseError) as e:
+            self.logger.warning("job_llm_json_parse_failed", job_title=job_title, error=str(e))
+            raise
+        except Exception as e:
+            self.logger.error("job_llm_analysis_failed", job_title=job_title, error=str(e))
             raise
 
     def get_complexity(self, state: ResearchState) -> int:

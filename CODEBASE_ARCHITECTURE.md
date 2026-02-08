@@ -1,8 +1,8 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-02-06 (Coordinator Agent Prompt Improvements - Phase 5 Started)
+**Last Updated**: 2026-02-06 (Gatherer Agent Prompt Improvements - Phase 5 Continued)
 **Status**: Phase 5 IN PROGRESS - Agent Prompt Quality Improvements
-**Test Status**: ✅ 453 tests passing (fast) | ✅ 0 skipped | 21 slow E2E
+**Test Status**: ✅ 453 tests passing | ✅ 0 skipped
 
 ---
 
@@ -10,22 +10,53 @@
 
 **READ THIS FIRST** when restoring context after clearing chat:
 
-1. **Project**: Multi-agent system for enterprise account research using LangGraph
-2. **Current Phase**: Phase 5 IN PROGRESS - **Agent Prompt Quality Improvements**
-3. **What's Done**:
-   - All 4 agents + LangGraph workflow + human-in-loop + 453 tests
-   - 139 MathWorks products indexed
-   - `--context` flag + `--seller` flag (seller_name now REQUIRED)
-   - MCP Session Fix + HttpUrl Serialization Fix
-   - CLI Path Resolution Fix + Logging Noise Suppression
-   - **✅ COORDINATOR AGENT PROMPTS IMPROVED (2026-02-06)**
-4. **What's Next**: **Improve Gatherer Agent prompts**, then Identifier, then Validator
-5. **Test Coverage**: 453 tests passing fast, 0 skipped, 21 slow E2E
-6. **System Status**: ✅ All tests passing, MathWorks catalog indexed (139 products), **MCP web search WORKING**
-7. **Product Catalog**: Supports any seller company (MathWorks built-in, or provide JSON/URL for custom companies)
-8. **Architecture Fix**: `seller_name` is now REQUIRED (not hardcoded) - true multi-seller support
-9. **CRITICAL FIXES (2026-01-31 Late Night)**: MCP session initialization + HttpUrl msgpack serialization
-10. **PROMPT IMPROVEMENTS (2026-02-06)**: Coordinator Agent prompts overhauled for 100x quality
+### Current Status
+| Item | Status |
+|------|--------|
+| **Phase** | Phase 5 IN PROGRESS - Agent Prompt Quality Improvements |
+| **Tests** | ✅ 453 tests passing, 0 skipped |
+| **System** | ✅ Fully functional, MCP web search WORKING |
+
+### Agent Improvement Progress (Phase 5)
+| Agent | File | Status | Key Improvements |
+|-------|------|--------|------------------|
+| **Coordinator** | `src/agents/coordinator.py` | ✅ DONE | Validation, clarifying questions, report formatting, feedback parsing |
+| **Gatherer** | `src/agents/gatherer.py` | ✅ DONE | Multi-query search, sales-focused analysis, buying signals extraction, job LLM analysis |
+| **Identifier** | `src/agents/identifier.py` | ⏳ NEXT | Product-to-need matching, opportunity identification |
+| **Validator** | `src/agents/validator.py` | ⏳ PENDING | Confidence scoring, risk assessment |
+
+### What's Been Completed
+1. **Infrastructure**: All 4 agents + LangGraph workflow + human-in-loop
+2. **Product Catalog**: 139 MathWorks products indexed, supports any seller
+3. **CLI Flags**: `--seller` (REQUIRED), `--context`, `--output`
+4. **Critical Fixes**: MCP session init, HttpUrl serialization, CLI paths, logging noise
+5. **Coordinator Prompts** (2026-02-06): 5 prompts overhauled for quality
+6. **Gatherer Prompts** (2026-02-06): Multi-query search + sales intelligence extraction
+
+### What's Next
+**Improve Identifier Agent Prompts** (`src/agents/identifier.py`)
+- Focus: Product-to-need matching, opportunity identification
+- Goal: More accurate product recommendations, better rationale
+- Then: Validator Agent prompts
+
+### Key Files Modified Recently
+| File | Changes |
+|------|---------|
+| `src/agents/gatherer.py` | `_build_queries()`, `_analyze_source_with_llm()`, `_analyze_job_posting_with_llm()`, `_build_news_queries()` |
+| `src/models/llm_schemas.py` | Added `SearchQueryGeneration`, `BuyingSignals`, `SalesSourceAnalysis`, `JobPostingAnalysis` |
+| `tests/test_agents/test_gatherer.py` | Updated mocks for new schemas, test assertions for multi-query |
+
+### How to Run
+```bash
+# Activate venv
+.\venv\Scripts\Activate.ps1
+
+# Run tests
+python -m pytest tests/ -q
+
+# Start research
+python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks"
+```
 
 ### Architecture Overview
 
@@ -163,14 +194,12 @@ python -m src.cli setup-catalog --seller "MathWorks" --force
 ### Next Steps (Action Items)
 
 1. **✅ DONE: Coordinator Agent Prompts Improved** (2026-02-06)
-   - See "Prompt Improvements (2026-02-06)" section below for details
+   - See "Prompt Improvements (2026-02-06) - Coordinator Agent" section below for details
 
-2. **⏳ NEXT: Improve Gatherer Agent Prompts**
-   - File: `src/agents/gatherer.py`
-   - Focus: Data collection quality, search query formulation, signal extraction
-   - Goal: Better web search queries, more relevant job posting analysis
+2. **✅ DONE: Gatherer Agent Prompts Improved** (2026-02-06)
+   - See "Prompt Improvements (2026-02-06) - Gatherer Agent" section below for details
 
-3. **⏳ PENDING: Improve Identifier Agent Prompts**
+3. **⏳ NEXT: Improve Identifier Agent Prompts**
    - File: `src/agents/identifier.py`
    - Focus: Product-to-need matching, opportunity identification
    - Goal: More accurate product recommendations, better rationale
@@ -243,7 +272,7 @@ python -m src.cli setup-catalog --seller "MathWorks" --force
 - `create_initial_state()` signature: `create_initial_state(account_name, industry, seller_name, ...)`
 
 #### Test Updates:
-- All 453 tests updated to include `seller_name="TestSeller"` parameter
+- All tests updated to include `seller_name="TestSeller"` parameter
 - Files updated:
   - `tests/test_agents/test_coordinator.py`
   - `tests/test_agents/test_gatherer.py`
@@ -254,6 +283,73 @@ python -m src.cli setup-catalog --seller "MathWorks" --force
   - `tests/test_integration/test_error_recovery.py`
   - `tests/test_integration/test_feedback_loops.py`
   - `tests/test_integration/test_pipeline.py`
+
+---
+
+### Prompt Improvements (2026-02-06) - Gatherer Agent
+
+**Session Goal**: Improve Gatherer Agent prompts for sales-focused intelligence gathering
+
+#### Changes Made to `src/agents/gatherer.py`:
+
+**1. Multiple Targeted Search Queries** (`_build_queries`)
+- **Before**: Single generic query like `"{account} company information {industry}"`
+- **After**: LLM generates 5 targeted queries per category:
+  - `tech_stack`: Technologies they use
+  - `hiring`: Roles being hired (investment signals)
+  - `strategic`: Digital transformation, modernization
+  - `partnerships`: Vendor relationships (displacement opportunities)
+  - `challenges`: Public pain points
+- Uses LOCAL Ollama (complexity=3) for cost efficiency
+- Fallback to 3 basic queries if LLM fails
+
+**2. Strategic News Queries** (`_build_news_queries`)
+- **Before**: Single query `"{account} news technology"`
+- **After**: Top 3 strategic queries:
+  - Technology investment / digital transformation
+  - Partnership announcements / expansion
+  - Leadership changes (CTO, CIO)
+
+**3. Sales-Focused Source Analysis** (`_analyze_source_with_llm`)
+- **Before**: Generic relevance assessment
+- **After**: Sales Research Analyst persona that extracts:
+  - **Buying Signals**: Technologies, hiring, budget indicators, urgency, decision-makers, pain points, competitors
+  - **Sales Relevance**: HIGH/MEDIUM/LOW based on seller fit
+  - Structured metadata for downstream agents
+- New Pydantic schema: `SalesSourceAnalysis` with `BuyingSignals` nested model
+
+**4. Job Posting LLM Analysis** (`_analyze_job_posting_with_llm`)
+- **Before**: Hardcoded confidence=0.9, no analysis
+- **After**: LLM analysis extracts:
+  - Technologies required vs desired
+  - Hiring urgency (high/medium/low)
+  - Seniority level
+  - Team size indicators
+  - Seller relevance
+  - Potential champion identification
+  - Sales insight (how seller can help)
+- New Pydantic schema: `JobPostingAnalysis`
+
+**5. Seller Context Integration**
+- **Before**: `seller_name` not used anywhere
+- **After**: Passed to all analysis methods for relevance scoring
+
+#### New Pydantic Schemas (`src/models/llm_schemas.py`):
+
+```python
+class SearchQueryGeneration  # For _build_queries()
+class BuyingSignals          # Nested in SalesSourceAnalysis
+class SalesSourceAnalysis    # For _analyze_source_with_llm()
+class JobPostingAnalysis     # For _analyze_job_posting_with_llm()
+```
+
+#### Test Updates (`tests/test_agents/test_gatherer.py`):
+- Updated `mock_model_router` to return appropriate schema based on prompt content
+- Tests now expect:
+  - Multiple search queries (3 categories)
+  - Multiple news queries (3 strategic)
+  - Job posting LLM analysis with seller_relevance
+  - Deduplication of results across queries
 
 ---
 

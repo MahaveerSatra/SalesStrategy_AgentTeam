@@ -39,6 +39,66 @@ class SourceAnalysis(BaseModel):
     relevance: Literal["high", "medium", "low"] = Field(description="Relevance to research")
 
 
+class SearchQueryItem(BaseModel):
+    """Individual search query with category and priority."""
+    category: str = Field(description="Query category: tech_stack, hiring, strategic, partnerships, challenges")
+    query: str = Field(description="The search query string")
+    priority: int = Field(ge=1, le=5, description="Priority 1-5 (1=highest)")
+
+
+class SearchQueryGeneration(BaseModel):
+    """Schema for GathererAgent's search query generation output.
+
+    Used in `_build_queries()` to generate multiple targeted search queries.
+    """
+    queries: list[SearchQueryItem] = Field(
+        default_factory=list,
+        description="List of targeted search queries"
+    )
+
+
+class BuyingSignals(BaseModel):
+    """Buying signals extracted from a source for sales intelligence."""
+    technologies: list[str] = Field(default_factory=list, description="Technologies mentioned")
+    hiring_for: list[str] = Field(default_factory=list, description="Roles being hired")
+    budget_indicators: list[str] = Field(default_factory=list, description="Budget/investment mentions")
+    urgency_signals: list[str] = Field(default_factory=list, description="Urgency indicators")
+    decision_makers: list[str] = Field(default_factory=list, description="Decision maker titles/names")
+    pain_points: list[str] = Field(default_factory=list, description="Challenges/pain points mentioned")
+    competitors_mentioned: list[str] = Field(default_factory=list, description="Competitor/vendor mentions")
+
+
+class SalesSourceAnalysis(BaseModel):
+    """Schema for GathererAgent's sales-focused source analysis output.
+
+    Enhanced version of SourceAnalysis with buying signals for sales intelligence.
+    """
+    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score 0.0-1.0")
+    summary: str = Field(description="2-3 sentence summary focused on sales-relevant insights")
+    source_type: str = Field(description="Type: official_company_site, news, blog, forum, other")
+    sales_relevance: Literal["high", "medium", "low"] = Field(description="Relevance to sales opportunity")
+    buying_signals: BuyingSignals = Field(default_factory=BuyingSignals, description="Extracted buying signals")
+    key_facts: list[str] = Field(default_factory=list, description="Verifiable facts extracted")
+    keywords: list[str] = Field(default_factory=list, description="Keywords and technologies")
+
+
+class JobPostingAnalysis(BaseModel):
+    """Schema for GathererAgent's job posting analysis output.
+
+    Used in `_analyze_job_posting_with_llm()` for sales intelligence from jobs.
+    """
+    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score 0.0-1.0")
+    summary: str = Field(description="What this hiring tells us about sales opportunity")
+    technologies_required: list[str] = Field(default_factory=list, description="Required technologies")
+    technologies_desired: list[str] = Field(default_factory=list, description="Nice-to-have technologies")
+    urgency: Literal["high", "medium", "low"] = Field(default="medium", description="Hiring urgency")
+    seniority: str = Field(default="mid", description="Role seniority: entry, mid, senior, leadership")
+    team_indicators: str = Field(default="", description="Team size/growth indicators if mentioned")
+    seller_relevance: Literal["high", "medium", "low"] = Field(default="medium", description="Relevance to seller")
+    potential_champion: bool = Field(default=False, description="Could this role be a product champion?")
+    sales_insight: str = Field(default="", description="How seller could help this role/team")
+
+
 # =============================================================================
 # IdentifierAgent Schemas
 # =============================================================================
@@ -193,6 +253,11 @@ class FeedbackIntent(BaseModel):
 __all__ = [
     # Gatherer
     "SourceAnalysis",
+    "SearchQueryItem",
+    "SearchQueryGeneration",
+    "BuyingSignals",
+    "SalesSourceAnalysis",
+    "JobPostingAnalysis",
     # Identifier
     "RequirementsExtraction",
     "OpportunityItem",
