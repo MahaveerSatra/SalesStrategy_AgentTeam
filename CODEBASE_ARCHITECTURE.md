@@ -1,7 +1,7 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-02-06 (Gatherer Agent Prompt Improvements - Phase 5 Continued)
-**Status**: Phase 5 IN PROGRESS - Agent Prompt Quality Improvements
+**Last Updated**: 2026-02-08 (Critical Bug Fixes + End-to-End Testing)
+**Status**: Phase 5 IN PROGRESS - Agent Quality Improvements + Bug Fixes
 **Test Status**: ✅ 453 tests passing | ✅ 0 skipped
 
 ---
@@ -13,17 +13,35 @@
 ### Current Status
 | Item | Status |
 |------|--------|
-| **Phase** | Phase 5 IN PROGRESS - Agent Prompt Quality Improvements |
+| **Phase** | Phase 5 IN PROGRESS - Agent Quality Improvements |
 | **Tests** | ✅ 453 tests passing, 0 skipped |
 | **System** | ✅ Fully functional, MCP web search WORKING |
+| **Last Test** | Boeing demo completed successfully (2026-02-08) |
+
+### Critical Bugs Fixed (2026-02-08)
+| Bug | File | Root Cause | Fix |
+|-----|------|------------|-----|
+| **Resume losing account_name** | `src/graph/workflow.py` | `invoke(state, config)` restarts workflow instead of resuming | Use `update_state()` + `invoke(None, config)` |
+| **Empty account_name in checkpoint** | `src/agents/coordinator.py` | LLM returned empty `suggested_corrections` which overwrote valid values | Only apply corrections when non-empty |
+| **Invalid checkpoint validation** | `src/graph/workflow.py` | No check for empty checkpoint data | Added validation for `account_name` before resume |
 
 ### Agent Improvement Progress (Phase 5)
 | Agent | File | Status | Key Improvements |
 |-------|------|--------|------------------|
-| **Coordinator** | `src/agents/coordinator.py` | ✅ DONE | Validation, clarifying questions, report formatting, feedback parsing |
-| **Gatherer** | `src/agents/gatherer.py` | ✅ DONE | Multi-query search, sales-focused analysis, buying signals extraction, job LLM analysis |
-| **Identifier** | `src/agents/identifier.py` | ⏳ NEXT | Product-to-need matching, opportunity identification |
-| **Validator** | `src/agents/validator.py` | ⏳ PENDING | Confidence scoring, risk assessment |
+| **Coordinator** | `src/agents/coordinator.py` | ✅ DONE | Validation, clarifying questions, report formatting, feedback parsing, empty correction fix |
+| **Gatherer** | `src/agents/gatherer.py` | ⚠️ NEEDS WORK | Multi-query search works, but job boards/news returning empty |
+| **Identifier** | `src/agents/identifier.py` | ⏳ NEXT | Needs: real persona names, specific requirements, better rationale |
+| **Validator** | `src/agents/validator.py` | ⏳ PENDING | Needs: actionable talking points, real persuasion strategies |
+
+### Issues Found During Boeing Test (2026-02-08)
+| Issue | Severity | Details |
+|-------|----------|---------|
+| **LiteLLM Rate Limit** | Medium | `ModelRateLimitError` during report generation with Groq |
+| **Job Boards Empty** | High | 0 job postings returned despite Boeing having many |
+| **News Empty** | High | 0 news items returned |
+| **Generic Personas** | Medium | "Director of Quality Engineering" not real person names |
+| **Generic Talking Points** | Medium | Not tailored to specific Boeing initiatives |
+| **Truncated Evidence** | Low | Report shows "... and 2 more signals" instead of full details |
 
 ### What's Been Completed
 1. **Infrastructure**: All 4 agents + LangGraph workflow + human-in-loop
@@ -32,19 +50,22 @@
 4. **Critical Fixes**: MCP session init, HttpUrl serialization, CLI paths, logging noise
 5. **Coordinator Prompts** (2026-02-06): 5 prompts overhauled for quality
 6. **Gatherer Prompts** (2026-02-06): Multi-query search + sales intelligence extraction
+7. **Resume Bug Fix** (2026-02-08): Workflow resume now works correctly
+8. **Empty Correction Bug Fix** (2026-02-08): Account name preserved during validation
 
-### What's Next
-**Improve Identifier Agent Prompts** (`src/agents/identifier.py`)
-- Focus: Product-to-need matching, opportunity identification
-- Goal: More accurate product recommendations, better rationale
-- Then: Validator Agent prompts
+### What's Next (Priority Order)
+1. **Fix Gatherer Agent** - Investigate why job boards and news return empty
+2. **Fix LiteLLM Rate Limiting** - Add better error handling/fallback
+3. **Improve Identifier Agent** - Real persona identification, specific requirements
+4. **Improve Validator Agent** - Actionable output, persuasion strategies
+5. **Improve Report Formatting** - Full evidence display, better structure
 
 ### Key Files Modified Recently
 | File | Changes |
 |------|---------|
-| `src/agents/gatherer.py` | `_build_queries()`, `_analyze_source_with_llm()`, `_analyze_job_posting_with_llm()`, `_build_news_queries()` |
-| `src/models/llm_schemas.py` | Added `SearchQueryGeneration`, `BuyingSignals`, `SalesSourceAnalysis`, `JobPostingAnalysis` |
-| `tests/test_agents/test_gatherer.py` | Updated mocks for new schemas, test assertions for multi-query |
+| `src/graph/workflow.py` | Fixed `resume()` to use `update_state()` + `invoke(None)`, added checkpoint validation |
+| `src/agents/coordinator.py` | Fixed empty correction overwrite bug at lines 320-334 |
+| `tests/test_integration/test_checkpointing.py` | Updated test to expect `ValueError` with match pattern |
 
 ### How to Run
 ```bash
@@ -154,7 +175,76 @@ python -m src.cli setup-catalog --seller "MathWorks" --force
 
 ---
 
-### Bug Fixes Applied This Session (2026-02-02 - CLI Improvements)
+### Bug Fixes Applied (2026-02-08 - Critical Resume & Validation Fixes)
+
+**Issue 9: Resume Workflow Loses Account Name** ✅ FIXED (Critical)
+- **Problem**: After answering a clarifying question and resuming, the workflow showed `Account: ` (empty) and failed with "No valid checkpoint found"
+- **Root Cause**: Two bugs working together:
+  1. `workflow.resume()` called `app.invoke(state_values, config)` which **restarts** the workflow from the entry point instead of resuming from checkpoint
+  2. LangGraph's `invoke()` with a state dict means "start fresh with this state" not "continue from checkpoint"
+- **Solution** in `src/graph/workflow.py:614-658`:
+  ```python
+  # OLD (broken): self.app.invoke(state_values, config)
+  # NEW (fixed):
+  self.app.update_state(config, {"human_feedback": feedback_list, "waiting_for_human": False})
+  result = self.app.invoke(None, config)  # None = resume from checkpoint
+  ```
+- **Additional Fix**: Added checkpoint validation to check `account_name` exists before resuming
+- **Files Changed**: `src/graph/workflow.py`, `tests/test_integration/test_checkpointing.py`
+
+**Issue 10: Coordinator Overwrites Account Name with Empty String** ✅ FIXED (Critical)
+- **Problem**: Even on initial run, `account_name` and `industry` were being set to empty strings in the checkpoint
+- **Root Cause**: The LLM's `suggested_corrections` field contained empty strings like `{"account_name": "", "industry": ""}`, and the code blindly applied these:
+  ```python
+  # OLD (broken):
+  if "account_name" in result.suggested_corrections:
+      state["account_name"] = result.suggested_corrections["account_name"]  # Sets to ""!
+  ```
+- **Solution** in `src/agents/coordinator.py:320-334`:
+  ```python
+  # NEW (fixed):
+  corrected_account = result.suggested_corrections.get("account_name", "")
+  if corrected_account and corrected_account.strip():  # Only apply if non-empty
+      state["account_name"] = corrected_account
+  ```
+- **Files Changed**: `src/agents/coordinator.py`
+
+### Boeing End-to-End Test Results (2026-02-08)
+
+**Test Run**: `python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks"`
+
+**What Worked** ✅:
+- Coordinator asked clarifying question → answered → workflow continued
+- Resume preserved account name correctly after bug fixes
+- Gatherer collected 5 web search signals
+- Identifier found 3 opportunities (System Composer, DO Qualification Kit, MATLAB Production Server)
+- Validator scored all 3 as HIGH confidence (88-95%)
+- Report generated and saved to `reports/research_Boeing_20260208_204419_report.md`
+
+**Issues Found** ⚠️:
+| Issue | Details |
+|-------|---------|
+| LiteLLM Rate Limit | `ModelRateLimitError` during Groq API call for report generation |
+| Job Boards = 0 | No job postings collected despite Boeing having many open positions |
+| News = 0 | No news items collected |
+| Generic Personas | Target personas are job titles, not real people (e.g., "Director of Quality Engineering") |
+| Generic Talking Points | Not tailored to specific Boeing initiatives or pain points |
+| Truncated Evidence | Report shows "... and 2 more signals" instead of full evidence |
+
+**Sample Report Output**:
+```markdown
+## Opportunities
+1. **MATLAB Production Server** (95% confidence) - $200K-500K ARR
+   Target: Head of Data Science
+2. **System Composer** (92% confidence) - $200K-500K ARR
+   Target: Director of Quality Engineering
+3. **DO Qualification Kit** (88% confidence) - $100K-200K ARR
+   Target: Compliance Officer
+```
+
+---
+
+### Bug Fixes Applied (2026-02-02 - CLI Improvements)
 
 **Issue 7: Output Files Saved to Wrong Location** ✅ FIXED (High Impact)
 - **Problem**: When running `python -m src.cli research "Boeing" --output demos/demo_results`, reports were saved to `C:\Users\Mahaveer\.claude\projects\...` (Claude Code's working directory) instead of the project's `demos/demo_results/` folder

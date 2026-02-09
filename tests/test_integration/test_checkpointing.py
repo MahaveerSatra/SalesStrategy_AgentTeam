@@ -487,10 +487,9 @@ class TestCheckpointErrorHandling:
                 job_scraper=mock_job_scraper
             )
 
-            # LangGraph returns empty state for unknown threads, which causes
-            # the workflow to fail during execution due to missing required fields
-            # or the checkpoint check to raise ValueError if values is None/empty
-            with pytest.raises((ValueError, KeyError, TypeError)):
+            # Resuming a nonexistent thread should raise ValueError
+            # with a clear error message about missing checkpoint
+            with pytest.raises(ValueError, match="No.*checkpoint found"):
                 workflow.resume("nonexistent_thread_xyz")
 
     @patch('src.graph.workflow.ProductMatcher')

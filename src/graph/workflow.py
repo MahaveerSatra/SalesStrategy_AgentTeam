@@ -616,17 +616,34 @@ class ResearchWorkflow:
         # Get current state
         current_state = self.app.get_state(config)
 
+        # Validate checkpoint exists and has meaningful data
         if current_state is None or current_state.values is None:
             raise ValueError(f"No checkpoint found for thread_id: {thread_id}")
 
         state_values = current_state.values
 
-        # Add human input if provided
+        # Check for required fields to ensure this is a valid checkpoint
+        # An empty or incomplete checkpoint should not be resumed
+        if not state_values.get("account_name"):
+            raise ValueError(
+                f"No valid checkpoint found for thread_id: {thread_id}. "
+                "The checkpoint exists but contains no research data."
+            )
+
+        # Add human input if provided - use update_state to modify checkpoint
         if human_input:
-            feedback_list = state_values.get("human_feedback", [])
+            feedback_list = list(state_values.get("human_feedback", []))
             feedback_list.append(human_input)
-            state_values["human_feedback"] = feedback_list
-            state_values["waiting_for_human"] = False
+
+            # Update checkpoint state using LangGraph's update_state API
+            # This modifies the checkpoint without restarting the workflow
+            self.app.update_state(
+                config,
+                {
+                    "human_feedback": feedback_list,
+                    "waiting_for_human": False
+                }
+            )
 
             logger.info(
                 "human_input_added",
@@ -636,8 +653,9 @@ class ResearchWorkflow:
 
         logger.info("workflow_resumed", thread_id=thread_id)
 
-        # Resume execution with updated state
-        result = self.app.invoke(state_values, config)
+        # Resume execution from checkpoint by passing None
+        # This continues from where the workflow was interrupted
+        result = self.app.invoke(None, config)
 
         return result
 

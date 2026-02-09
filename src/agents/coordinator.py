@@ -316,21 +316,23 @@ DECISION RULES:
             if not result.is_valid:
                 errors.extend(result.errors)
 
-            # Apply suggested corrections to state
+            # Apply suggested corrections to state (only if non-empty)
             if result.suggested_corrections:
-                if "account_name" in result.suggested_corrections:
-                    state["account_name"] = result.suggested_corrections["account_name"]
+                corrected_account = result.suggested_corrections.get("account_name", "")
+                if corrected_account and corrected_account.strip():
+                    state["account_name"] = corrected_account
                     self.logger.info(
                         "coordinator_applied_correction",
                         field="account_name",
-                        corrected=result.suggested_corrections["account_name"]
+                        corrected=corrected_account
                     )
-                if "industry" in result.suggested_corrections:
-                    state["industry"] = result.suggested_corrections["industry"]
+                corrected_industry = result.suggested_corrections.get("industry", "")
+                if corrected_industry and corrected_industry.strip():
+                    state["industry"] = corrected_industry
                     self.logger.info(
                         "coordinator_applied_correction",
                         field="industry",
-                        corrected=result.suggested_corrections["industry"]
+                        corrected=corrected_industry
                     )
 
             # Log concerns but don't block
