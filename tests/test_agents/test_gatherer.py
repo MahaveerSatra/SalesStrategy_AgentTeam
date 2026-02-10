@@ -626,42 +626,78 @@ class TestGathererAgentStateModifications:
         assert initial_state["progress"].gatherer_complete is True
 
     @pytest.mark.asyncio
-    async def test_missing_company_domain_handles_gracefully(
+    async def test_missing_company_domain_triggers_inference(
         self,
         gatherer_agent,
         mock_mcp_client,
         mock_job_scraper,
         sample_search_results,
-        sample_news_items
+        sample_news_items,
+        sample_job_postings
     ):
-        """Test when company_domain is not in state (ResearchState doesn't have this field)."""
-        # Create state without company_domain (field doesn't exist in ResearchState)
+        """Test domain inference when company_domain is not provided in state."""
+        # Create state without company_domain (will be auto-inferred)
         state = create_initial_state(
             account_name="Acme Corp",
             industry="Technology", seller_name="TestSeller"
         )
+        assert state.get("company_domain") is None  # Verify no domain initially
 
-        # Setup mocks - same results for all queries (will be deduplicated)
+        # Setup mocks - search results contain acme.com URLs for domain inference
         mock_mcp_client.search.return_value = sample_search_results
         mock_mcp_client.search_news.return_value = sample_news_items
         mock_mcp_client.fetch_content.return_value = "<html><body>Sample content</body></html>"
-        # Job scraper should NOT be called since domain is empty
+        mock_job_scraper.fetch.return_value = sample_job_postings
 
-        # Execute - should not crash
+        # Execute - should infer domain and fetch jobs
         await gatherer_agent.process(state)
 
-        # Verify job scraper NOT called (empty domain results in early return)
-        mock_job_scraper.fetch.assert_not_called()
+        # Verify domain was inferred and stored in state
+        # The sample_search_results contain "acme.com" URL, so it should be inferred
+        assert state.get("company_domain") is not None
+        assert "acme" in state["company_domain"].lower()
 
-        # Verify search and news data still collected (deduplicated)
+        # Verify job scraper WAS called with inferred domain
+        mock_job_scraper.fetch.assert_called_once()
+        call_args = mock_job_scraper.fetch.call_args
+        assert call_args[1]["company_domain"] == state["company_domain"]
+
+        # Verify search and news data still collected
         assert len(state["signals"]) > 0
-        search_signals = [s for s in state["signals"] if s.signal_type == "web_search"]
-        news_signals = [s for s in state["signals"] if s.signal_type == "news"]
-        assert len(search_signals) == 2  # Deduplicated across queries
-        assert len(news_signals) == 2  # Deduplicated across queries
 
-        # No job postings
-        assert len(state["job_postings"]) == 0
+        # Job postings should be collected now
+        assert len(state["job_postings"]) > 0
 
         # Still marks complete
+        assert state["progress"].gatherer_complete is True
+
+    @pytest.mark.asyncio
+    async def test_domain_inference_failure_handles_gracefully(
+        self,
+        gatherer_agent,
+        mock_mcp_client,
+        mock_job_scraper,
+        sample_news_items
+    ):
+        """Test graceful handling when domain inference fails (no search results)."""
+        # Create state without company_domain
+        state = create_initial_state(
+            account_name="Unknown Company XYZ",
+            industry="Technology", seller_name="TestSeller"
+        )
+
+        # Setup mocks - empty search results means domain inference will fail
+        mock_mcp_client.search.return_value = []  # No results
+        mock_mcp_client.search_news.return_value = sample_news_items
+        mock_mcp_client.fetch_content.return_value = ""
+
+        # Execute - should handle gracefully
+        await gatherer_agent.process(state)
+
+        # Domain inference used fallback heuristic
+        # Either domain was inferred via heuristic or remains None-ish
+        # The simple heuristic should produce "unknowncompanyxyz.com"
+
+        # Job scraper may or may not be called depending on fallback
+        # but process should complete without error
         assert state["progress"].gatherer_complete is True

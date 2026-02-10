@@ -1,82 +1,124 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-02-08 (Critical Bug Fixes + End-to-End Testing)
-**Status**: Phase 5 IN PROGRESS - Agent Quality Improvements + Bug Fixes
-**Test Status**: ✅ 453 tests passing | ✅ 0 skipped
+**Last Updated**: 2026-02-10
+**Status**: Phase 5 IN PROGRESS - Prompt Quality Improvements
+**Test Status**: ✅ 454 tests passing | 0 skipped
 
 ---
 
 ## Quick Context Recovery
 
-**READ THIS FIRST** when restoring context after clearing chat:
+**READ THIS FIRST** when restoring context after clearing chat.
 
 ### Current Status
 | Item | Status |
 |------|--------|
-| **Phase** | Phase 5 IN PROGRESS - Agent Quality Improvements |
-| **Tests** | ✅ 453 tests passing, 0 skipped |
-| **System** | ✅ Fully functional, MCP web search WORKING |
-| **Last Test** | Boeing demo completed successfully (2026-02-08) |
-
-### Critical Bugs Fixed (2026-02-08)
-| Bug | File | Root Cause | Fix |
-|-----|------|------------|-----|
-| **Resume losing account_name** | `src/graph/workflow.py` | `invoke(state, config)` restarts workflow instead of resuming | Use `update_state()` + `invoke(None, config)` |
-| **Empty account_name in checkpoint** | `src/agents/coordinator.py` | LLM returned empty `suggested_corrections` which overwrote valid values | Only apply corrections when non-empty |
-| **Invalid checkpoint validation** | `src/graph/workflow.py` | No check for empty checkpoint data | Added validation for `account_name` before resume |
-
-### Agent Improvement Progress (Phase 5)
-| Agent | File | Status | Key Improvements |
-|-------|------|--------|------------------|
-| **Coordinator** | `src/agents/coordinator.py` | ✅ DONE | Validation, clarifying questions, report formatting, feedback parsing, empty correction fix |
-| **Gatherer** | `src/agents/gatherer.py` | ⚠️ NEEDS WORK | Multi-query search works, but job boards/news returning empty |
-| **Identifier** | `src/agents/identifier.py` | ⏳ NEXT | Needs: real persona names, specific requirements, better rationale |
-| **Validator** | `src/agents/validator.py` | ⏳ PENDING | Needs: actionable talking points, real persuasion strategies |
-
-### Issues Found During Boeing Test (2026-02-08)
-| Issue | Severity | Details |
-|-------|----------|---------|
-| **LiteLLM Rate Limit** | Medium | `ModelRateLimitError` during report generation with Groq |
-| **Job Boards Empty** | High | 0 job postings returned despite Boeing having many |
-| **News Empty** | High | 0 news items returned |
-| **Generic Personas** | Medium | "Director of Quality Engineering" not real person names |
-| **Generic Talking Points** | Medium | Not tailored to specific Boeing initiatives |
-| **Truncated Evidence** | Low | Report shows "... and 2 more signals" instead of full details |
-
-### What's Been Completed
-1. **Infrastructure**: All 4 agents + LangGraph workflow + human-in-loop
-2. **Product Catalog**: 139 MathWorks products indexed, supports any seller
-3. **CLI Flags**: `--seller` (REQUIRED), `--context`, `--output`
-4. **Critical Fixes**: MCP session init, HttpUrl serialization, CLI paths, logging noise
-5. **Coordinator Prompts** (2026-02-06): 5 prompts overhauled for quality
-6. **Gatherer Prompts** (2026-02-06): Multi-query search + sales intelligence extraction
-7. **Resume Bug Fix** (2026-02-08): Workflow resume now works correctly
-8. **Empty Correction Bug Fix** (2026-02-08): Account name preserved during validation
+| **Phase** | Phase 5 IN PROGRESS - Prompt Quality Improvements |
+| **Tests** | 454 passing, 0 skipped |
+| **System** | Fully functional, MCP web search WORKING |
+| **Last Test** | Boeing demo (2026-02-10) - identified prompt quality issues |
 
 ### What's Next (Priority Order)
-1. **Fix Gatherer Agent** - Investigate why job boards and news return empty
-2. **Fix LiteLLM Rate Limiting** - Add better error handling/fallback
-3. **Improve Identifier Agent** - Real persona identification, specific requirements
-4. **Improve Validator Agent** - Actionable output, persuasion strategies
-5. **Improve Report Formatting** - Full evidence display, better structure
+1. **Cap Job Postings** - Add `max_job_postings=30` to config (54 jobs vs 0 news is imbalanced)
+2. **Improve Gatherer Prompt** - Pass `user_context` to job analysis for context-aware signals
+3. **Improve Identifier Prompts** - Context-aware requirements extraction and opportunity generation
+4. **Improve Validator Prompts** - Context-aware risk assessment, scoring, and talking points
+5. **Re-run Boeing Demo** - Verify improvements
 
-### Key Files Modified Recently
-| File | Changes |
-|------|---------|
-| `src/graph/workflow.py` | Fixed `resume()` to use `update_state()` + `invoke(None)`, added checkpoint validation |
-| `src/agents/coordinator.py` | Fixed empty correction overwrite bug at lines 320-334 |
-| `tests/test_integration/test_checkpointing.py` | Updated test to expect `ValueError` with match pattern |
+### Boeing Demo Results (2026-02-10)
+Ran: `python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --context "Focus: Commercial aircraft division. Sales Objective: Expand MathWorks usage in simulation and modeling team for fluid simulation and controls."`
+
+| Metric | Result | Issue |
+|--------|--------|-------|
+| Domain detected | ✅ `boeing.com` | Working |
+| Job postings | 54 collected | Too many, cap at 30 |
+| News items | 0 | DuckDuckGo MCP issue |
+| Products recommended | Simulink Design Verifier | ❌ Wrong - should be Simscape Fluids for fluid simulation |
+| Persona | "Manager of Materials Engineering" | ❌ Generic, not aligned with user's target (simulation team) |
+| ARR estimate | $30K | ❌ Too low for enterprise aerospace expansion |
+| Discovery questions | Generic ("What's driving hiring?") | ❌ Should ask about simulation workflows |
+| Evidence | "sales intelligence expert" | ❌ Hallucinated - not in actual job postings |
+
+### Root Cause Analysis
+The prompts in Gatherer, Identifier, and Validator agents don't receive or use the **user_context** properly:
+
+1. **Gatherer** (`_analyze_job_posting_with_llm`): Analyzes jobs without knowing user's focus area
+2. **Identifier** (`_extract_requirements`, `_generate_opportunities`): Doesn't prioritize requirements matching user's stated objectives
+3. **Validator** (`_assess_risks`, `_score_opportunities`, `_enhance_talking_points`): Doesn't filter/score based on context alignment
+
+### Files to Modify
+| File | Changes Needed |
+|------|----------------|
+| `src/config.py` | Add `max_job_postings: int = 30` |
+| `src/agents/gatherer.py` | Cap job postings, pass `user_context` to job analysis prompt |
+| `src/agents/identifier.py` | Add user_context to requirements & opportunity prompts |
+| `src/agents/validator.py` | Add user_context to risk, scoring & talking points prompts |
+
+### Key Prompt Locations
+| Agent | Method | Line | Purpose |
+|-------|--------|------|---------|
+| Gatherer | `_analyze_job_posting_with_llm()` | ~936 | Analyzes each job posting |
+| Identifier | `_extract_requirements()` | ~199 | Extracts needs from signals/jobs |
+| Identifier | `_generate_opportunities()` | ~313 | Matches products to requirements |
+| Validator | `_assess_risks()` | ~202 | Identifies competitive/budget/tech risks |
+| Validator | `_score_opportunities()` | ~310 | Re-scores opportunities with risk context |
+| Validator | `_enhance_talking_points()` | ~457 | Adds objection handling points |
+
+### Implementation Principle
+**DO NOT hardcode seller-specific values** (e.g., "Simscape Fluids for fluid simulation"). The system must work for ANY seller. Instead:
+- Pass `user_context` through to prompts
+- Instruct LLM to prioritize requirements/products matching user's stated objectives
+- Let LLM use the actual product catalog data (from semantic search)
+- Guide LLM to focus on context-relevant signals without assuming products
 
 ### How to Run
-```bash
+```powershell
+# 1. Activate venv
+.\venv\Scripts\Activate.ps1
+
+# 2. Run tests
+python -m pytest tests/ -q
+
+# 3. Run Boeing demo with context
+python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --output reports --context "Focus: Commercial aircraft division. Sales Objective: Expand MathWorks usage in simulation and modeling team for fluid simulation and controls."
+
+# 4. Verify improvements:
+#    - Products should relate to simulation/controls (not generic MATLAB)
+#    - Personas should target simulation/modeling teams
+#    - Discovery questions should ask about simulation workflows
+#    - ARR should be $100K+ for enterprise expansion
+```
+
+### Verification Checklist (After Prompt Improvements)
+| Check | Before | Expected After |
+|-------|--------|----------------|
+| Products recommended | Simulink Design Verifier | Simscape Fluids, Simulink, Aerospace Blockset |
+| Persona | "Manager of Materials Engineering" | "Director of Simulation Engineering" or similar |
+| ARR estimate | $30K | $100K-200K |
+| Discovery questions | Generic hiring questions | Simulation workflow questions |
+| Evidence cited | "sales intelligence" (hallucinated) | Actual job skills/technologies |
+| Job postings analyzed | 54 | 30 (capped) |
+
+---
+
+### Previous Bug Fixes (2026-02-08/09)
+| Bug | File | Fix |
+|-----|------|-----|
+| Resume losing account_name | `workflow.py` | Use `update_state()` + `invoke(None)` |
+| Empty corrections overwrite | `coordinator.py` | Only apply non-empty corrections |
+| Job boards empty | `gatherer.py` | Added `company_domain` auto-detection |
+| Rate limiting | `model_router.py` | Added `RateLimitTracker` class |
+
+### How to Run
+```powershell
 # Activate venv
 .\venv\Scripts\Activate.ps1
 
 # Run tests
 python -m pytest tests/ -q
 
-# Start research
-python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks"
+# Start research with context
+python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --context "your sales objective here"
 ```
 
 ### Architecture Overview
@@ -1672,6 +1714,60 @@ Focus: Simulink for controls, Vehicle Dynamics Blockset, Powertrain Blockset, AU
 - [ ] Update README.md with CLI usage and results
 - [ ] Create LinkedIn post with real metrics
 - [ ] Create interview guide
+
+### ⏳ Phase 5: Prompt Quality Improvements (IN PROGRESS - 2026-02-10)
+
+**Goal**: Improve prompt quality so LLM outputs align with user's stated objectives
+
+**Context**: Boeing demo (2026-02-10) revealed that prompts don't use user_context effectively, resulting in:
+- Generic product recommendations (Simulink Design Verifier instead of Simscape Fluids for fluid simulation)
+- Generic personas (same "Manager of Materials Engineering" for all opportunities)
+- Hallucinated evidence ("sales intelligence expert" not in actual job postings)
+- Low ARR estimates ($30K instead of $100K+ for enterprise)
+
+**Step 1: Cap Job Postings (PENDING)**
+- [ ] Add `max_job_postings: int = 30` to `src/config.py`
+- [ ] Slice job_postings in `src/agents/gatherer.py` before LLM analysis
+
+**Step 2: Improve Gatherer Job Analysis (PENDING)**
+- [ ] Pass `user_context` to `_analyze_job_posting_with_llm()` method
+- [ ] Update prompt to evaluate job relevance against user's stated focus area
+- [ ] File: `src/agents/gatherer.py` lines ~936-976
+
+**Step 3: Improve Identifier Requirements Prompt (PENDING)**
+- [ ] Add user_context section to requirements extraction prompt
+- [ ] Instruct LLM to prioritize requirements matching user's objectives
+- [ ] File: `src/agents/identifier.py` lines ~199-226
+
+**Step 4: Improve Identifier Opportunity Prompt (PENDING)**
+- [ ] Add user_context to opportunity generation prompt
+- [ ] Improve persona generation to match user's target area
+- [ ] Fix ARR estimation guidelines for enterprise deals
+- [ ] File: `src/agents/identifier.py` lines ~313-395
+
+**Step 5: Improve Validator Risk Assessment (PENDING)**
+- [ ] Add user_context to filter relevant risks
+- [ ] Prevent hallucinated risks without evidence
+- [ ] File: `src/agents/validator.py` lines ~202-229
+
+**Step 6: Improve Validator Scoring (PENDING)**
+- [ ] Add context-alignment as scoring factor
+- [ ] Penalize opportunities not matching user's focus
+- [ ] File: `src/agents/validator.py` lines ~310-337
+
+**Step 7: Improve Validator Talking Points (PENDING)**
+- [ ] Add user_context for domain-specific questions
+- [ ] Generate discovery questions aligned with user's objectives
+- [ ] File: `src/agents/validator.py` lines ~457-510
+
+**Step 8: Re-run Boeing Demo (PENDING)**
+- [ ] Run with same context as before
+- [ ] Verify products match user's focus (fluid simulation/controls)
+- [ ] Verify personas target simulation teams
+- [ ] Verify ARR estimates are realistic for enterprise
+- [ ] Verify discovery questions are domain-specific
+
+**Implementation Principle**: DO NOT hardcode seller-specific values. The system must work for ANY seller. Pass user_context through prompts and let LLM use actual product catalog data.
 
 ---
 

@@ -127,11 +127,31 @@ class OpportunityItem(BaseModel):
     The code should provide defaults for missing values.
     """
     product_name: str = Field(description="Name of the product")
-    rationale: str = Field(default="", description="Why they likely need this product (2-3 sentences)")
-    target_persona: str | None = Field(default=None, description="Job title of target buyer")
-    talking_points: list[str] = Field(default_factory=list, description="3-5 specific conversation points")
+    rationale: str = Field(
+        default="",
+        description="Why they likely need this product (2-3 sentences with specific evidence references)"
+    )
+    target_persona: str | None = Field(
+        default=None,
+        description=(
+            "Detailed target persona: 'Title, Department/Team (role type)'. "
+            "Example: 'Director of ML Engineering, Data Platform Team (decision-maker)'. "
+            "Role types: decision-maker (budget authority), influencer (technical advocate), end-user"
+        )
+    )
+    talking_points: list[str] = Field(
+        default_factory=list,
+        description=(
+            "3-5 SPECIFIC conversation points that reference actual evidence from signals "
+            "or job postings. Each point should connect to their specific situation, "
+            "not generic benefits. Include ROI/business case points."
+        )
+    )
     estimated_value: str | None = Field(default=None, description="Deal size estimate (e.g., '$50K ARR')")
-    risks: list[str] = Field(default_factory=list, description="1-3 potential blockers")
+    risks: list[str] = Field(
+        default_factory=list,
+        description="1-3 potential blockers with mitigation hints. Format: 'Risk (mitigation: approach)'"
+    )
     confidence: str = Field(default="medium", description="Confidence level: high, medium, or low")
     confidence_score: float = Field(default=0.5, description="Numerical confidence 0.0-1.0")
 

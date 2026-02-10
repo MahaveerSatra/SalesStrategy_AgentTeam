@@ -131,9 +131,17 @@ class GathererAgent(StatelessAgent):
             depth=depth.value
         )
 
-        # Extract company domain from state if available (not in ResearchState TypedDict)
-        # Can be added dynamically for testing or future enhancement
-        company_domain = state.get("company_domain", "")  # type: ignore
+        # Extract company domain from state (now part of ResearchState)
+        # If not provided, attempt to infer it before the parallel gather
+        company_domain = state.get("company_domain") or ""
+        if not company_domain:
+            self.logger.info("domain_not_in_state_inferring", account=account)
+            company_domain = await self._infer_company_domain(account)
+            if company_domain:
+                state["company_domain"] = company_domain  # Store for future use
+                self.logger.info("domain_inferred_and_stored", account=account, domain=company_domain)
+            else:
+                self.logger.warning("domain_inference_failed_jobs_will_be_empty", account=account)
 
         # Execute multiple targeted searches in parallel
         try:
@@ -364,9 +372,12 @@ class GathererAgent(StatelessAgent):
         """
         Fetch job postings from company career page.
 
+        Note: Domain inference is done before this method is called (in process()).
+        If domain is still empty here, we skip job fetching gracefully.
+
         Args:
             company_name: Company name
-            company_domain: Company domain (may be empty)
+            company_domain: Company domain (should be set by caller, empty means skip)
 
         Returns:
             List of JobPosting objects
@@ -375,10 +386,9 @@ class GathererAgent(StatelessAgent):
             Exception: If fetch fails (caught by caller)
         """
         try:
-            # If no domain provided, try to infer from company name
+            # If no domain, skip job fetching (inference was attempted earlier)
             if not company_domain:
-                self.logger.debug("no_domain_provided", company=company_name)
-                # For now, return empty list - domain detection can be enhanced later
+                self.logger.debug("no_domain_skipping_jobs", company=company_name)
                 return []
 
             jobs = await self.job_scraper.fetch(
@@ -394,6 +404,148 @@ class GathererAgent(StatelessAgent):
                 error=str(e)
             )
             raise
+
+    async def _infer_company_domain(self, company_name: str) -> str | None:
+        """
+        Infer company domain from company name using web search verification.
+
+        This method uses a multi-step approach:
+        1. Generate candidate domain from company name (simple heuristic)
+        2. Search the web for the company's official website
+        3. Extract and validate the domain from search results
+
+        This approach is more reliable than pure heuristics because:
+        - Company names don't always match domains (Alphabet → abc.xyz, not alphabet.com)
+        - Searches return the actual official website URL
+        - Works for international companies with country-specific domains
+
+        Args:
+            company_name: Company name (e.g., "Boeing", "Microsoft")
+
+        Returns:
+            Company domain (e.g., "boeing.com") or None if inference fails
+        """
+        from urllib.parse import urlparse
+
+        try:
+            # Step 1: Search for the company's official website
+            search_query = f"{company_name} official website"
+            self.logger.debug("domain_inference_search", query=search_query)
+
+            search_results = await self.mcp_client.search(search_query, max_results=5)
+
+            if not search_results:
+                self.logger.debug("domain_inference_no_results", company=company_name)
+                # Fall back to simple heuristic
+                return self._simple_domain_heuristic(company_name)
+
+            # Step 2: Extract domains from search results
+            candidate_domains: dict[str, int] = {}  # domain -> score
+
+            for i, result in enumerate(search_results):
+                try:
+                    url = str(result.url)
+                    parsed = urlparse(url)
+                    domain = parsed.netloc.lower()
+
+                    # Remove www. prefix
+                    if domain.startswith('www.'):
+                        domain = domain[4:]
+
+                    # Skip common non-company domains
+                    skip_domains = [
+                        'wikipedia.org', 'linkedin.com', 'facebook.com', 'twitter.com',
+                        'youtube.com', 'instagram.com', 'bloomberg.com', 'reuters.com',
+                        'forbes.com', 'wsj.com', 'nytimes.com', 'crunchbase.com',
+                        'glassdoor.com', 'indeed.com', 'yahoo.com', 'google.com',
+                        'bing.com', 'duckduckgo.com', 'bbc.com', 'cnn.com'
+                    ]
+
+                    if any(skip in domain for skip in skip_domains):
+                        continue
+
+                    # Score based on position (higher for earlier results)
+                    position_score = 5 - i
+
+                    # Bonus score if company name appears in domain
+                    company_clean = company_name.lower().replace(' ', '').replace('-', '')
+                    domain_clean = domain.replace('.', '').replace('-', '')
+
+                    name_match_score = 0
+                    if company_clean in domain_clean:
+                        name_match_score = 10  # Strong indicator
+
+                    # Bonus for .com domains (often official)
+                    com_score = 2 if domain.endswith('.com') else 0
+
+                    total_score = position_score + name_match_score + com_score
+                    candidate_domains[domain] = max(
+                        candidate_domains.get(domain, 0),
+                        total_score
+                    )
+
+                except Exception as e:
+                    self.logger.debug("domain_parse_error", url=str(result.url), error=str(e))
+                    continue
+
+            # Step 3: Select best candidate
+            if candidate_domains:
+                # Sort by score (descending) and get best match
+                best_domain = max(candidate_domains.items(), key=lambda x: x[1])[0]
+                self.logger.debug(
+                    "domain_inference_candidates",
+                    company=company_name,
+                    candidates=list(candidate_domains.keys())[:5],
+                    selected=best_domain
+                )
+                return best_domain
+
+            # Step 4: Fall back to simple heuristic if no good candidates
+            self.logger.debug("domain_inference_fallback_to_heuristic", company=company_name)
+            return self._simple_domain_heuristic(company_name)
+
+        except Exception as e:
+            self.logger.warning("domain_inference_failed", company=company_name, error=str(e))
+            # Final fallback: simple heuristic
+            return self._simple_domain_heuristic(company_name)
+
+    def _simple_domain_heuristic(self, company_name: str) -> str:
+        """
+        Simple heuristic to convert company name to domain.
+
+        This is a fallback when web search fails. It handles common patterns:
+        - Removes common suffixes (Inc, Corp, LLC, Ltd, etc.)
+        - Removes spaces and special characters
+        - Adds .com suffix
+
+        Args:
+            company_name: Company name
+
+        Returns:
+            Inferred domain (e.g., "boeing.com")
+        """
+        name = company_name.lower().strip()
+
+        # Remove common corporate suffixes
+        suffixes = [
+            ' incorporated', ' inc.', ' inc', ' corporation', ' corp.', ' corp',
+            ' company', ' co.', ' co', ' limited', ' ltd.', ' ltd',
+            ' llc', ' l.l.c.', ' plc', ' gmbh', ' ag', ' sa', ' nv',
+            ' holdings', ' group', ' international', ' intl', ' worldwide'
+        ]
+        for suffix in suffixes:
+            if name.endswith(suffix):
+                name = name[:-len(suffix)]
+                break
+
+        # Remove special characters and spaces, keep alphanumeric
+        name = ''.join(c for c in name if c.isalnum())
+
+        # Ensure we have something to return
+        if not name:
+            name = company_name.lower().replace(' ', '')[:20]
+
+        return f"{name}.com"
 
     async def _search_news(self, query: str, max_results: int = 5) -> list[Any]:
         """

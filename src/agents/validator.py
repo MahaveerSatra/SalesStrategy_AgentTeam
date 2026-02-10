@@ -110,9 +110,20 @@ class ValidatorAgent(StatelessAgent):
 
         self.logger.info("opportunities_scored", count=len(scored_opportunities))
 
+        # Step 2.5: Enhance talking points with objection handling
+        enhanced_opportunities = await self._enhance_talking_points(
+            opportunities=scored_opportunities,
+            risks=risks,
+            signals=signals,
+            account_name=account,
+            industry=industry
+        )
+
+        self.logger.info("talking_points_enhanced", count=len(enhanced_opportunities))
+
         # Step 3: Filter by confidence threshold
         validated = [
-            opp for opp in scored_opportunities
+            opp for opp in enhanced_opportunities
             if opp.confidence_score > self.CONFIDENCE_THRESHOLD
         ]
 
@@ -388,6 +399,180 @@ Return JSON with product_name and new_score for each:
             # Graceful degradation: return originals
             return opportunities
 
+    async def _enhance_talking_points(
+        self,
+        opportunities: list[Opportunity],
+        risks: list[str],
+        signals: list[Signal],
+        account_name: str,
+        industry: str
+    ) -> list[Opportunity]:
+        """
+        Enhance talking points with objection handling and evidence linking.
+
+        For each opportunity:
+        - Links existing talking points to supporting evidence
+        - Adds objection handling based on identified risks
+        - Generates persona-specific messaging
+
+        This method makes talking points more actionable by connecting them
+        directly to the research evidence and addressing potential objections.
+
+        Args:
+            opportunities: Scored opportunities
+            risks: Identified competitive/market risks
+            signals: Research signals for evidence linking
+            account_name: Target company name
+            industry: Target company industry
+
+        Returns:
+            Opportunities with enhanced talking points
+        """
+        if not opportunities:
+            return opportunities
+
+        # Build opportunity data for enhancement
+        opps_data = []
+        for opp in opportunities:
+            # Get evidence snippets for context
+            evidence_texts = [
+                f"[{sig.signal_type}] {sig.content[:150]}"
+                for sig in opp.evidence[:3]
+            ]
+
+            opps_data.append({
+                "product_name": opp.product_name,
+                "current_talking_points": opp.talking_points[:5],
+                "target_persona": opp.target_persona or "Unknown",
+                "opportunity_risks": opp.risks[:3],
+                "evidence_snippets": evidence_texts
+            })
+
+        # Build signal context for evidence linking
+        signal_context = []
+        for s in signals[:10]:
+            signal_context.append(f"- [{s.signal_type}] {s.content[:200]}")
+        signal_context_text = "\n".join(signal_context) if signal_context else "No signals available"
+
+        prompt = f"""Enhance talking points for sales opportunities at {account_name} ({industry}).
+
+═══════════════════════════════════════════════════════════════
+OPPORTUNITIES TO ENHANCE
+═══════════════════════════════════════════════════════════════
+{json.dumps(opps_data, indent=2)}
+
+═══════════════════════════════════════════════════════════════
+IDENTIFIED RISKS (use for objection handling)
+═══════════════════════════════════════════════════════════════
+{chr(10).join(f"- {r}" for r in risks) if risks else "No significant risks identified"}
+
+═══════════════════════════════════════════════════════════════
+RESEARCH SIGNALS (use for evidence linking)
+═══════════════════════════════════════════════════════════════
+{signal_context_text}
+
+═══════════════════════════════════════════════════════════════
+ENHANCEMENT GUIDELINES
+═══════════════════════════════════════════════════════════════
+
+For each opportunity, generate 2-3 ADDITIONAL talking points that:
+
+1. **EVIDENCE LINKING**: Reference specific research findings
+   - Example: "Your Q3 investor report mentioned automation priorities - our tool directly addresses this"
+   - Example: "Your job posting for ML Engineer lists Python/TensorFlow - we integrate seamlessly"
+
+2. **OBJECTION HANDLING**: Preemptively address the identified risks
+   - For competitor risk: "We offer migration assistance and parallel evaluation periods"
+   - For budget risk: "Flexible payment options and pilot programs available"
+   - For technical risk: "Our team provides dedicated integration support"
+
+3. **PERSONA TAILORING**: Adjust language for the target persona type
+   - Decision-makers: Focus on ROI, strategic value, competitive advantage
+   - Influencers: Focus on technical benefits, ease of adoption
+   - End-users: Focus on productivity gains, ease of use
+
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════
+
+Return JSON:
+{{
+    "enhanced_opportunities": [
+        {{
+            "product_name": "Product Name",
+            "additional_talking_points": [
+                "Evidence-based point referencing their specific signals",
+                "Objection handling point for their main risk",
+                "Persona-tailored value proposition"
+            ]
+        }}
+    ]
+}}"""
+
+        try:
+            response = await self.model_router.generate(
+                prompt=prompt,
+                complexity=6,  # Tier 2 Groq 8B
+                use_cache=False  # Don't cache enhancement
+            )
+
+            raw_result = extract_json_from_llm_response(response.content)
+            enhanced_data = raw_result.get("enhanced_opportunities", [])
+
+            # Create lookup for additional talking points
+            enhanced_lookup = {
+                item.get("product_name", ""): item.get("additional_talking_points", [])
+                for item in enhanced_data
+                if isinstance(item, dict)
+            }
+
+            # Update opportunities with enhanced talking points
+            enhanced_opportunities = []
+            for opp in opportunities:
+                if opp.product_name in enhanced_lookup:
+                    additional_points = enhanced_lookup[opp.product_name]
+
+                    # Merge: keep original points, add enhanced ones (avoid duplicates)
+                    existing_points_lower = {p.lower() for p in opp.talking_points}
+                    new_points = [
+                        p for p in additional_points
+                        if p.lower() not in existing_points_lower
+                    ]
+
+                    # Combine original + new (limit to 7 total)
+                    merged_points = list(opp.talking_points) + new_points
+                    merged_points = merged_points[:7]
+
+                    enhanced_opp = Opportunity(
+                        product_name=opp.product_name,
+                        rationale=opp.rationale,
+                        evidence=opp.evidence,
+                        target_persona=opp.target_persona,
+                        talking_points=merged_points,
+                        estimated_value=opp.estimated_value,
+                        risks=opp.risks,
+                        confidence=opp.confidence,
+                        confidence_score=opp.confidence_score
+                    )
+                    enhanced_opportunities.append(enhanced_opp)
+                else:
+                    # Keep original if not in LLM response
+                    enhanced_opportunities.append(opp)
+
+            self.logger.debug(
+                "talking_points_enhancement_completed",
+                enhanced_count=len(enhanced_lookup)
+            )
+
+            return enhanced_opportunities
+
+        except (json.JSONDecodeError, JSONParseError) as e:
+            self.logger.warning("talking_points_enhancement_json_failed", error=str(e))
+            return opportunities  # Return original on failure
+        except Exception as e:
+            self.logger.warning("talking_points_enhancement_failed", error=str(e))
+            return opportunities  # Return original on failure
+
     def get_complexity(self, state: ResearchState) -> int:
         """
         Get task complexity for model routing.
@@ -395,6 +580,7 @@ Return JSON with product_name and new_score for each:
         ValidatorAgent performs nuanced reasoning to:
         - Assess competitive and market risks
         - Re-evaluate confidence with multiple factors
+        - Enhance talking points with objection handling
         - Make filtering decisions
 
         This requires Tier 2 (Groq 8B) for quality reasoning.

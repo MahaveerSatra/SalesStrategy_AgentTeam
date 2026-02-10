@@ -19,6 +19,7 @@ from src.core.model_router import ModelRouter
 from src.data_sources.mcp_ddg_client import DuckDuckGoMCPClient
 from src.data_sources.job_boards import JobBoardScraper
 from src.data_sources.product_catalog import ProductMatcher
+from src.models.domain import JobPosting
 
 
 @pytest.fixture
@@ -228,9 +229,16 @@ class TestDataSourceFailureRecovery:
         mock_mcp_client.search.side_effect = Exception("MCP connection failed")
         mock_mcp_client.search_news.side_effect = Exception("MCP connection failed")
 
-        # Job scraper works
+        # Job scraper works - return proper JobPosting objects
         mock_job_scraper.fetch.return_value = [
-            {"title": "Engineer", "url": "http://jobs.com/1", "location": "NYC"}
+            JobPosting(
+                title="Engineer",
+                company="ErrorTest Corp",
+                url="http://jobs.com/1",
+                location="NYC",
+                description="Engineering role",
+                confidence=0.8
+            )
         ]
 
         # LLM works

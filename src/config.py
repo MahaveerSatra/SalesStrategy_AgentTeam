@@ -67,7 +67,22 @@ class Settings(BaseSettings):
     
     # Data Sources
     max_search_results: int = Field(default=10, description="Max search results per query")
-    
+
+    # Rate Limiting (for external LLM providers)
+    groq_requests_per_minute: int = Field(default=30, description="Groq rate limit per minute")
+    groq_tokens_per_minute: int = Field(default=6000, description="Groq token limit per minute")
+    together_requests_per_minute: int = Field(default=60, description="Together rate limit per minute")
+    rate_limit_buffer_percent: float = Field(
+        default=0.8,
+        description="Use only this fraction of rate limit to avoid hitting limits"
+    )
+
+    # Report Formatting
+    report_max_evidence_signals: int = Field(default=5, description="Max evidence signals per opportunity")
+    report_evidence_char_limit: int = Field(default=200, description="Character limit per evidence signal")
+    report_rationale_char_limit: int = Field(default=300, description="Character limit for rationale")
+    report_show_full_content: bool = Field(default=False, description="Show full content without truncation")
+
     # Checkpointing
     checkpoint_dir: str = Field(default="data/checkpoints", description="Checkpoint directory")
     

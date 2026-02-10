@@ -102,6 +102,7 @@ class ResearchState(TypedDict):
     news_items: list[dict[str, Any]]
     tech_stack: list[str]
     financial_data: dict[str, Any] | None
+    company_domain: str | None  # Company domain for career page lookup (e.g., "boeing.com")
     
     # Analysis results (from Opportunity Identifier)
     opportunities: list[Opportunity]
@@ -140,7 +141,8 @@ def create_initial_state(
     seller_name: str,  # Required - the company whose products we're selling
     region: str | None = None,
     user_context: str | None = None,
-    research_depth: ResearchDepth = ResearchDepth.STANDARD
+    research_depth: ResearchDepth = ResearchDepth.STANDARD,
+    company_domain: str | None = None  # Optional - auto-detected if not provided
 ) -> ResearchState:
     """Create initial state for a new research workflow."""
     now = datetime.now()
@@ -160,6 +162,7 @@ def create_initial_state(
         news_items=[],
         tech_stack=[],
         financial_data=None,
+        company_domain=company_domain,  # Will be auto-detected by GathererAgent if None
         opportunities=[],
         validated_opportunities=[],
         competitive_risks=[],

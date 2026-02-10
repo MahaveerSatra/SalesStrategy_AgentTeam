@@ -199,46 +199,14 @@ class DuckDuckGoMCPClient:
                 arguments={"query": query, "max_results": max_results}
             )
 
-            # Parse results
+            # Parse results using flexible parsing
             search_results = []
             if result and hasattr(result, 'content') and result.content:
                 for item in result.content:
                     if hasattr(item, 'text'):
-                        # Parse formatted text response
-                        # Format: "1. Title\n   URL: url\n   Summary: text\n\n2. ..."
                         text = item.text
-
-                        # Split by numbered entries
-                        import re
-                        entries = re.split(r'\n\n\d+\. ', text)
-
-                        for entry in entries:
-                            if not entry.strip():
-                                continue
-
-                            lines = entry.split('\n')
-                            title = ""
-                            url = ""
-                            snippet = ""
-
-                            for line in lines:
-                                line = line.strip()
-                                if line.startswith('URL:'):
-                                    url = line.replace('URL:', '').strip()
-                                elif line.startswith('Summary:') or line.startswith('Description:'):
-                                    snippet = line.split(':', 1)[1].strip()
-                                elif not line.startswith(('URL:', 'Summary:', 'Description:')) and not url:
-                                    # First non-URL/Summary line is likely the title
-                                    if not title and line and not line.isdigit():
-                                        title = line.lstrip('0123456789. ')
-
-                            if title and url:
-                                search_results.append(SearchResult(
-                                    title=title,
-                                    url=url,
-                                    snippet=snippet or title,
-                                    source="duckduckgo"
-                                ))
+                        parsed_results = self._parse_search_results_flexible(text)
+                        search_results.extend(parsed_results)
 
             # Track metrics
             latency = (datetime.now() - start_time).total_seconds() * 1000
@@ -332,28 +300,110 @@ class DuckDuckGoMCPClient:
 
     async def search_news(self, query: str, max_results: int = 5) -> list[NewsItem]:
         """
-        Search for news articles via MCP.
+        Search for news articles via MCP with news-optimized query strategy.
+
+        Uses site-specific searches to prioritize reputable news sources,
+        then falls back to general news search if needed.
 
         Args:
-            query: Search query
+            query: Search query (typically company name + topic)
             max_results: Maximum number of results
 
         Returns:
-            List of NewsItem objects
+            List of NewsItem objects with relevance scoring
         """
-        # Use regular search with "news" appended
-        search_results = await self.search(f"{query} news", max_results=max_results)
+        # News-optimized query strategy:
+        # Include site operators for major news sources to improve relevance
+        news_sources = [
+            "reuters.com", "bloomberg.com", "wsj.com", "businesswire.com",
+            "prnewswire.com", "techcrunch.com", "zdnet.com", "theregister.com"
+        ]
+
+        # Build news-optimized query with OR operators for news sites
+        site_operators = " OR ".join(f"site:{site}" for site in news_sources[:4])
+        news_query = f"({query}) ({site_operators} OR news OR press release OR announcement)"
+
+        self.logger.debug("news_search_query", original=query, optimized=news_query)
+
+        search_results = await self.search(news_query, max_results=max_results + 5)
 
         news_items = []
         for result in search_results:
+            url_str = str(result.url).lower()
+
+            # Calculate relevance score based on source quality
+            relevance_score = 0.5  # Default
+
+            # High-quality news sources get higher scores
+            if any(source in url_str for source in ["reuters", "bloomberg", "wsj"]):
+                relevance_score = 0.9
+            elif any(source in url_str for source in ["businesswire", "prnewswire", "globenewswire"]):
+                relevance_score = 0.85  # Press releases are often high quality
+            elif any(source in url_str for source in ["techcrunch", "zdnet", "theregister", "arstechnica"]):
+                relevance_score = 0.8
+            elif any(source in url_str for source in ["news", "press", "article", "blog"]):
+                relevance_score = 0.6
+
+            # Extract source name from URL
+            source_name = self._extract_source_name(url_str)
+
             news_items.append(NewsItem(
                 title=result.title,
-                source="duckduckgo",
+                source=source_name,
                 url=result.url,
-                summary=result.snippet
+                summary=result.snippet,
+                relevance_score=relevance_score
             ))
 
-        return news_items
+        # Sort by relevance and limit results
+        news_items.sort(key=lambda x: x.relevance_score or 0, reverse=True)
+        return news_items[:max_results]
+
+    def _extract_source_name(self, url: str) -> str:
+        """
+        Extract human-readable source name from URL.
+
+        Args:
+            url: URL string
+
+        Returns:
+            Source name (e.g., "Reuters", "Bloomberg")
+        """
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(url)
+            domain = parsed.netloc.replace('www.', '')
+
+            # Map common domains to proper names
+            domain_names = {
+                "reuters.com": "Reuters",
+                "bloomberg.com": "Bloomberg",
+                "wsj.com": "Wall Street Journal",
+                "businesswire.com": "Business Wire",
+                "prnewswire.com": "PR Newswire",
+                "techcrunch.com": "TechCrunch",
+                "zdnet.com": "ZDNet",
+                "theregister.com": "The Register",
+                "arstechnica.com": "Ars Technica",
+                "wired.com": "Wired",
+                "forbes.com": "Forbes",
+                "ft.com": "Financial Times",
+                "cnbc.com": "CNBC",
+                "bbc.com": "BBC",
+                "cnn.com": "CNN",
+            }
+
+            for domain_key, name in domain_names.items():
+                if domain_key in domain:
+                    return name
+
+            # Default: capitalize first part of domain
+            parts = domain.split('.')
+            return parts[0].title() if parts else "DuckDuckGo"
+
+        except Exception:
+            return "DuckDuckGo"
 
     async def search_company_info(self, company_name: str) -> CompanyInfo:
         """
@@ -388,3 +438,223 @@ class DuckDuckGoMCPClient:
             "avg_latency_ms": avg_latency,
             "cache_stats": self.cache.get_stats()
         }
+
+    def _parse_search_results_flexible(self, text: str) -> list[SearchResult]:
+        """
+        Parse search results with multiple fallback strategies.
+
+        This method is designed to be robust against format variations in MCP responses.
+        It tries multiple parsing strategies in order of specificity:
+        1. Numbered entries with various formats (1., 1), [1])
+        2. URL-based extraction (finds all URLs and extracts context)
+        3. Line-by-line parsing for simple formats
+
+        Args:
+            text: Raw text response from MCP
+
+        Returns:
+            List of SearchResult objects
+        """
+        import re
+        results = []
+        seen_urls = set()  # Deduplicate results
+
+        # Strategy 1: Numbered entries with flexible format
+        # Matches: "1. Title", "1) Title", "[1] Title", "1: Title"
+        # Try to split by numbered patterns
+        numbered_pattern = r'\n\n(?:\d+[\.\)\]:\s]+|\[\d+\]\s*)'
+        entries = re.split(numbered_pattern, text)
+
+        for entry in entries:
+            if not entry.strip():
+                continue
+
+            parsed = self._parse_single_entry(entry)
+            if parsed and parsed.url not in seen_urls:
+                seen_urls.add(parsed.url)
+                results.append(parsed)
+
+        # Strategy 2: If no results from numbered parsing, try URL-based extraction
+        if not results:
+            url_pattern = re.compile(r'https?://[^\s<>"\']+')
+            urls_found = url_pattern.findall(text)
+
+            for url in urls_found:
+                # Clean up URL (remove trailing punctuation)
+                url = url.rstrip('.,;:!?')
+
+                if url in seen_urls:
+                    continue
+                seen_urls.add(url)
+
+                # Try to find context around the URL
+                title = self._extract_title_near_url(text, url)
+                snippet = self._extract_snippet_near_url(text, url)
+
+                results.append(SearchResult(
+                    title=title or self._title_from_url(url),
+                    url=url,
+                    snippet=snippet or title or "",
+                    source="duckduckgo"
+                ))
+
+                # Limit to max 10 results from URL extraction
+                if len(results) >= 10:
+                    break
+
+        return results
+
+    def _parse_single_entry(self, entry: str) -> SearchResult | None:
+        """
+        Parse a single search result entry.
+
+        Handles various formats:
+        - Title\\nURL: url\\nSummary: text
+        - Title\\nurl\\ntext
+        - url\\nTitle\\ntext
+
+        Args:
+            entry: Single entry text
+
+        Returns:
+            SearchResult or None if parsing fails
+        """
+        import re
+
+        lines = [line.strip() for line in entry.split('\n') if line.strip()]
+        if not lines:
+            return None
+
+        title = ""
+        url = ""
+        snippet = ""
+
+        for line in lines:
+            # Check for labeled fields (case-insensitive)
+            lower_line = line.lower()
+
+            # URL detection - multiple patterns
+            if lower_line.startswith('url:') or lower_line.startswith('link:'):
+                url = re.sub(r'^(?:url|link)[:\s]+', '', line, flags=re.IGNORECASE).strip()
+            elif re.match(r'^https?://', line):
+                if not url:  # First URL found
+                    url = line.strip()
+            # Snippet/Summary detection
+            elif any(lower_line.startswith(prefix) for prefix in ['summary:', 'description:', 'snippet:']):
+                snippet = line.split(':', 1)[1].strip() if ':' in line else ""
+            # Title detection - first substantial non-URL line
+            elif not title and len(line) > 5 and not line.isdigit():
+                # Clean up numbering prefixes
+                title = re.sub(r'^[\d\.\)\]\[:]+\s*', '', line).strip()
+
+        # Validate we have minimum required fields
+        if title and url and url.startswith('http'):
+            return SearchResult(
+                title=title,
+                url=url,
+                snippet=snippet or title,
+                source="duckduckgo"
+            )
+
+        return None
+
+    def _extract_title_near_url(self, text: str, url: str) -> str | None:
+        """
+        Extract potential title text near a URL in the response.
+
+        Args:
+            text: Full response text
+            url: URL to find context for
+
+        Returns:
+            Title string or None
+        """
+        # Find the URL position
+        url_pos = text.find(url)
+        if url_pos == -1:
+            return None
+
+        # Look at the 200 characters before the URL for a title
+        start_pos = max(0, url_pos - 200)
+        before_text = text[start_pos:url_pos]
+
+        # Find the last sentence/line before the URL
+        lines = [l.strip() for l in before_text.split('\n') if l.strip()]
+        if lines:
+            # Return the last non-empty line as potential title
+            title = lines[-1]
+            # Clean up common prefixes
+            import re
+            title = re.sub(r'^[\d\.\)\]\[:]+\s*', '', title).strip()
+            if len(title) > 5:
+                return title[:200]  # Limit length
+
+        return None
+
+    def _extract_snippet_near_url(self, text: str, url: str) -> str | None:
+        """
+        Extract potential snippet text near a URL in the response.
+
+        Args:
+            text: Full response text
+            url: URL to find context for
+
+        Returns:
+            Snippet string or None
+        """
+        # Find the URL position
+        url_pos = text.find(url)
+        if url_pos == -1:
+            return None
+
+        # Look at the 500 characters after the URL for a snippet
+        after_text = text[url_pos + len(url):url_pos + len(url) + 500]
+
+        # Find first meaningful text after URL
+        lines = [l.strip() for l in after_text.split('\n') if l.strip()]
+        for line in lines:
+            # Skip if it looks like another URL
+            if line.startswith('http'):
+                continue
+            # Skip if it's just a label
+            if line.lower() in ['summary:', 'description:', 'url:', 'link:']:
+                continue
+            # Check for labeled snippet
+            if ':' in line and any(line.lower().startswith(p) for p in ['summary:', 'description:']):
+                return line.split(':', 1)[1].strip()[:500]
+            # Return first substantial line
+            if len(line) > 20:
+                return line[:500]
+
+        return None
+
+    def _title_from_url(self, url: str) -> str:
+        """
+        Generate a basic title from URL when no title is available.
+
+        Args:
+            url: URL to generate title from
+
+        Returns:
+            Title derived from URL path or domain
+        """
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(url)
+
+            # Try to get meaningful path segment
+            path_parts = [p for p in parsed.path.split('/') if p and p != 'index.html']
+            if path_parts:
+                # Use last meaningful path segment
+                title = path_parts[-1].replace('-', ' ').replace('_', ' ')
+                # Clean up file extensions
+                title = title.rsplit('.', 1)[0] if '.' in title else title
+                return title.title()[:100]
+
+            # Fall back to domain
+            domain = parsed.netloc.replace('www.', '')
+            return domain
+
+        except Exception:
+            return url[:50]

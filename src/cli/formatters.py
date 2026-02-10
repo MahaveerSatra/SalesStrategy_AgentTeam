@@ -5,11 +5,18 @@ Provides functions to format research results in different formats:
 - Terminal output (rich formatting)
 - Markdown reports
 - JSON exports
+
+Formatting limits are configurable via settings:
+- report_max_evidence_signals: Max evidence signals per opportunity
+- report_evidence_char_limit: Character limit per evidence signal
+- report_rationale_char_limit: Character limit for rationale
+- report_show_full_content: Show full content without truncation
 """
 import json
 from datetime import datetime
 from typing import Any
 
+from ..config import settings
 from ..models.state import ResearchState, Opportunity, Signal
 
 
@@ -56,10 +63,23 @@ def format_terminal_summary(state: ResearchState) -> str:
     if opportunities:
         lines.append(f"OPPORTUNITIES FOUND: {len(opportunities)}")
         lines.append("")
+
+        # Use configurable limit for rationale
+        rationale_limit = (
+            None if settings.report_show_full_content
+            else settings.report_rationale_char_limit
+        )
+
         for i, opp in enumerate(opportunities, 1):
             lines.append(f"{i}. {opp.product_name}")
             lines.append(f"   Confidence: {opp.confidence.value.upper()} ({opp.confidence_score:.2f})")
-            lines.append(f"   Rationale: {opp.rationale[:100]}...")
+
+            # Format rationale with configurable truncation
+            rationale_display = opp.rationale
+            if rationale_limit and len(opp.rationale) > rationale_limit:
+                rationale_display = opp.rationale[:rationale_limit] + "..."
+            lines.append(f"   Rationale: {rationale_display}")
+
             if opp.target_persona:
                 lines.append(f"   Target: {opp.target_persona}")
             lines.append("")
@@ -154,11 +174,41 @@ def format_markdown_report(state: ResearchState) -> str:
                 lines.append("")
 
             if opp.evidence:
+                # Use configurable limits for evidence display
+                max_signals = (
+                    len(opp.evidence) if settings.report_show_full_content
+                    else settings.report_max_evidence_signals
+                )
+                char_limit = (
+                    None if settings.report_show_full_content
+                    else settings.report_evidence_char_limit
+                )
+
                 lines.append(f"**Supporting Evidence**: {len(opp.evidence)} signals")
-                for signal in opp.evidence[:3]:  # Show top 3
-                    lines.append(f"- [{signal.signal_type}] {signal.content[:100]}...")
-                if len(opp.evidence) > 3:
-                    lines.append(f"- ... and {len(opp.evidence) - 3} more signals")
+                for signal in opp.evidence[:max_signals]:
+                    # Format content with configurable truncation
+                    content = signal.content
+                    if char_limit and len(content) > char_limit:
+                        content = content[:char_limit] + "..."
+                    lines.append(f"- [{signal.signal_type}] {content}")
+
+                    # Show additional metadata in full content mode
+                    if settings.report_show_full_content and signal.metadata:
+                        if "url" in signal.metadata:
+                            lines.append(f"  - Source: {signal.metadata['url']}")
+                        if "buying_signals" in signal.metadata:
+                            bs = signal.metadata["buying_signals"]
+                            if isinstance(bs, dict):
+                                if bs.get("technologies"):
+                                    techs = bs["technologies"][:5]
+                                    lines.append(f"  - Technologies: {', '.join(techs)}")
+                                if bs.get("hiring_for"):
+                                    roles = bs["hiring_for"][:3]
+                                    lines.append(f"  - Hiring for: {', '.join(roles)}")
+
+                remaining = len(opp.evidence) - max_signals
+                if remaining > 0:
+                    lines.append(f"- ... and {remaining} more signals")
                 lines.append("")
 
             if opp.risks:
@@ -296,6 +346,75 @@ def format_opportunity_list(opportunities: list[Opportunity]) -> str:
         conf_display = f"{opp.confidence.value.upper()} ({opp.confidence_score:.0%})"
         lines.append(f"{i}. {opp.product_name} - {conf_display}")
         lines.append(f"   {opp.rationale[:80]}...")
+
+    return "\n".join(lines)
+
+
+def format_detailed_evidence(opportunities: list[Opportunity]) -> str:
+    """
+    Format detailed evidence for all opportunities.
+
+    Shows full evidence content with all metadata. Useful for
+    comprehensive analysis or debugging data quality issues.
+
+    Args:
+        opportunities: List of opportunities
+
+    Returns:
+        Markdown-formatted detailed evidence section
+    """
+    lines = []
+    lines.append("# Detailed Evidence Report")
+    lines.append("")
+
+    for opp in opportunities:
+        lines.append(f"## {opp.product_name}")
+        lines.append("")
+        lines.append(f"**Confidence**: {opp.confidence.value.upper()} ({opp.confidence_score:.2%})")
+        lines.append(f"**Target**: {opp.target_persona or 'Not specified'}")
+        lines.append("")
+
+        if not opp.evidence:
+            lines.append("*No supporting evidence collected.*")
+            lines.append("")
+            lines.append("---")
+            lines.append("")
+            continue
+
+        lines.append(f"### Evidence ({len(opp.evidence)} signals)")
+        lines.append("")
+
+        for i, signal in enumerate(opp.evidence, 1):
+            lines.append(f"#### Signal {i}: {signal.signal_type}")
+            lines.append("")
+            lines.append(f"**Content**: {signal.content}")
+            lines.append("")
+            lines.append(f"- Confidence: {signal.confidence:.2f}")
+            lines.append(f"- Source: {signal.source}")
+            lines.append(f"- Timestamp: {signal.timestamp.strftime('%Y-%m-%d %H:%M')}")
+
+            if signal.metadata:
+                lines.append("- **Metadata**:")
+                for key, value in signal.metadata.items():
+                    if key in ("original_snippet",):  # Skip redundant fields
+                        continue
+                    if isinstance(value, dict):
+                        lines.append(f"  - {key}:")
+                        for k, v in value.items():
+                            if v:
+                                if isinstance(v, list):
+                                    lines.append(f"    - {k}: {', '.join(str(x) for x in v[:5])}")
+                                else:
+                                    lines.append(f"    - {k}: {v}")
+                    elif isinstance(value, list) and value:
+                        lines.append(f"  - {key}: {', '.join(str(x) for x in value[:5])}")
+                    elif value:
+                        lines.append(f"  - {key}: {value}")
+
+            lines.append("")
+
+        lines.append("---")
+        lines.append("")
 
     return "\n".join(lines)
 

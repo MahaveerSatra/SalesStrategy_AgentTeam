@@ -296,22 +296,77 @@ IMPORTANT: This is a retry based on human feedback:
 Adjust your opportunity analysis accordingly.
 """
 
+        # Build signal context for evidence-based talking points
+        signal_context = []
+        for s in signals[:10]:
+            signal_context.append(f"- [{s.signal_type}] {s.content[:200]}")
+        signal_context_text = "\n".join(signal_context) if signal_context else "No signals available"
+
+        # Build job posting context for persona identification
+        job_context = []
+        for jp in job_postings[:5]:
+            title = jp.get("title", "")
+            techs = ", ".join(jp.get("technologies", [])[:3]) if jp.get("technologies") else ""
+            job_context.append(f"- Hiring: {title} (techs: {techs})")
+        job_context_text = "\n".join(job_context) if job_context else "No job postings"
+
         prompt = f"""Generate sales opportunities for {account_name} ({industry}).
+
+═══════════════════════════════════════════════════════════════
+CONTEXT DATA
+═══════════════════════════════════════════════════════════════
 
 IDENTIFIED REQUIREMENTS:
 {requirements_text}
 
 MATCHING PRODUCTS (from our catalog):
 {products_text}
+
+RESEARCH SIGNALS (use these for evidence-based talking points):
+{signal_context_text}
+
+HIRING ACTIVITY (use to identify relevant personas):
+{job_context_text}
 {feedback_instruction}
+═══════════════════════════════════════════════════════════════
+OPPORTUNITY GENERATION GUIDELINES
+═══════════════════════════════════════════════════════════════
+
 For EACH relevant product match, create an opportunity with:
-1. rationale: WHY they need this product (2-3 sentences, specific to their situation)
-2. target_persona: WHO to talk to (job title)
-3. talking_points: 3-5 specific points for the sales conversation
-4. estimated_value: Deal size estimate (e.g., "$50K ARR", "$100K-200K ARR")
-5. risks: 1-3 potential blockers or objections
-6. confidence: "high" (>70%), "medium" (40-70%), or "low" (<40%)
-7. confidence_score: Numerical score 0.0-1.0
+
+1. **rationale**: WHY they need this product
+   - 2-3 sentences, specific to their situation
+   - Reference specific signals or hiring patterns
+   - Connect to their industry challenges
+
+2. **target_persona**: WHO to talk to - BE SPECIFIC:
+   - Include job title AND likely department/team (e.g., "Director of Quality Engineering, Manufacturing Division")
+   - Indicate role type: "decision-maker" (budget authority), "influencer" (technical advocate), or "end-user"
+   - Base this on their hiring patterns and org structure signals
+   - Example: "VP of Data Engineering, Analytics Platform Team (decision-maker)"
+
+3. **talking_points**: 3-5 SPECIFIC points that:
+   - Reference their actual hiring patterns (e.g., "You're hiring 3 ML Engineers - our tool accelerates onboarding")
+   - Connect to signals from our research (e.g., "Your Q3 investor report mentioned automation priorities")
+   - Address their specific tech stack context (e.g., "Integrates with your existing AWS/Python workflow")
+   - Include one ROI/business case point (e.g., "Customers see 40% faster deployment cycles")
+   - AVOID generic statements - every point should be tied to evidence
+
+4. **estimated_value**: Deal size estimate
+   - Format: "$50K ARR", "$100K-200K ARR"
+   - Consider company size and typical deployment scale
+
+5. **risks**: 1-3 potential blockers WITH mitigation hints
+   - Format: "Risk (mitigation: approach)"
+   - Example: "Existing competitor relationship (mitigation: offer competitive analysis and migration support)"
+
+6. **confidence**: "high" (>70%), "medium" (40-70%), or "low" (<40%)
+
+7. **confidence_score**: Numerical score 0.0-1.0
+
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════
 
 Only include products that have a genuine fit. Quality over quantity.
 
@@ -320,15 +375,22 @@ Return JSON:
     "opportunities": [
         {{
             "product_name": "Product Name",
-            "rationale": "They are scaling their ML operations and need...",
-            "target_persona": "VP of Engineering",
-            "talking_points": ["Point 1", "Point 2", "Point 3"],
+            "rationale": "Based on their Q3 hiring of 5 ML engineers and the digital transformation initiative mentioned in their investor report, they need robust ML deployment infrastructure to scale their data science team's output.",
+            "target_persona": "Director of ML Engineering, Data Platform Team (decision-maker)",
+            "talking_points": [
+                "Your job posting for ML Platform Engineer mentions Kubernetes - our tool has native K8s integration",
+                "Based on your investor report's AI initiative timeline, you need to scale ML deployments by Q2",
+                "Your current tech stack includes Python and AWS - we integrate seamlessly with both",
+                "Similar companies in {industry} see 60% faster model deployment with our platform"
+            ],
             "estimated_value": "$150K ARR",
-            "risks": ["Existing competitor relationship", "Budget cycle timing"],
+            "risks": [
+                "May be evaluating open-source alternatives (mitigation: highlight enterprise support and SLAs)",
+                "Q1 budget cycle (mitigation: offer pilot program with deferred billing)"
+            ],
             "confidence": "high",
             "confidence_score": 0.85
-        }},
-        ...
+        }}
     ]
 }}"""
 

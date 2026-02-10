@@ -1,8 +1,11 @@
 """
 Intelligent model router for cost/quality/latency optimization.
 Staff-level: Multi-tier architecture with fallbacks and caching.
+
+Includes proactive rate limiting to avoid hitting provider limits.
 """
 import time
+import asyncio
 import hashlib
 import json
 from typing import Any, Literal
@@ -18,12 +21,148 @@ from tenacity import (
 from ..config import settings
 from ..models.domain import ModelResponse
 from ..core.exceptions import (
-    ModelError, 
-    ModelTimeoutError, 
+    ModelError,
+    ModelTimeoutError,
     ModelRateLimitError
 )
 
 logger = structlog.get_logger(__name__)
+
+
+class RateLimitTracker:
+    """
+    Track request rates to proactively avoid hitting provider rate limits.
+
+    This tracker uses a sliding window approach to track requests per minute
+    and tokens per minute, allowing preemptive throttling before hitting
+    actual provider limits.
+
+    Attributes:
+        rpm_limit: Maximum requests per minute (after buffer applied)
+        tpm_limit: Maximum tokens per minute (after buffer applied)
+    """
+
+    def __init__(
+        self,
+        requests_per_minute: int,
+        tokens_per_minute: int,
+        buffer: float = 0.8
+    ):
+        """
+        Initialize rate limit tracker.
+
+        Args:
+            requests_per_minute: Provider's RPM limit
+            tokens_per_minute: Provider's TPM limit
+            buffer: Fraction of limit to use (default 0.8 = 80% to leave headroom)
+        """
+        self.rpm_limit = int(requests_per_minute * buffer)
+        self.tpm_limit = int(tokens_per_minute * buffer)
+        self._request_timestamps: list[float] = []
+        self._token_counts: list[tuple[float, int]] = []
+        self._window = 60.0  # 1 minute sliding window
+        self.logger = logger.bind(component="rate_limiter")
+
+    def _clean_old_entries(self) -> None:
+        """Remove entries older than the sliding window."""
+        cutoff = time.time() - self._window
+        self._request_timestamps = [t for t in self._request_timestamps if t > cutoff]
+        self._token_counts = [(t, c) for t, c in self._token_counts if t > cutoff]
+
+    def can_make_request(self, estimated_tokens: int = 500) -> bool:
+        """
+        Check if we can make a request without hitting limits.
+
+        Args:
+            estimated_tokens: Estimated tokens for this request
+
+        Returns:
+            True if request can proceed, False if we should wait
+        """
+        self._clean_old_entries()
+
+        # Check RPM
+        if len(self._request_timestamps) >= self.rpm_limit:
+            self.logger.debug(
+                "rpm_limit_reached",
+                current=len(self._request_timestamps),
+                limit=self.rpm_limit
+            )
+            return False
+
+        # Check TPM
+        current_tokens = sum(c for _, c in self._token_counts)
+        if current_tokens + estimated_tokens > self.tpm_limit:
+            self.logger.debug(
+                "tpm_limit_reached",
+                current=current_tokens,
+                estimated=estimated_tokens,
+                limit=self.tpm_limit
+            )
+            return False
+
+        return True
+
+    def record_request(self, tokens_used: int = 0) -> None:
+        """
+        Record a completed request for rate tracking.
+
+        Args:
+            tokens_used: Actual tokens used in the request
+        """
+        now = time.time()
+        self._request_timestamps.append(now)
+        if tokens_used > 0:
+            self._token_counts.append((now, tokens_used))
+
+    async def wait_if_needed(self, estimated_tokens: int = 500) -> None:
+        """
+        Wait if we're approaching rate limits.
+
+        This method will sleep in 1-second increments until the rate limit
+        window clears enough to allow the request.
+
+        Args:
+            estimated_tokens: Estimated tokens for the upcoming request
+        """
+        wait_count = 0
+        max_wait = 60  # Maximum wait time in seconds
+
+        while not self.can_make_request(estimated_tokens):
+            wait_count += 1
+            if wait_count > max_wait:
+                self.logger.warning(
+                    "rate_limit_wait_timeout",
+                    waited_seconds=wait_count
+                )
+                break
+
+            self.logger.debug(
+                "rate_limit_waiting",
+                wait_iteration=wait_count,
+                reason="approaching_limit"
+            )
+            await asyncio.sleep(1.0)
+
+        if wait_count > 0:
+            self.logger.info(
+                "rate_limit_wait_completed",
+                waited_seconds=wait_count
+            )
+
+    def get_stats(self) -> dict[str, Any]:
+        """Return current rate limit statistics."""
+        self._clean_old_entries()
+        current_tokens = sum(c for _, c in self._token_counts)
+
+        return {
+            "current_rpm": len(self._request_timestamps),
+            "rpm_limit": self.rpm_limit,
+            "current_tpm": current_tokens,
+            "tpm_limit": self.tpm_limit,
+            "rpm_utilization": len(self._request_timestamps) / self.rpm_limit if self.rpm_limit > 0 else 0,
+            "tpm_utilization": current_tokens / self.tpm_limit if self.tpm_limit > 0 else 0,
+        }
 
 
 class ModelCache:
@@ -93,22 +232,48 @@ class ModelCache:
 class ModelRouter:
     """
     Routes requests to appropriate model based on complexity.
-    
+
     Tier 1 (Local): Fast, free, lower quality
-    Tier 2 (External 8B): Medium speed/cost, good quality  
+    Tier 2 (External 8B): Medium speed/cost, good quality
     Tier 3 (External 70B): Slower, free tier limited, best quality
+
+    Includes proactive rate limiting for external providers to avoid
+    hitting rate limits and incurring errors.
     """
-    
+
     def __init__(self):
         self.cache = ModelCache(ttl_hours=settings.cache_ttl_hours)
         self.request_counts: dict[str, int] = {}
         self.error_counts: dict[str, int] = {}
         self.logger = logger.bind(component="model_router")
-        
+
+        # Rate limiters per provider (lazy initialization)
+        self._rate_limiters: dict[str, RateLimitTracker] = {}
+
         # Lazy-load model clients
         self._ollama_client = None
         self._litellm_available = False
         self._check_litellm()
+
+        # Initialize rate limiters
+        self._init_rate_limiters()
+
+    def _init_rate_limiters(self) -> None:
+        """Initialize rate limiters for each external provider."""
+        self._rate_limiters["groq"] = RateLimitTracker(
+            requests_per_minute=settings.groq_requests_per_minute,
+            tokens_per_minute=settings.groq_tokens_per_minute,
+            buffer=settings.rate_limit_buffer_percent
+        )
+        self._rate_limiters["together"] = RateLimitTracker(
+            requests_per_minute=settings.together_requests_per_minute,
+            tokens_per_minute=60000,  # Together has higher token limits
+            buffer=settings.rate_limit_buffer_percent
+        )
+        self.logger.info(
+            "rate_limiters_initialized",
+            providers=list(self._rate_limiters.keys())
+        )
     
     def _check_litellm(self) -> None:
         """Check if litellm is available and configured."""
@@ -290,6 +455,58 @@ class ModelRouter:
         except Exception as e:
             raise ModelError(f"Ollama error: {e}")
     
+    def _is_rate_limit_error(self, error: Exception) -> bool:
+        """
+        Detect rate limit errors with provider-specific patterns.
+
+        This method checks for various rate limit error patterns from
+        different providers (Groq, Together, generic HTTP 429, etc.)
+
+        Args:
+            error: The exception to check
+
+        Returns:
+            True if this is a rate limit error
+        """
+        error_str = str(error).lower()
+
+        # Generic HTTP status patterns
+        generic_patterns = [
+            "rate limit", "rate_limit", "ratelimit",
+            "too many requests", "429",
+            "quota exceeded", "quota_exceeded",
+            "requests per minute", "rpm",
+            "tokens per minute", "tpm",
+        ]
+
+        # Groq-specific patterns
+        groq_patterns = [
+            "groq", "rate limit exceeded",
+            "please try again", "request limit",
+        ]
+
+        # Together-specific patterns
+        together_patterns = [
+            "together", "request limit",
+            "credit limit", "usage limit",
+        ]
+
+        # LiteLLM wrapper patterns
+        litellm_patterns = [
+            "rateerror", "modelratelimiterror",
+            "litellm.exceptions.ratelimiterror",
+        ]
+
+        all_patterns = generic_patterns + groq_patterns + together_patterns + litellm_patterns
+
+        return any(pattern in error_str for pattern in all_patterns)
+
+    def _get_provider_from_model(self, model: str) -> str:
+        """Extract provider name from model string."""
+        if "/" in model:
+            return model.split("/")[0]
+        return "unknown"
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -304,20 +521,47 @@ class ModelRouter:
         max_tokens: int,
         **kwargs
     ) -> ModelResponse:
-        """Call external model via litellm."""
+        """
+        Call external model via litellm with proactive rate limiting.
+
+        This method:
+        1. Determines the provider from the model name
+        2. Waits if we're approaching the provider's rate limits
+        3. Makes the API call
+        4. Records the request for rate tracking
+        5. Handles errors with improved detection
+
+        Args:
+            model: Model name (e.g., "groq/llama-3.1-8b-instant")
+            prompt: User prompt
+            system_prompt: Optional system prompt
+            temperature: Sampling temperature
+            max_tokens: Max tokens to generate
+            **kwargs: Additional parameters
+
+        Returns:
+            ModelResponse with generated content
+        """
         if not self._litellm_available:
             raise ModelError("litellm not available for external models")
-        
+
+        # Determine provider for rate limiting
+        provider = self._get_provider_from_model(model)
+
+        # Apply proactive rate limiting if we have a tracker for this provider
+        if provider in self._rate_limiters:
+            await self._rate_limiters[provider].wait_if_needed(estimated_tokens=max_tokens)
+
         start_time = time.time()
-        
+
         try:
             import litellm
-            
+
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
-            
+
             response = await litellm.acompletion(
                 model=model,
                 messages=messages,
@@ -326,12 +570,16 @@ class ModelRouter:
                 timeout=settings.request_timeout,
                 **kwargs
             )
-            
+
             latency_ms = (time.time() - start_time) * 1000
-            
+
             content = response.choices[0].message.content
-            tokens = response.usage.total_tokens if hasattr(response, 'usage') else None
-            
+            tokens = response.usage.total_tokens if hasattr(response, 'usage') and response.usage else None
+
+            # Record successful request for rate tracking
+            if provider in self._rate_limiters:
+                self._rate_limiters[provider].record_request(tokens_used=tokens or max_tokens)
+
             return ModelResponse(
                 content=content,
                 model=model,
@@ -339,22 +587,35 @@ class ModelRouter:
                 latency_ms=latency_ms,
                 cached=False
             )
-            
+
         except Exception as e:
             error_str = str(e).lower()
-            
+
+            # Use improved error detection
             if "timeout" in error_str:
                 raise ModelTimeoutError(f"Model request timed out: {e}")
-            elif "rate" in error_str or "limit" in error_str:
-                raise ModelRateLimitError(f"Rate limit exceeded: {e}")
+            elif self._is_rate_limit_error(e):
+                self.logger.warning(
+                    "rate_limit_hit",
+                    provider=provider,
+                    model=model,
+                    error=str(e)[:200]
+                )
+                raise ModelRateLimitError(f"Rate limit exceeded for {provider}: {e}")
             else:
                 raise ModelError(f"External model error: {e}")
     
     def get_metrics(self) -> dict[str, Any]:
-        """Return routing metrics."""
+        """Return routing metrics including rate limit statistics."""
         total_requests = sum(self.request_counts.values())
         total_errors = sum(self.error_counts.values())
-        
+
+        # Collect rate limit stats per provider
+        rate_limit_stats = {
+            provider: tracker.get_stats()
+            for provider, tracker in self._rate_limiters.items()
+        }
+
         return {
             "total_requests": total_requests,
             "total_errors": total_errors,
@@ -365,7 +626,8 @@ class ModelRouter:
             ),
             "requests_by_model": self.request_counts,
             "errors_by_model": self.error_counts,
-            "cache_stats": self.cache.get_stats()
+            "cache_stats": self.cache.get_stats(),
+            "rate_limit_stats": rate_limit_stats
         }
     
     def clear_cache(self) -> None:
