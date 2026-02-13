@@ -230,7 +230,7 @@ class TestRequirementExtraction:
         prompt = call_args.kwargs["prompt"]
         assert "automotive" in prompt.lower()
         assert "embedded" in prompt.lower()
-        assert "IMPORTANT: This is a retry" in prompt
+        assert "COORDINATOR FEEDBACK" in prompt  # Updated prompt structure
 
     @pytest.mark.asyncio
     async def test_extract_requirements_json_parse_failure_fallback(
@@ -584,7 +584,7 @@ class TestOpportunityGeneration:
 
         prompt = mock_model_router.generate.call_args.kwargs["prompt"]
         assert "higher value enterprise deals" in prompt
-        assert "IMPORTANT: This is a retry" in prompt
+        assert "COORDINATOR FEEDBACK" in prompt  # Updated prompt structure
 
     @pytest.mark.asyncio
     async def test_generate_opportunities_skips_malformed_entries(

@@ -255,13 +255,36 @@ def format_markdown_report(state: ResearchState) -> str:
         lines.append("---")
         lines.append("")
 
+    # Data Collection Issues (if any)
+    error_messages = state.get('error_messages', [])
+    if error_messages:
+        lines.append("## Data Collection Issues")
+        lines.append("")
+        lines.append("The following issues occurred during data collection:")
+        lines.append("")
+        for error in error_messages[:10]:  # Limit to first 10 errors
+            lines.append(f"- {error}")
+        if len(error_messages) > 10:
+            lines.append(f"- ... and {len(error_messages) - 10} more issues")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
     # Data Sources Summary
     lines.append("## Research Methodology")
     lines.append("")
-    lines.append(f"- Web search queries: {len([s for s in state.get('signals', []) if s.signal_type == 'web_search'])}")
+    web_search_count = len([s for s in state.get('signals', []) if s.signal_type == 'web_search'])
+    news_count = len(state.get('news_items', []))
+    lines.append(f"- Web search queries: {web_search_count}")
     lines.append(f"- Job postings analyzed: {len(state.get('job_postings', []))}")
-    lines.append(f"- News articles reviewed: {len(state.get('news_items', []))}")
+    lines.append(f"- News articles reviewed: {news_count}")
     lines.append(f"- Total signals collected: {len(state.get('signals', []))}")
+
+    # Add warnings for missing data sources
+    if web_search_count == 0:
+        lines.append("- WARNING: No web search results - MCP search may have failed")
+    if news_count == 0:
+        lines.append("- WARNING: No news articles - news search may have failed")
     lines.append("")
 
     # Footer

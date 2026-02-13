@@ -77,6 +77,7 @@ class IdentifierAgent(StatelessAgent):
         job_postings = state.get("job_postings", [])
         tech_stack = state.get("tech_stack", [])
         feedback_context = state.get("feedback_context")
+        user_context = state.get("user_context", "")
 
         self.logger.info(
             "identifier_started",
@@ -94,7 +95,8 @@ class IdentifierAgent(StatelessAgent):
             tech_stack=tech_stack,
             account_name=account,
             industry=industry,
-            feedback_context=feedback_context
+            feedback_context=feedback_context,
+            user_context=user_context
         )
 
         self.logger.info("requirements_extracted", count=len(requirements))
@@ -126,7 +128,8 @@ class IdentifierAgent(StatelessAgent):
             product_matches=product_matches,
             signals=signals,
             job_postings=job_postings,
-            feedback_context=feedback_context
+            feedback_context=feedback_context,
+            user_context=user_context
         )
 
         self.logger.info("opportunities_generated", count=len(opportunities))
@@ -143,6 +146,151 @@ class IdentifierAgent(StatelessAgent):
             low_confidence=sum(1 for o in opportunities if o.confidence == OpportunityConfidence.LOW)
         )
 
+    def _get_product_categories(self) -> list[str]:
+        """Get unique product categories from the catalog."""
+        try:
+            # Check if product_matcher has collection attribute (might be mocked in tests)
+            if not hasattr(self.product_matcher, 'collection'):
+                return []
+            # Query ChromaDB for all unique categories
+            results = self.product_matcher.collection.get(include=["metadatas"])
+            if results and results.get("metadatas"):
+                categories = set()
+                for metadata in results["metadatas"]:
+                    if metadata and metadata.get("category"):
+                        categories.add(metadata["category"])
+                return sorted(list(categories))
+        except Exception as e:
+            self.logger.warning("failed_to_get_categories", error=str(e))
+        return []
+
+    def _format_signals_with_ids(self, signals: list[Signal], limit: int = 15) -> str:
+        """Format signals with IDs for traceability."""
+        formatted = []
+        for i, signal in enumerate(signals[:limit]):
+            sig_id = f"SIG-{i+1:03d}"
+            confidence = signal.confidence if hasattr(signal, 'confidence') else 0.5
+            content = signal.content[:400] if isinstance(signal.content, str) else str(signal.content)[:400]
+            formatted.append(f"[{sig_id}] (confidence: {confidence:.1f}, type: {signal.signal_type}) \"{content}\"")
+        return "\n".join(formatted) if formatted else "No signals available"
+
+    def _format_jobs_with_ids(self, job_postings: list[dict], limit: int = 10) -> str:
+        """Format job postings with IDs for traceability."""
+        formatted = []
+        for i, job in enumerate(job_postings[:limit]):
+            job_id = f"JOB-{i+1:03d}"
+            title = job.get("title", "Unknown")
+            techs = job.get("technologies", [])
+            techs_str = ", ".join(techs[:5]) if techs else "none listed"
+            desc = job.get("description", "")[:300]
+            formatted.append(f"[{job_id}] {title} | Technologies: {techs_str}\n    \"{desc}...\"")
+        return "\n".join(formatted) if formatted else "No job postings available"
+
+    def _get_product_details(self, product_matches: list[tuple[str, float]], limit: int = 10) -> str:
+        """
+        Get detailed product information from ChromaDB for matched products.
+
+        Args:
+            product_matches: List of (product_name, confidence) tuples
+            limit: Maximum number of products to include
+
+        Returns:
+            Formatted string with product details
+        """
+        try:
+            if not hasattr(self.product_matcher, 'collection'):
+                # Fallback for mocked tests
+                return "\n".join(
+                    f"- {name} (relevance: {score:.0%})"
+                    for name, score in product_matches[:limit]
+                )
+
+            # Get all products from ChromaDB
+            all_products = self.product_matcher.collection.get(
+                include=["documents", "metadatas"]
+            )
+
+            if not all_products or not all_products.get("metadatas"):
+                return "\n".join(
+                    f"- {name} (relevance: {score:.0%})"
+                    for name, score in product_matches[:limit]
+                )
+
+            # Build lookup dict: product_name -> document (description)
+            product_docs = {}
+            for i, metadata in enumerate(all_products["metadatas"]):
+                if metadata and metadata.get("name"):
+                    product_docs[metadata["name"]] = {
+                        "document": all_products["documents"][i] if all_products.get("documents") else "",
+                        "category": metadata.get("category", "General")
+                    }
+
+            # Format matched products with details
+            formatted = []
+            for name, score in product_matches[:limit]:
+                if name in product_docs:
+                    info = product_docs[name]
+                    # Extract description (first sentence or truncate)
+                    doc = info["document"]
+                    desc_end = doc.find(". ", 50)  # Find first sentence after 50 chars
+                    short_desc = doc[:desc_end + 1] if desc_end > 0 else doc[:150]
+                    formatted.append(
+                        f"[PROD-{len(formatted)+1:02d}] {name} ({info['category']})\n"
+                        f"    Relevance: {score:.0%}\n"
+                        f"    Description: {short_desc}"
+                    )
+                else:
+                    formatted.append(f"[PROD-{len(formatted)+1:02d}] {name} (relevance: {score:.0%})")
+
+            return "\n\n".join(formatted) if formatted else "No matching products"
+
+        except Exception as e:
+            self.logger.warning("failed_to_get_product_details", error=str(e))
+            # Fallback to simple format
+            return "\n".join(
+                f"- {name} (relevance: {score:.0%})"
+                for name, score in product_matches[:limit]
+            )
+
+    def _get_seller_context(self) -> str:
+        """
+        Get seller company context for opportunity framing.
+
+        Returns information about the seller (our company) to help
+        the LLM understand what we sell and our value proposition.
+
+        Returns:
+            Formatted string with seller context
+        """
+        seller_name = getattr(self.product_matcher, 'company_name', 'Our Company')
+
+        # Get product categories to understand our portfolio
+        categories = self._get_product_categories()
+
+        if seller_name.lower() == "mathworks":
+            # MathWorks-specific context (since we have hardcoded products)
+            return f"""**SELLER: {seller_name}**
+MathWorks is the leading developer of mathematical computing software.
+Our products enable engineers and scientists to analyze data, develop algorithms,
+and create models for applications in automotive, aerospace, communications,
+electronics, industrial automation, and other industries.
+
+**Our Core Competencies:**
+- Technical Computing & Simulation (MATLAB, Simulink)
+- AI/ML & Deep Learning
+- Model-Based Design & Code Generation
+- Embedded Systems Development
+- Test & Verification (Polyspace, Simulink Test)
+
+**Product Domains:** {', '.join(categories) if categories else 'Various technical computing solutions'}"""
+        else:
+            # Generic seller context
+            return f"""**SELLER: {seller_name}**
+We provide solutions in the following domains:
+{', '.join(categories) if categories else 'Various software solutions'}
+
+*Note: For more accurate seller positioning, configure seller profile in product catalog.*"""
+
     async def _extract_requirements(
         self,
         signals: list[Signal],
@@ -150,15 +298,14 @@ class IdentifierAgent(StatelessAgent):
         tech_stack: list[str],
         account_name: str,
         industry: str,
-        feedback_context: str | None = None
+        feedback_context: str | None = None,
+        user_context: str = ""
     ) -> list[str]:
         """
-        Extract implicit and explicit requirements from gathered data.
+        Extract Sales-Qualified Requirements (SQRs) using Chain-of-Verification.
 
-        Uses LLM to analyze signals and job postings to identify:
-        - Technical needs (tools, platforms, capabilities)
-        - Business needs (efficiency, scaling, compliance)
-        - Pain points (gaps, challenges mentioned)
+        Uses role-based framing and evidence grounding to extract requirements
+        that are relevant to our product portfolio.
 
         Args:
             signals: List of Signal objects from gatherer
@@ -167,62 +314,119 @@ class IdentifierAgent(StatelessAgent):
             account_name: Company being researched
             industry: Company industry
             feedback_context: Optional feedback from coordinator for retry
+            user_context: User's sales context/objectives for prioritization
 
         Returns:
             List of requirement strings
         """
-        # Build context from signals
-        signal_summaries = []
-        for signal in signals[:15]:  # Limit to avoid token overflow
-            content = signal.content[:500] if isinstance(signal.content, str) else str(signal.content)[:500]
-            signal_summaries.append(f"- [{signal.signal_type}] {content}")
+        # Get product categories for seller context
+        product_categories = self._get_product_categories()
+        categories_text = ", ".join(product_categories) if product_categories else "General software solutions"
 
-        # Build context from job postings
-        job_summaries = []
-        for job in job_postings[:10]:  # Limit to avoid token overflow
-            title = job.get("title", "Unknown")
-            desc = job.get("description", "")[:300]
-            techs = job.get("technologies", [])
-            techs_str = ", ".join(techs[:5]) if techs else "none listed"
-            job_summaries.append(f"- {title}: {desc}... (Technologies: {techs_str})")
+        # Format signals and jobs with IDs
+        signals_formatted = self._format_signals_with_ids(signals)
+        jobs_formatted = self._format_jobs_with_ids(job_postings)
+
+        # Get seller name from product matcher (with fallback for mocks/tests)
+        seller_name = getattr(self.product_matcher, 'company_name', 'Our Company')
 
         # Build feedback instruction if retrying
-        feedback_instruction = ""
+        feedback_section = ""
         if feedback_context:
-            feedback_instruction = f"""
-IMPORTANT: This is a retry based on human feedback:
+            feedback_section = f"""
+═══════════════════════════════════════════════════════════════
+COORDINATOR FEEDBACK (Address this in your analysis)
+═══════════════════════════════════════════════════════════════
 {feedback_context}
-
-Adjust your analysis to address this feedback specifically.
 """
 
-        prompt = f"""Analyze this research data for {account_name} ({industry}) to extract their likely technology and business requirements.
+        prompt = f"""### ROLE
+You are a Senior Solutions Architect at {seller_name}. Your mission is to extract "Sales-Qualified Requirements" (SQRs) from research data - requirements that could be addressed by our product portfolio.
 
-SIGNALS (research findings):
-{chr(10).join(signal_summaries) if signal_summaries else "No signals available"}
+### USER'S SALES OBJECTIVE
+{user_context if user_context else "No specific focus provided - extract all relevant technical requirements"}
 
-JOB POSTINGS:
-{chr(10).join(job_summaries) if job_summaries else "No job postings available"}
+### TARGET ACCOUNT
+- Company: {account_name}
+- Industry: {industry}
+- Detected Tech Stack: {', '.join(tech_stack) if tech_stack else "Unknown"}
 
-CURRENT TECH STACK: {', '.join(tech_stack) if tech_stack else "Unknown"}
-{feedback_instruction}
-Tasks:
-1. Identify EXPLICIT requirements (directly stated needs, job requirements)
-2. Identify IMPLICIT requirements (inferred from hiring patterns, tech stack gaps)
-3. Identify PAIN POINTS (challenges, inefficiencies mentioned)
-4. Consider industry-specific needs for {industry}
+### OUR PRODUCT DOMAINS (Only extract requirements we can address)
+{categories_text}
 
-Return 5-15 concise requirement statements that could map to software products.
-Focus on actionable needs, not vague statements.
+*Ignore requirements that fall outside these technical domains.*
+{feedback_section}
+═══════════════════════════════════════════════════════════════
+RESEARCH DATA
+═══════════════════════════════════════════════════════════════
 
-Return JSON:
+**JOB POSTINGS:**
+{jobs_formatted}
+
+**INTELLIGENCE SIGNALS:**
+{signals_formatted}
+
+═══════════════════════════════════════════════════════════════
+EXTRACTION PROTOCOL (Chain-of-Verification)
+═══════════════════════════════════════════════════════════════
+
+For each potential requirement:
+1. **QUOTE** - Find exact text from a source (JOB-xxx or SIG-xxx)
+2. **INTERPRET** - What technical need does this imply?
+3. **VERIFY RELEVANCE** - Does this relate to our product domains? (If NO → skip)
+4. **VERIFY PRIORITY** - Does this align with user's sales objective? (If YES → high priority)
+
+**NEGATIVE GUIDANCE (Skip these):**
+- Soft skills ("team player", "communication skills", "leadership")
+- Generic tech everyone uses ("email", "Microsoft Office", "Git")
+- Requirements outside our product domains
+- Duplicates (consolidate similar needs into one)
+- Signals with confidence < 0.5
+
+═══════════════════════════════════════════════════════════════
+EXAMPLES
+═══════════════════════════════════════════════════════════════
+
+❌ BAD (vague, no evidence):
+{{"requirement": "Need for better software", "evidence_quote": "", "source_id": ""}}
+
+❌ BAD (outside our domain):
+{{"requirement": "Need for HR management system", "evidence_quote": "Hiring HR Manager", "source_id": "JOB-005"}}
+
+❌ BAD (generic tech):
+{{"requirement": "Need for version control", "evidence_quote": "Must know Git", "source_id": "JOB-002"}}
+
+✅ GOOD (specific, grounded, relevant):
 {{
-    "requirements": [
-        "Need for automated testing solution for embedded systems",
-        "Requirement for data visualization and reporting platform",
-        "Looking for ML model deployment infrastructure",
-        ...
-    ]
+  "requirement": "Need for fluid dynamics simulation to optimize aircraft aerodynamics",
+  "evidence_quote": "Seeking engineer with CFD experience for wing aerodynamics team, Simscape or similar tools preferred",
+  "source_id": "JOB-003",
+  "priority": "high"
+}}
+
+✅ GOOD (inferred from hiring pattern):
+{{
+  "requirement": "Need for embedded systems code generation and verification",
+  "evidence_quote": "Hiring 3 embedded software engineers with AUTOSAR and ISO 26262 experience",
+  "source_id": "JOB-007",
+  "priority": "medium"
+}}
+
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════
+
+Return 5-15 requirements. Put HIGH priority (aligned with user objective) FIRST.
+
+{{
+  "requirements": [
+    {{
+      "requirement": "Specific technical need statement",
+      "evidence_quote": "Exact text from source that proves this need",
+      "source_id": "JOB-xxx or SIG-xxx",
+      "priority": "high|medium|low"
+    }}
+  ]
 }}"""
 
         try:
@@ -235,11 +439,34 @@ Return JSON:
             # Use robust JSON extraction to handle varied LLM output formats
             raw_result = extract_json_from_llm_response(response.content)
 
-            # Validate with Pydantic for type safety
-            result = RequirementsExtraction.model_validate(raw_result)
+            # Extract requirements from the structured response
+            raw_requirements = raw_result.get("requirements", [])
+            requirements = []
 
-            # Already validated as list[str] by Pydantic
-            return result.requirements
+            for item in raw_requirements:
+                if isinstance(item, dict):
+                    # New structured format: extract requirement text
+                    req_text = item.get("requirement", "")
+                    if req_text:
+                        requirements.append(req_text)
+                        # Log evidence for traceability (optional debug)
+                        self.logger.debug(
+                            "requirement_extracted",
+                            requirement=req_text[:100],
+                            source_id=item.get("source_id", "unknown"),
+                            priority=item.get("priority", "medium")
+                        )
+                elif isinstance(item, str) and item:
+                    # Legacy simple string format
+                    requirements.append(item)
+
+            self.logger.info(
+                "requirements_extracted_with_cove",
+                total=len(requirements),
+                high_priority=sum(1 for r in raw_requirements if isinstance(r, dict) and r.get("priority") == "high")
+            )
+
+            return requirements
 
         except (json.JSONDecodeError, JSONParseError) as e:
             self.logger.warning("requirements_json_parse_failed", error=str(e))
@@ -256,17 +483,15 @@ Return JSON:
         product_matches: list[tuple[str, float]],
         signals: list[Signal],
         job_postings: list[dict],
-        feedback_context: str | None = None
+        feedback_context: str | None = None,
+        user_context: str = ""
     ) -> list[Opportunity]:
         """
-        Generate opportunity objects with LLM reasoning.
+        Generate opportunity objects with evidence-grounded LLM reasoning.
 
-        For each matched product, uses LLM to:
-        - Generate rationale for why they need it
-        - Identify target persona
-        - Create talking points
-        - Assess confidence level
-        - Link supporting evidence
+        Uses role-based framing (Enterprise AE), seller context, and strict
+        evidence grounding to prevent confabulation. Each talking point must
+        cite source evidence [JOB-xxx], [SIG-xxx], or [INDUSTRY].
 
         Args:
             state: Current research state
@@ -274,7 +499,8 @@ Return JSON:
             product_matches: List of (product_name, confidence) tuples
             signals: Original signals for evidence linking
             job_postings: Original job postings for evidence linking
-            feedback_context: Optional feedback for retry
+            feedback_context: Optional feedback from coordinator for retry
+            user_context: User's sales context/objectives for prioritization
 
         Returns:
             List of Opportunity objects
@@ -282,114 +508,134 @@ Return JSON:
         account_name = state["account_name"]
         industry = state.get("industry", "")
 
-        # Build context
+        # Get seller name and context
+        seller_name = getattr(self.product_matcher, 'company_name', 'Our Company')
+        seller_context = self._get_seller_context()
+
+        # Build formatted context using helpers (consistent IDs with requirements)
         requirements_text = "\n".join(f"- {r}" for r in requirements)
-        products_text = "\n".join(f"- {name} (match score: {score:.2f})" for name, score in product_matches[:10])
+        products_text = self._get_product_details(product_matches, limit=8)
+        signals_formatted = self._format_signals_with_ids(signals, limit=12)
+        jobs_formatted = self._format_jobs_with_ids(job_postings, limit=8)
 
-        # Build feedback instruction
-        feedback_instruction = ""
+        # Build feedback section (consistent with requirements prompt)
+        feedback_section = ""
         if feedback_context:
-            feedback_instruction = f"""
-IMPORTANT: This is a retry based on human feedback:
+            feedback_section = f"""
+═══════════════════════════════════════════════════════════════
+COORDINATOR FEEDBACK (Address this in your opportunity analysis)
+═══════════════════════════════════════════════════════════════
 {feedback_context}
-
-Adjust your opportunity analysis accordingly.
 """
 
-        # Build signal context for evidence-based talking points
-        signal_context = []
-        for s in signals[:10]:
-            signal_context.append(f"- [{s.signal_type}] {s.content[:200]}")
-        signal_context_text = "\n".join(signal_context) if signal_context else "No signals available"
+        prompt = f"""### ROLE
+You are an Enterprise Account Executive at {seller_name}. Your mission is to create evidence-grounded sales opportunities for {account_name}.
 
-        # Build job posting context for persona identification
-        job_context = []
-        for jp in job_postings[:5]:
-            title = jp.get("title", "")
-            techs = ", ".join(jp.get("technologies", [])[:3]) if jp.get("technologies") else ""
-            job_context.append(f"- Hiring: {title} (techs: {techs})")
-        job_context_text = "\n".join(job_context) if job_context else "No job postings"
-
-        prompt = f"""Generate sales opportunities for {account_name} ({industry}).
-
-═══════════════════════════════════════════════════════════════
-CONTEXT DATA
+### STRATEGIC ALIGNMENT
 ═══════════════════════════════════════════════════════════════
 
-IDENTIFIED REQUIREMENTS:
+**YOUR SALES OBJECTIVE:**
+{user_context if user_context else "Identify all relevant opportunities where our products can address their needs"}
+
+{seller_context}
+
+**TARGET ACCOUNT:**
+- Company: {account_name}
+- Industry: {industry}
+{feedback_section}
+═══════════════════════════════════════════════════════════════
+EVIDENCE DATA (Cite these using IDs in your talking points)
+═══════════════════════════════════════════════════════════════
+
+**IDENTIFIED REQUIREMENTS:**
 {requirements_text}
 
-MATCHING PRODUCTS (from our catalog):
+**OUR MATCHING PRODUCTS:**
 {products_text}
 
-RESEARCH SIGNALS (use these for evidence-based talking points):
-{signal_context_text}
+**JOB POSTINGS [JOB-xxx]:**
+{jobs_formatted}
 
-HIRING ACTIVITY (use to identify relevant personas):
-{job_context_text}
-{feedback_instruction}
+**INTELLIGENCE SIGNALS [SIG-xxx]:**
+{signals_formatted}
+
 ═══════════════════════════════════════════════════════════════
-OPPORTUNITY GENERATION GUIDELINES
+OPPORTUNITY GENERATION PROTOCOL
 ═══════════════════════════════════════════════════════════════
 
-For EACH relevant product match, create an opportunity with:
+For each product with GENUINE fit (relevance > 50%), create an opportunity:
 
-1. **rationale**: WHY they need this product
-   - 2-3 sentences, specific to their situation
-   - Reference specific signals or hiring patterns
-   - Connect to their industry challenges
+**1. VERIFY FIT** - Does evidence support this product need?
+   - Match product capabilities to specific requirements
+   - Skip products without clear evidence of need
 
-2. **target_persona**: WHO to talk to - BE SPECIFIC:
-   - Include job title AND likely department/team (e.g., "Director of Quality Engineering, Manufacturing Division")
-   - Indicate role type: "decision-maker" (budget authority), "influencer" (technical advocate), or "end-user"
-   - Base this on their hiring patterns and org structure signals
-   - Example: "VP of Data Engineering, Analytics Platform Team (decision-maker)"
+**2. DERIVE PERSONA** - Who's the buyer?
+   - Look at job postings: if hiring [Title], buyer is likely [+1 level above]
+   - Example: Hiring "ML Engineer" → Target "Director of ML Engineering"
+   - Include department and role type: decision-maker/influencer/end-user
 
-3. **talking_points**: 3-5 SPECIFIC points that:
-   - Reference their actual hiring patterns (e.g., "You're hiring 3 ML Engineers - our tool accelerates onboarding")
-   - Connect to signals from our research (e.g., "Your Q3 investor report mentioned automation priorities")
-   - Address their specific tech stack context (e.g., "Integrates with your existing AWS/Python workflow")
-   - Include one ROI/business case point (e.g., "Customers see 40% faster deployment cycles")
-   - AVOID generic statements - every point should be tied to evidence
+**3. BUILD CASE** - Create evidence-grounded talking points
+   - EACH talking point MUST cite a source: [JOB-xxx], [SIG-xxx], or [INDUSTRY]
+   - 3-5 points connecting their specific situation to our product value
+   - Include at least one ROI/business impact point
 
-4. **estimated_value**: Deal size estimate
-   - Format: "$50K ARR", "$100K-200K ARR"
-   - Consider company size and typical deployment scale
-
-5. **risks**: 1-3 potential blockers WITH mitigation hints
+**4. ASSESS RISK** - What could block this deal?
+   - 1-3 realistic blockers with mitigation strategies
    - Format: "Risk (mitigation: approach)"
-   - Example: "Existing competitor relationship (mitigation: offer competitive analysis and migration support)"
 
-6. **confidence**: "high" (>70%), "medium" (40-70%), or "low" (<40%)
+═══════════════════════════════════════════════════════════════
+GROUNDING RULES (CRITICAL)
+═══════════════════════════════════════════════════════════════
 
-7. **confidence_score**: Numerical score 0.0-1.0
+You are PROHIBITED from:
+- Inventing quotes not found in the provided evidence
+- Making up statistics or ROI numbers without [INDUSTRY] tag
+- Referencing documents, reports, or statements not in the evidence
+
+If you cannot find evidence for a talking point, you MUST:
+- Tag it as [INDUSTRY] and frame it as "Companies in {industry} typically..."
+- Mark confidence as "medium" or "low"
+
+═══════════════════════════════════════════════════════════════
+EXAMPLES
+═══════════════════════════════════════════════════════════════
+
+BAD (hallucinated quote - DO NOT DO THIS):
+"talking_points": ["Your CTO mentioned in a recent blog that cloud migration is a priority"]
+
+BAD (generic, no evidence):
+"talking_points": ["Our product will help you be more efficient"]
+
+GOOD (grounded in evidence):
+"talking_points": [
+    "[JOB-003] You're hiring ML Platform Engineers with Kubernetes experience - Simulink integrates natively with container orchestration",
+    "[SIG-005] Your partnership with AWS indicates cloud infrastructure investment - our Cloud Solutions deploy seamlessly to AWS",
+    "[INDUSTRY] Aerospace companies using Model-Based Design typically see 40% faster certification cycles"
+]
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════════
 
-Only include products that have a genuine fit. Quality over quantity.
+Return 2-5 opportunities. Quality over quantity. Only products with genuine fit.
 
-Return JSON:
 {{
     "opportunities": [
         {{
-            "product_name": "Product Name",
-            "rationale": "Based on their Q3 hiring of 5 ML engineers and the digital transformation initiative mentioned in their investor report, they need robust ML deployment infrastructure to scale their data science team's output.",
-            "target_persona": "Director of ML Engineering, Data Platform Team (decision-maker)",
+            "product_name": "Exact Product Name from OUR MATCHING PRODUCTS",
+            "rationale": "2-3 sentences explaining WHY they need this, referencing specific evidence",
+            "target_persona": "Title, Department/Team (decision-maker|influencer|end-user)",
             "talking_points": [
-                "Your job posting for ML Platform Engineer mentions Kubernetes - our tool has native K8s integration",
-                "Based on your investor report's AI initiative timeline, you need to scale ML deployments by Q2",
-                "Your current tech stack includes Python and AWS - we integrate seamlessly with both",
-                "Similar companies in {industry} see 60% faster model deployment with our platform"
+                "[JOB-xxx] Evidence-grounded point about their hiring/needs",
+                "[SIG-xxx] Point connecting signal to product value",
+                "[INDUSTRY] Industry benchmark or typical use case"
             ],
-            "estimated_value": "$150K ARR",
+            "estimated_value": "$XXK-$XXXK ARR",
             "risks": [
-                "May be evaluating open-source alternatives (mitigation: highlight enterprise support and SLAs)",
-                "Q1 budget cycle (mitigation: offer pilot program with deferred billing)"
+                "Risk description (mitigation: approach)"
             ],
-            "confidence": "high",
-            "confidence_score": 0.85
+            "confidence": "high|medium|low",
+            "confidence_score": 0.0-1.0
         }}
     ]
 }}"""

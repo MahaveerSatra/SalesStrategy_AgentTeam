@@ -67,6 +67,7 @@ class Settings(BaseSettings):
     
     # Data Sources
     max_search_results: int = Field(default=10, description="Max search results per query")
+    max_job_postings: int = Field(default=30, description="Max job postings to analyze per research")
 
     # Rate Limiting (for external LLM providers)
     groq_requests_per_minute: int = Field(default=30, description="Groq rate limit per minute")

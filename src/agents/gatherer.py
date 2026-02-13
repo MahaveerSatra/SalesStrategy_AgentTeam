@@ -22,6 +22,7 @@ from src.data_sources.mcp_ddg_client import DuckDuckGoMCPClient
 from src.data_sources.job_boards import JobBoardScraper
 from src.core.model_router import ModelRouter
 from src.core.exceptions import DataSourceError
+from src.config import settings
 
 logger = structlog.get_logger(__name__)
 
@@ -183,21 +184,48 @@ class GathererAgent(StatelessAgent):
         all_search_results = []
         seen_urls = set()  # Deduplicate across queries
 
+        # Track search diagnostics
+        search_success_count = 0
+        search_empty_count = 0
+        search_error_count = 0
+
         for idx, results in enumerate(search_results_list):
+            query_info = search_queries[idx] if idx < len(search_queries) else {}
             if isinstance(results, Exception):
-                query_info = search_queries[idx] if idx < len(search_queries) else {}
+                search_error_count += 1
                 self.logger.warning(
                     "search_query_failed",
                     category=query_info.get("category", "unknown"),
-                    error=str(results)
+                    query=query_info.get("query", "unknown"),
+                    error=str(results),
+                    error_type=type(results).__name__
                 )
+                state["error_messages"].append(f"Search failed ({query_info.get('category', 'unknown')}): {results}")
                 continue
             if results:
+                search_success_count += 1
                 for r in results:
                     url_str = str(r.url)
                     if url_str not in seen_urls:
                         seen_urls.add(url_str)
                         all_search_results.append(r)
+            else:
+                search_empty_count += 1
+                self.logger.warning(
+                    "search_query_empty",
+                    category=query_info.get("category", "unknown"),
+                    query=query_info.get("query", "unknown")
+                )
+
+        # Log search diagnostics summary
+        self.logger.info(
+            "search_diagnostics",
+            total_queries=len(search_queries),
+            success=search_success_count,
+            empty=search_empty_count,
+            errors=search_error_count,
+            total_results=len(all_search_results)
+        )
 
         self.logger.info("search_results_collected", total=len(all_search_results))
 
@@ -253,6 +281,16 @@ class GathererAgent(StatelessAgent):
             )
             state["error_messages"].append(f"Job posting collection failed: {job_postings}")
         elif job_postings:
+            # Cap job postings to avoid imbalanced data (too many jobs vs news)
+            original_count = len(job_postings)
+            if original_count > settings.max_job_postings:
+                job_postings = job_postings[:settings.max_job_postings]
+                self.logger.info(
+                    "job_postings_capped",
+                    original=original_count,
+                    capped_to=settings.max_job_postings
+                )
+
             # Convert JobPosting objects to dicts for state storage
             state["job_postings"] = [jp.model_dump() for jp in job_postings]
             self.logger.info("job_postings_added", count=len(job_postings))
@@ -263,7 +301,8 @@ class GathererAgent(StatelessAgent):
                     analyzed_signal = await self._analyze_job_posting_with_llm(
                         job=job.model_dump(),
                         account_name=account,
-                        seller_name=seller_name
+                        seller_name=seller_name,
+                        user_context=user_context
                     )
                     state["signals"].append(analyzed_signal)
                 except Exception as e:
@@ -292,20 +331,48 @@ class GathererAgent(StatelessAgent):
         all_news_items = []
         seen_news_urls = set()
 
+        # Track news diagnostics
+        news_success_count = 0
+        news_empty_count = 0
+        news_error_count = 0
+
         for idx, news_results in enumerate(news_results_list):
+            query = news_queries[idx] if idx < len(news_queries) else "unknown"
             if isinstance(news_results, Exception):
+                news_error_count += 1
                 self.logger.warning(
                     "news_query_failed",
                     query_idx=idx,
-                    error=str(news_results)
+                    query=query,
+                    error=str(news_results),
+                    error_type=type(news_results).__name__
                 )
+                state["error_messages"].append(f"News search failed: {news_results}")
                 continue
             if news_results:
+                news_success_count += 1
                 for news in news_results:
                     url_str = str(news.url) if news.url else news.title
                     if url_str not in seen_news_urls:
                         seen_news_urls.add(url_str)
                         all_news_items.append(news)
+            else:
+                news_empty_count += 1
+                self.logger.warning(
+                    "news_query_empty",
+                    query_idx=idx,
+                    query=query
+                )
+
+        # Log news diagnostics summary
+        self.logger.info(
+            "news_diagnostics",
+            total_queries=len(news_queries),
+            success=news_success_count,
+            empty=news_empty_count,
+            errors=news_error_count,
+            total_results=len(all_news_items)
+        )
 
         if all_news_items:
             # Convert NewsItem objects to dicts for state storage
@@ -907,7 +974,8 @@ Return JSON:
         self,
         job: dict,
         account_name: str,
-        seller_name: str
+        seller_name: str,
+        user_context: str = ""
     ) -> Signal:
         """
         Use LLM to analyze job posting for sales intelligence.
@@ -923,6 +991,7 @@ Return JSON:
             job: Job posting dict
             account_name: Company being researched
             seller_name: Seller company
+            user_context: User's sales context/objectives
 
         Returns:
             Signal object with job analysis metadata
@@ -933,8 +1002,20 @@ Return JSON:
         job_skills = job.get("required_skills", [])
         job_technologies = job.get("technologies", [])
 
-        prompt = f"""Analyze this job posting from {account_name} for sales intelligence relevant to {seller_name or "our products"}.
+        # Build context-aware prompt section
+        context_section = ""
+        if user_context:
+            context_section = f"""
+═══════════════════════════════════════════════════════════════
+USER'S SALES CONTEXT (IMPORTANT - prioritize signals related to this)
+═══════════════════════════════════════════════════════════════
+{user_context}
 
+PRIORITIZE: Focus your analysis on how this job relates to the user's stated objectives above.
+"""
+
+        prompt = f"""Analyze this job posting from {account_name} for sales intelligence relevant to {seller_name or "our products"}.
+{context_section}
 ═══════════════════════════════════════════════════════════════
 JOB POSTING
 ═══════════════════════════════════════════════════════════════
@@ -952,10 +1033,12 @@ EXTRACT SALES INTELLIGENCE
    - What does this hiring indicate about company priorities?
    - Is this a new team/initiative or backfill?
    - Seniority level (entry/mid/senior/leadership)
+   {"- Does this role align with user's stated focus area?" if user_context else ""}
 
 2. **TECHNOLOGY SIGNALS**
    - What technologies are required vs preferred?
    - Any tools they want to adopt vs already use?
+   {"- Are these technologies related to user's objectives (e.g., simulation, modeling, controls)?" if user_context else ""}
 
 3. **URGENCY INDICATORS**
    - "Immediate start", "ASAP", "urgent" = high
@@ -969,6 +1052,7 @@ EXTRACT SALES INTELLIGENCE
 5. **{seller_name or "SELLER"} RELEVANCE**
    - Could {seller_name or "our"} products help this role/team?
    - Is this role a potential champion/user?
+   {"- How well does this role match the user's target audience?" if user_context else ""}
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT
@@ -977,7 +1061,7 @@ OUTPUT FORMAT
 Return JSON:
 {{
     "confidence": 0.85,
-    "summary": "What this hiring tells us about sales opportunity",
+    "summary": "What this hiring tells us about sales opportunity{" - especially related to user's context" if user_context else ""}",
     "technologies_required": ["tech1", "tech2"],
     "technologies_desired": ["tech3"],
     "urgency": "high|medium|low",
@@ -985,7 +1069,7 @@ Return JSON:
     "team_indicators": "Team size/growth info if mentioned",
     "seller_relevance": "high|medium|low",
     "potential_champion": true,
-    "sales_insight": "How {seller_name or "we"} could help this role/team"
+    "sales_insight": "How {seller_name or "we"} could help this role/team{" based on user's objectives" if user_context else ""}"
 }}"""
 
         try:

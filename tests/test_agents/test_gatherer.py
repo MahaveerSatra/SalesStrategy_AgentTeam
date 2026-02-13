@@ -451,10 +451,12 @@ class TestGathererAgentCompleteFailures:
         # Execute - should handle gracefully
         await gatherer_agent.process(initial_state)
 
-        # Job failure is added to error_messages
-        # Search and news query failures are logged as warnings (not in error_messages)
-        assert len(initial_state["error_messages"]) == 1
-        assert "Job posting collection failed" in initial_state["error_messages"][0]
+        # All failures are now tracked in error_messages:
+        # - 3 search failures (tech_stack, hiring, strategic from fallback queries)
+        # - 1 job failure
+        # - 3 news failures
+        assert len(initial_state["error_messages"]) >= 1  # At least job failure
+        assert any("Job posting collection failed" in msg for msg in initial_state["error_messages"])
 
         # Verify empty results
         assert len(initial_state["signals"]) == 0

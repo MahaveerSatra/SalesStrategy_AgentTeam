@@ -1,7 +1,7 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-02-10
-**Status**: Phase 5 IN PROGRESS - Prompt Quality Improvements
+**Last Updated**: 2026-02-13
+**Status**: Phase 5 IN PROGRESS - Prompt Quality Improvements (Identifier DONE, Validator NEXT)
 **Test Status**: ✅ 454 tests passing | 0 skipped
 
 ---
@@ -16,14 +16,82 @@
 | **Phase** | Phase 5 IN PROGRESS - Prompt Quality Improvements |
 | **Tests** | 454 passing, 0 skipped |
 | **System** | Fully functional, MCP web search WORKING |
-| **Last Test** | Boeing demo (2026-02-10) - identified prompt quality issues |
+| **Identifier Agent** | ✅ COMPLETED - Both prompts improved with evidence grounding |
+| **Validator Agent** | 🔜 NEXT - Apply same techniques |
+| **Last Work** | Improved `_extract_requirements` and `_generate_opportunities` prompts |
 
 ### What's Next (Priority Order)
-1. **Cap Job Postings** - Add `max_job_postings=30` to config (54 jobs vs 0 news is imbalanced)
-2. **Improve Gatherer Prompt** - Pass `user_context` to job analysis for context-aware signals
-3. **Improve Identifier Prompts** - Context-aware requirements extraction and opportunity generation
-4. **Improve Validator Prompts** - Context-aware risk assessment, scoring, and talking points
-5. **Re-run Boeing Demo** - Verify improvements
+1. ~~**Cap Job Postings**~~ ✅ DONE - Added `max_job_postings=30` to config.py
+2. ~~**Improve Gatherer Prompt**~~ ✅ DONE - Added diagnostic logging for empty results
+3. ~~**Improve Identifier Prompts**~~ ✅ DONE - Both `_extract_requirements` and `_generate_opportunities`
+4. **Improve Validator Prompts** 🔜 NEXT - Apply same techniques to:
+   - `_assess_risks()` - Context-aware risk assessment
+   - `_score_opportunities()` - Re-score with user context alignment
+   - `_enhance_talking_points()` - Evidence-grounded objection handling
+5. **Re-run Boeing Demo** - Verify all improvements end-to-end
+
+### Identifier Agent Improvements (COMPLETED 2026-02-13)
+
+Applied these prompt engineering techniques to `_extract_requirements` and `_generate_opportunities`:
+
+| Technique | Implementation |
+|-----------|----------------|
+| **Role-Based Framing** | "Senior Solutions Architect at {seller_name}" / "Enterprise Account Executive" |
+| **Strategic Alignment** | WHO (seller), WHAT (products), TARGET (user_context) at top of prompt |
+| **Evidence Grounding** | "You are PROHIBITED from inventing quotes not in evidence" |
+| **Source Anchoring** | Each talking point MUST cite `[JOB-xxx]`, `[SIG-xxx]`, or `[INDUSTRY]` |
+| **Chain-of-Verification** | QUOTE → INTERPRET → VERIFY RELEVANCE → VERIFY PRIORITY |
+| **Negative Examples** | Shows hallucinated quote vs grounded point |
+| **Consistent Feedback** | Uses "COORDINATOR FEEDBACK" section when retrying |
+
+**New Helper Methods Added to `identifier.py`:**
+| Method | Purpose |
+|--------|---------|
+| `_get_product_categories()` | Get unique categories from ChromaDB |
+| `_format_signals_with_ids()` | Format signals as `[SIG-001]`, `[SIG-002]`, etc. |
+| `_format_jobs_with_ids()` | Format jobs as `[JOB-001]`, `[JOB-002]`, etc. |
+| `_get_product_details()` | Pull full product info from ChromaDB with `[PROD-xx]` IDs |
+| `_get_seller_context()` | Return seller company context (MathWorks-specific or generic) |
+
+**Key Prompt Structure (Apply Same to Validator):**
+```
+### ROLE
+{Role at seller_name}
+
+### STRATEGIC ALIGNMENT
+- YOUR SALES OBJECTIVE: {user_context}
+- SELLER: {seller_context}
+- TARGET ACCOUNT: {account_name}
+
+### EVIDENCE DATA (Cite using IDs)
+- JOB POSTINGS [JOB-xxx]: ...
+- SIGNALS [SIG-xxx]: ...
+
+### GROUNDING RULES (CRITICAL)
+You are PROHIBITED from...
+
+### EXAMPLES
+BAD (hallucinated): ...
+GOOD (grounded): ...
+
+### OUTPUT FORMAT
+{JSON schema}
+```
+
+### Validator Agent - TODO (Apply Same Techniques)
+
+Apply the same patterns to these methods in `validator.py`:
+
+| Method | Current Issue | Improvement Needed |
+|--------|---------------|-------------------|
+| `_assess_risks()` | Generic risks | Add seller context, use `[SIG-xxx]` citations |
+| `_score_opportunities()` | Ignores user_context | Score alignment with user's sales objective |
+| `_enhance_talking_points()` | Can hallucinate | Force `[JOB-xxx]`/`[SIG-xxx]`/`[INDUSTRY]` citations |
+
+**Validator Line Numbers:**
+- `_assess_risks()` - line ~202
+- `_score_opportunities()` - line ~310
+- `_enhance_talking_points()` - line ~457
 
 ### Boeing Demo Results (2026-02-10)
 Ran: `python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --context "Focus: Commercial aircraft division. Sales Objective: Expand MathWorks usage in simulation and modeling team for fluid simulation and controls."`
@@ -46,23 +114,24 @@ The prompts in Gatherer, Identifier, and Validator agents don't receive or use t
 2. **Identifier** (`_extract_requirements`, `_generate_opportunities`): Doesn't prioritize requirements matching user's stated objectives
 3. **Validator** (`_assess_risks`, `_score_opportunities`, `_enhance_talking_points`): Doesn't filter/score based on context alignment
 
-### Files to Modify
-| File | Changes Needed |
-|------|----------------|
-| `src/config.py` | Add `max_job_postings: int = 30` |
-| `src/agents/gatherer.py` | Cap job postings, pass `user_context` to job analysis prompt |
-| `src/agents/identifier.py` | Add user_context to requirements & opportunity prompts |
-| `src/agents/validator.py` | Add user_context to risk, scoring & talking points prompts |
+### Files Modified / To Modify
+| File | Status | Changes |
+|------|--------|---------|
+| `src/config.py` | ✅ DONE | Added `max_job_postings: int = 30` |
+| `src/agents/gatherer.py` | ✅ DONE | Cap job postings at 30, diagnostic logging for empty results |
+| `src/agents/identifier.py` | ✅ DONE | Full prompt overhaul with evidence grounding, 5 new helper methods |
+| `src/agents/validator.py` | 🔜 TODO | Apply same techniques to risk, scoring & talking points prompts |
+| `src/cli/formatters.py` | ✅ DONE | Added "Data Collection Issues" section in CLI output |
 
 ### Key Prompt Locations
-| Agent | Method | Line | Purpose |
-|-------|--------|------|---------|
-| Gatherer | `_analyze_job_posting_with_llm()` | ~936 | Analyzes each job posting |
-| Identifier | `_extract_requirements()` | ~199 | Extracts needs from signals/jobs |
-| Identifier | `_generate_opportunities()` | ~313 | Matches products to requirements |
-| Validator | `_assess_risks()` | ~202 | Identifies competitive/budget/tech risks |
-| Validator | `_score_opportunities()` | ~310 | Re-scores opportunities with risk context |
-| Validator | `_enhance_talking_points()` | ~457 | Adds objection handling points |
+| Agent | Method | Line | Status | Purpose |
+|-------|--------|------|--------|---------|
+| Gatherer | `_analyze_job_posting_with_llm()` | ~936 | ⏸️ Deferred | Analyzes each job posting |
+| Identifier | `_extract_requirements()` | ~294 | ✅ DONE | Extracts needs with CoVe, evidence grounding |
+| Identifier | `_generate_opportunities()` | ~479 | ✅ DONE | Evidence-grounded opportunity generation |
+| Validator | `_assess_risks()` | ~202 | 🔜 TODO | Needs seller context, source citations |
+| Validator | `_score_opportunities()` | ~310 | 🔜 TODO | Needs user_context alignment scoring |
+| Validator | `_enhance_talking_points()` | ~457 | 🔜 TODO | Needs evidence grounding rules |
 
 ### Implementation Principle
 **DO NOT hardcode seller-specific values** (e.g., "Simscape Fluids for fluid simulation"). The system must work for ANY seller. Instead:
