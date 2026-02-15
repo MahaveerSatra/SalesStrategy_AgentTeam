@@ -1,7 +1,7 @@
 # Enterprise Account Research System - Codebase Architecture
 
 **Last Updated**: 2026-02-14
-**Status**: Phase 5 COMPLETE - Prompt Quality Improvements (Identifier + Validator DONE)
+**Status**: Phase 5 COMPLETE + VERIFIED - Boeing Demo Successful (3 opportunities, 7 risks)
 **Test Status**: ✅ 454 tests passing | 0 skipped
 
 ---
@@ -31,15 +31,70 @@ An AI-powered sales intelligence system that researches target accounts and iden
 
 **READ THIS FIRST** when restoring context after clearing chat.
 
+### Latest Session Summary (2026-02-14)
+
+**What Was Done This Session:**
+1. Ran Boeing demo → discovered JSON parsing failure (LLM returned markdown instead of JSON)
+2. Fixed OUTPUT FORMAT sections in `identifier.py` (2 prompts) and `validator.py` (3 prompts)
+3. Added explicit "JSON ONLY" enforcement: `**RESPOND WITH VALID JSON ONLY. NO markdown...**`
+4. Re-ran Boeing demo → SUCCESS: 10 requirements, 3 opportunities, 7 risks
+5. **Simscape Fluids** (85% confidence) now recommended - matches user's "fluid simulation" objective!
+
+**Files Changed This Session:**
+| File | Change | Lines |
+|------|--------|-------|
+| `src/agents/identifier.py` | Added JSON-only enforcement to `_extract_requirements` | ~415-432 |
+| `src/agents/identifier.py` | Added JSON-only enforcement to `_generate_opportunities` | ~622-649 |
+| `src/agents/validator.py` | Added JSON-only enforcement to `_assess_risks` | ~380-398 |
+| `src/agents/validator.py` | Added JSON-only enforcement to `_score_opportunities` | ~551-568 |
+| `src/agents/validator.py` | Added JSON-only enforcement to `_enhance_talking_points` | ~777-794 |
+
+**The Fix (copy this pattern for future prompts):**
+```
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT (CRITICAL - JSON ONLY)
+═══════════════════════════════════════════════════════════════
+
+**RESPOND WITH VALID JSON ONLY. NO markdown, NO explanatory text, NO code fences.**
+
+Your ENTIRE response must be this exact JSON structure:
+{...json schema...}
+
+**IMPORTANT: Start your response with { and end with }. Nothing else.**
+```
+
 ### Current Status
 | Item | Status |
 |------|--------|
-| **Phase** | Phase 5 COMPLETE - Prompt Quality Improvements |
+| **Phase** | Phase 5 COMPLETE + VERIFIED |
 | **Tests** | 454 passing, 0 skipped |
 | **System** | Fully functional, MCP web search WORKING |
-| **Identifier Agent** | ✅ COMPLETED - Both prompts improved with evidence grounding |
+| **Identifier Agent** | ✅ COMPLETED - JSON parsing fix applied (2026-02-14) |
 | **Validator Agent** | ✅ COMPLETED - All 3 prompts improved with evidence grounding |
-| **Last Work** | Improved `_assess_risks`, `_score_opportunities`, `_enhance_talking_points` prompts |
+| **Boeing Demo** | ✅ VERIFIED - 10 requirements, 3 opportunities, 7 risks |
+| **Last Work** | Fixed JSON parsing in Identifier/Validator prompts, verified with Boeing demo |
+
+### Demo Command (Use This to Verify System)
+```powershell
+# Activate venv first
+.\venv\Scripts\Activate.ps1
+
+# Run Boeing demo with full context
+python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --output reports --context "Focus: Commercial aircraft division. Sales Objective: Expand MathWorks usage in simulation and modeling team for fluid simulation and controls."
+
+# Expected output:
+# - Requirements extracted: 10 (4 high priority)
+# - Opportunities: 3 (Embedded Coder 85%, Simscape Fluids 85%, Simulink 65%)
+# - Risks: 7 with proper [SIG-xxx], [OPP-xxx], [INDUSTRY] citations
+```
+
+### Known Issues
+1. **Rate Limit**: Coordinator hits Groq 8B rate limit for large contexts (34k tokens). Workarounds:
+   - Use larger model (groq/llama-3.3-70b-versatile)
+   - Truncate opportunity context before final report
+   - Add retry logic with exponential backoff
+2. **News Search**: DuckDuckGo MCP returns 0 news items (intermittent issue)
+3. **ARR Estimation**: Not yet implemented in structured output
 
 ### What's Next (Priority Order)
 1. ~~**Cap Job Postings**~~ ✅ DONE - Added `max_job_postings=30` to config.py
@@ -49,7 +104,8 @@ An AI-powered sales intelligence system that researches target accounts and iden
    - `_assess_risks()` - Evidence-grounded with [SIG-xxx], [OPP-xxx] citations
    - `_score_opportunities()` - User objective alignment scoring (+/-0.15)
    - `_enhance_talking_points()` - Grounding rules with [SIG-xxx], [RISK-xxx], [INDUSTRY] tags
-5. **Re-run Boeing Demo** 🔜 NEXT - Verify all improvements end-to-end
+5. ~~**Re-run Boeing Demo**~~ ✅ VERIFIED - 2026-02-14 results below
+6. **Phase 6** 🔜 NEXT - Consider: ARR estimation, rate limit handling, larger model support
 
 ### Identifier Agent Improvements (COMPLETED 2026-02-13)
 
@@ -183,6 +239,34 @@ Ran: `python -m src.cli research "Boeing" --industry aerospace --seller "MathWor
 | Discovery questions | Generic ("What's driving hiring?") | ❌ Should ask about simulation workflows |
 | Evidence | "sales intelligence expert" | ❌ Hallucinated - not in actual job postings |
 
+### Boeing Demo Results (2026-02-14) - AFTER Improvements ✅ VERIFIED
+
+**JSON parsing fix applied**: Added explicit "JSON ONLY" instructions to all OUTPUT FORMAT sections.
+
+| Metric | Before (2026-02-10) | After (2026-02-14) | Status |
+|--------|---------------------|-------------------|--------|
+| Requirements extracted | 0 (JSON parse failed) | **10** (4 high priority) | ✅ FIXED |
+| Opportunities identified | 0 | **3** | ✅ FIXED |
+| Risks assessed | 0 | **7** | ✅ FIXED |
+| Job postings capped | 54 | 30 | ✅ WORKING |
+| Products recommended | Simulink Design Verifier ❌ | **Simscape Fluids, Embedded Coder, Simulink** ✅ | ✅ ALIGNED |
+| Evidence citations | Hallucinated | **[SIG-xxx], [OPP-xxx], [INDUSTRY]** | ✅ GROUNDED |
+
+**Opportunities Found:**
+1. **Embedded Coder** (85% confidence) - Embedded systems code generation
+2. **Simscape Fluids** (85% confidence) - Fluid dynamics simulation ✅ Matches user objective!
+3. **Simulink** (65% confidence) - Dynamic system simulation
+
+**Key Fix Applied (2026-02-14):**
+Added explicit JSON enforcement to all prompts in `identifier.py` and `validator.py`:
+```
+**RESPOND WITH VALID JSON ONLY. NO markdown, NO explanatory text, NO code fences.**
+...
+**IMPORTANT: Start your response with { and end with }. Nothing else.**
+```
+
+**Minor Issue:** Rate limit hit during final report generation (34k tokens exceeded Groq 8B limit). Consider using larger model or truncating context for coordinator.
+
 ### Root Cause Analysis
 The prompts in Gatherer, Identifier, and Validator agents don't receive or use the **user_context** properly:
 
@@ -253,6 +337,64 @@ python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --
 | Job postings analyzed | 54 | 30 (capped) |
 | Risk citations | Generic | [SIG-xxx], [OPP-xxx], [INDUSTRY] tags |
 | Talking points | May hallucinate | [SIG-xxx], [RISK-xxx] citations required |
+
+---
+
+## Phase 6: Potential Improvements (NOT STARTED)
+
+These are potential next steps to consider. **Do not start without user approval.**
+
+### Priority 1: Rate Limit Handling
+**Problem**: Coordinator hits Groq 8B rate limit for large contexts (34k tokens).
+**Options**:
+1. Use larger model for coordinator (groq/llama-3.3-70b-versatile)
+2. Truncate opportunity context before final report generation
+3. Add retry logic with exponential backoff and model fallback
+4. Split coordinator report generation into smaller chunks
+
+**Files to modify**: `src/agents/coordinator.py`, `src/core/model_router.py`
+
+### Priority 2: ARR Estimation
+**Problem**: ARR estimates not consistently included in opportunity output.
+**Options**:
+1. Add ARR estimation to Pydantic schema with validation
+2. Add industry benchmarks for ARR ranges (aerospace: $100K-500K, etc.)
+3. Calculate based on product bundle size + team size signals
+
+**Files to modify**: `src/agents/identifier.py`, `src/models/llm_schemas.py`
+
+### Priority 3: News Search Reliability
+**Problem**: DuckDuckGo MCP returns 0 news items intermittently.
+**Options**:
+1. Add retry logic for news queries
+2. Add alternative news sources (Google News API, NewsAPI)
+3. Cache successful news results
+
+**Files to modify**: `src/data_sources/mcp_ddg_client.py`, `src/agents/gatherer.py`
+
+### Priority 4: Gatherer Prompt Improvement
+**Status**: Deferred from Phase 5
+**Problem**: `_analyze_job_posting_with_llm()` doesn't use user_context.
+**Files to modify**: `src/agents/gatherer.py` (line ~936)
+
+---
+
+### Generated Reports (2026-02-14)
+
+**Location**: `reports/` directory
+
+| File | Content |
+|------|---------|
+| `research_Boeing_20260214_215858_report.md` | Latest successful demo - 3 opportunities, 7 risks |
+| `research_Boeing_20260214_215858_data.json` | Structured JSON with full data |
+| `research_Boeing_20260214_205614_report.md` | Failed demo (JSON parsing issue) |
+| `research_Boeing_20260214_205614_data.json` | Shows 0 opportunities (before fix) |
+
+**Thread IDs for resume**:
+- `research_Boeing_20260214_215858` - Latest successful run
+- `research_Boeing_20260214_205614` - Failed run (before JSON fix)
+
+Resume command: `python -m src.cli resume research_Boeing_20260214_215858`
 
 ---
 

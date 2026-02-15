@@ -377,18 +377,23 @@ EXAMPLES
 "[INDUSTRY] Aerospace companies typically have 12-18 month procurement cycles - timing may extend sales cycle"
 
 ═══════════════════════════════════════════════════════════════
-OUTPUT FORMAT
+OUTPUT FORMAT (CRITICAL - JSON ONLY)
 ═══════════════════════════════════════════════════════════════
+
+**RESPOND WITH VALID JSON ONLY. NO markdown, NO explanatory text, NO code fences.**
 
 Return 3-7 evidence-grounded risks. Quality over quantity.
 
+Your ENTIRE response must be this exact JSON structure:
 {{
     "risks": [
         "[SIG-xxx] Risk description with specific evidence citation",
         "[OPP-xxx] Risk affecting specific opportunity with evidence",
         "[INDUSTRY] Industry-level risk (only if no direct evidence)"
     ]
-}}"""
+}}
+
+**IMPORTANT: Start your response with {{ and end with }}. Nothing else.**"""
 
         try:
             response = await self.model_router.generate(
@@ -543,11 +548,14 @@ Final score interpretation:
 - 0.0-0.4: Deprioritize - weak evidence, high risks, or misaligned
 
 ═══════════════════════════════════════════════════════════════
-OUTPUT FORMAT
+OUTPUT FORMAT (CRITICAL - JSON ONLY)
 ═══════════════════════════════════════════════════════════════
 
-Return scores with rationale explaining the adjustment factors applied:
+**RESPOND WITH VALID JSON ONLY. NO markdown, NO explanatory text, NO code fences.**
 
+Return scores with rationale explaining the adjustment factors applied.
+
+Your ENTIRE response must be this exact JSON structure:
 {{
     "scored_opportunities": [
         {{
@@ -556,7 +564,9 @@ Return scores with rationale explaining the adjustment factors applied:
             "score_rationale": "Evidence quality: +0.1 (3 job posting citations). Risk impact: -0.1 ([RISK-002] budget concerns). User objective alignment: +0.15 (directly matches simulation focus). Final: 0.75"
         }}
     ]
-}}"""
+}}
+
+**IMPORTANT: Start your response with {{ and end with }}. Nothing else.**"""
 
         try:
             response = await self.model_router.generate(
@@ -764,10 +774,12 @@ EXAMPLES
 "[INDUSTRY] Aerospace companies using Model-Based Design typically reduce certification time by 30-40%"
 
 ═══════════════════════════════════════════════════════════════
-OUTPUT FORMAT
+OUTPUT FORMAT (CRITICAL - JSON ONLY)
 ═══════════════════════════════════════════════════════════════
 
-Return JSON with citation-tagged talking points:
+**RESPOND WITH VALID JSON ONLY. NO markdown, NO explanatory text, NO code fences.**
+
+Your ENTIRE response must be this exact JSON structure:
 {{
     "enhanced_opportunities": [
         {{
@@ -779,7 +791,9 @@ Return JSON with citation-tagged talking points:
             ]
         }}
     ]
-}}"""
+}}
+
+**IMPORTANT: Start your response with {{ and end with }}. Nothing else.**"""
 
         try:
             response = await self.model_router.generate(

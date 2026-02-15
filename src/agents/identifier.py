@@ -413,11 +413,14 @@ EXAMPLES
 }}
 
 ═══════════════════════════════════════════════════════════════
-OUTPUT FORMAT
+OUTPUT FORMAT (CRITICAL - JSON ONLY)
 ═══════════════════════════════════════════════════════════════
+
+**RESPOND WITH VALID JSON ONLY. NO markdown, NO explanatory text, NO code fences.**
 
 Return 5-15 requirements. Put HIGH priority (aligned with user objective) FIRST.
 
+Your ENTIRE response must be this exact JSON structure:
 {{
   "requirements": [
     {{
@@ -427,7 +430,9 @@ Return 5-15 requirements. Put HIGH priority (aligned with user objective) FIRST.
       "priority": "high|medium|low"
     }}
   ]
-}}"""
+}}
+
+**IMPORTANT: Start your response with {{ and end with }}. Nothing else.**"""
 
         try:
             response = await self.model_router.generate(
@@ -614,11 +619,14 @@ GOOD (grounded in evidence):
 ]
 
 ═══════════════════════════════════════════════════════════════
-OUTPUT FORMAT
+OUTPUT FORMAT (CRITICAL - JSON ONLY)
 ═══════════════════════════════════════════════════════════════
+
+**RESPOND WITH VALID JSON ONLY. NO markdown, NO explanatory text, NO code fences.**
 
 Return 2-5 opportunities. Quality over quantity. Only products with genuine fit.
 
+Your ENTIRE response must be this exact JSON structure:
 {{
     "opportunities": [
         {{
@@ -638,7 +646,9 @@ Return 2-5 opportunities. Quality over quantity. Only products with genuine fit.
             "confidence_score": 0.0-1.0
         }}
     ]
-}}"""
+}}
+
+**IMPORTANT: Start your response with {{ and end with }}. Nothing else.**"""
 
         try:
             response = await self.model_router.generate(
