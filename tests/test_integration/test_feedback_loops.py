@@ -407,7 +407,7 @@ class TestFeedbackRouteToValidator:
         # Check that feedback context was in risk assessment prompt
         risk_call = mock_model_router.generate.call_args_list[0]
         prompt = risk_call.kwargs.get("prompt", "")
-        assert "competitor X" in prompt.lower() or "IMPORTANT: This is a retry" in prompt
+        assert "competitor X" in prompt.lower() or "COORDINATOR FEEDBACK" in prompt
 
 
 class TestFeedbackRouteToComplete:

@@ -1,6 +1,6 @@
 # Enterprise Account Research: Test Company
 
-**Generated**: 2026-02-10 09:05:12
+**Generated**: 2026-02-14 20:38:59
 **Industry**: automotive
 **Region**: North America
 **Research Depth**: deep
@@ -88,7 +88,7 @@ Technologies identified from job postings and signals:
 - Job postings analyzed: 2
 - News articles reviewed: 1
 - Total signals collected: 3
-- ⚠️ No web search results - MCP search may have failed
+- WARNING: No web search results - MCP search may have failed
 
 ---
 

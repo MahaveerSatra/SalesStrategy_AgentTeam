@@ -293,7 +293,7 @@ class TestRiskAssessment:
         call_args = mock_model_router.generate.call_args
         prompt = call_args.kwargs["prompt"]
         assert "AWS partnership" in prompt
-        assert "IMPORTANT: This is a retry" in prompt
+        assert "COORDINATOR FEEDBACK" in prompt
 
     @pytest.mark.asyncio
     async def test_assess_risks_json_parse_failure_fallback(
@@ -642,7 +642,7 @@ class TestOpportunityScoring:
         prompt = mock_model_router.generate.call_args.kwargs["prompt"]
         assert "conservative" in prompt.lower()
         assert "market uncertainty" in prompt.lower()
-        assert "IMPORTANT: This is a retry" in prompt
+        assert "COORDINATOR FEEDBACK" in prompt
 
     @pytest.mark.asyncio
     async def test_score_opportunities_no_caching(

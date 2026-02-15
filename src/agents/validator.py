@@ -53,6 +53,92 @@ class ValidatorAgent(StatelessAgent):
         super().__init__(name="validator")
         self.model_router = model_router
 
+    def _format_signals_with_ids(self, signals: list[Signal], limit: int = 15) -> str:
+        """
+        Format signals with [SIG-xxx] IDs for citation tracking.
+
+        Args:
+            signals: List of Signal objects
+            limit: Max signals to include
+
+        Returns:
+            Formatted string with numbered signals
+        """
+        if not signals:
+            return "No signals available"
+
+        formatted = []
+        for i, sig in enumerate(signals[:limit], 1):
+            content = sig.content[:300] if isinstance(sig.content, str) else str(sig.content)[:300]
+            formatted.append(f"[SIG-{i:03d}] ({sig.signal_type}) {content}")
+
+        return "\n".join(formatted)
+
+    def _format_opportunities_with_ids(self, opportunities: list[Opportunity], limit: int = 10) -> str:
+        """
+        Format opportunities with [OPP-xxx] IDs for citation tracking.
+
+        Args:
+            opportunities: List of Opportunity objects
+            limit: Max opportunities to include
+
+        Returns:
+            Formatted string with numbered opportunities
+        """
+        if not opportunities:
+            return "No opportunities identified"
+
+        formatted = []
+        for i, opp in enumerate(opportunities[:limit], 1):
+            rationale_short = opp.rationale[:200] if opp.rationale else "No rationale"
+            formatted.append(
+                f"[OPP-{i:03d}] {opp.product_name}\n"
+                f"    Rationale: {rationale_short}\n"
+                f"    Confidence: {opp.confidence.value} ({opp.confidence_score:.2f})\n"
+                f"    Persona: {opp.target_persona or 'Unknown'}"
+            )
+
+        return "\n\n".join(formatted)
+
+    def _format_risks_with_ids(self, risks: list[str], limit: int = 10) -> str:
+        """
+        Format risks with [RISK-xxx] IDs for citation in talking points.
+
+        Args:
+            risks: List of risk strings
+            limit: Max risks to include
+
+        Returns:
+            Formatted string with numbered risks
+        """
+        if not risks:
+            return "No significant risks identified"
+
+        formatted = []
+        for i, risk in enumerate(risks[:limit], 1):
+            formatted.append(f"[RISK-{i:03d}] {risk}")
+
+        return "\n".join(formatted)
+
+    def _get_seller_context(self, seller_name: str) -> str:
+        """
+        Get seller company context for risk/opportunity framing.
+
+        Args:
+            seller_name: Name of the seller company
+
+        Returns:
+            Formatted string with seller context
+        """
+        if seller_name.lower() == "mathworks":
+            return f"""**SELLER: {seller_name}**
+MathWorks develops mathematical computing software for engineers and scientists.
+Core products: MATLAB, Simulink, and domain-specific toolboxes.
+Key domains: Simulation, AI/ML, Embedded Systems, Test & Verification."""
+        else:
+            return f"""**SELLER: {seller_name}**
+Enterprise software/solutions provider."""
+
     async def process(self, state: ResearchState) -> None:
         """
         Validate opportunities and assess competitive risks.
@@ -72,6 +158,8 @@ class ValidatorAgent(StatelessAgent):
         opportunities = state.get("opportunities", [])
         signals = state.get("signals", [])
         feedback_context = state.get("feedback_context")
+        user_context = state.get("user_context", "")
+        seller_name = state.get("seller_name", "Our Company")
 
         self.logger.info(
             "validator_started",
@@ -95,7 +183,9 @@ class ValidatorAgent(StatelessAgent):
             industry=industry,
             signals=signals,
             opportunities=opportunities,
-            feedback_context=feedback_context
+            feedback_context=feedback_context,
+            user_context=user_context,
+            seller_name=seller_name
         )
 
         self.logger.info("risks_assessed", count=len(risks))
@@ -105,7 +195,9 @@ class ValidatorAgent(StatelessAgent):
             opportunities=opportunities,
             risks=risks,
             state=state,
-            feedback_context=feedback_context
+            feedback_context=feedback_context,
+            user_context=user_context,
+            seller_name=seller_name
         )
 
         self.logger.info("opportunities_scored", count=len(scored_opportunities))
@@ -116,7 +208,9 @@ class ValidatorAgent(StatelessAgent):
             risks=risks,
             signals=signals,
             account_name=account,
-            industry=industry
+            industry=industry,
+            user_context=user_context,
+            seller_name=seller_name
         )
 
         self.logger.info("talking_points_enhanced", count=len(enhanced_opportunities))
@@ -154,12 +248,14 @@ class ValidatorAgent(StatelessAgent):
         industry: str,
         signals: list[Signal],
         opportunities: list[Opportunity],
-        feedback_context: str | None = None
+        feedback_context: str | None = None,
+        user_context: str = "",
+        seller_name: str = "Our Company"
     ) -> list[str]:
         """
-        Assess competitive and market risks using LLM.
+        Assess competitive and market risks using LLM with evidence grounding.
 
-        Analyzes signals and opportunities to identify:
+        Uses role-based framing and source citations to identify:
         - Competitor mentions and existing relationships
         - Budget constraints and timing issues
         - Technical blockers or integration challenges
@@ -171,60 +267,126 @@ class ValidatorAgent(StatelessAgent):
             signals: Research signals from gatherer
             opportunities: Identified opportunities
             feedback_context: Optional feedback for retry
+            user_context: User's sales context/objectives
+            seller_name: Seller company name
 
         Returns:
-            List of risk description strings
+            List of risk description strings with source citations
         """
-        # Build signal context (focus on potentially risky signals)
-        signal_summaries = []
-        for signal in signals[:20]:
-            content = signal.content[:400] if isinstance(signal.content, str) else str(signal.content)[:400]
-            signal_summaries.append(f"- [{signal.signal_type}] {content}")
+        # Format signals and opportunities with IDs for citation
+        signals_formatted = self._format_signals_with_ids(signals, limit=20)
+        opportunities_formatted = self._format_opportunities_with_ids(opportunities, limit=10)
+        seller_context = self._get_seller_context(seller_name)
 
-        # Build opportunity context
-        opportunity_summaries = []
-        for opp in opportunities[:10]:
-            opportunity_summaries.append(
-                f"- {opp.product_name}: {opp.rationale[:200]}... "
-                f"(Confidence: {opp.confidence.value}, Score: {opp.confidence_score:.2f})"
-            )
-
-        # Build feedback instruction if retrying
-        feedback_instruction = ""
+        # Build feedback section if retrying
+        feedback_section = ""
         if feedback_context:
-            feedback_instruction = f"""
-IMPORTANT: This is a retry based on human feedback:
+            feedback_section = f"""
+═══════════════════════════════════════════════════════════════
+COORDINATOR FEEDBACK (Address this in your risk analysis)
+═══════════════════════════════════════════════════════════════
 {feedback_context}
-
-Adjust your risk analysis to address this feedback specifically.
 """
 
-        prompt = f"""Analyze risks for sales opportunities at {account_name} ({industry}).
+        prompt = f"""### ROLE
+You are a Risk Assessment Analyst at {seller_name}. Your mission is to identify evidence-grounded risks that could block or delay sales success at {account_name}.
 
-RESEARCH SIGNALS:
-{chr(10).join(signal_summaries) if signal_summaries else "No signals available"}
+### STRATEGIC ALIGNMENT
+═══════════════════════════════════════════════════════════════
 
-IDENTIFIED OPPORTUNITIES:
-{chr(10).join(opportunity_summaries) if opportunity_summaries else "No opportunities identified"}
-{feedback_instruction}
-Identify risks that could prevent or delay sales success:
+**YOUR SALES OBJECTIVE:**
+{user_context if user_context else "Identify all relevant sales risks for opportunities"}
 
-1. COMPETITIVE RISKS: Existing vendor relationships, competitor evaluations, switching costs
-2. BUDGET/TIMING RISKS: Budget cycles, recent purchases, procurement freezes
-3. TECHNICAL RISKS: Integration challenges, tech stack incompatibilities
-4. ORGANIZATIONAL RISKS: Restructuring, leadership changes, competing priorities
-5. MARKET RISKS: Industry trends, regulatory changes affecting {industry}
+{seller_context}
 
-Be specific and cite evidence from signals where possible.
-Only include risks that have supporting evidence or strong indicators.
+**TARGET ACCOUNT:**
+- Company: {account_name}
+- Industry: {industry}
+{feedback_section}
+═══════════════════════════════════════════════════════════════
+EVIDENCE DATA (Cite these using IDs)
+═══════════════════════════════════════════════════════════════
 
-Return JSON:
+**OPPORTUNITIES TO ASSESS [OPP-xxx]:**
+{opportunities_formatted}
+
+**INTELLIGENCE SIGNALS [SIG-xxx]:**
+{signals_formatted}
+
+═══════════════════════════════════════════════════════════════
+RISK ASSESSMENT PROTOCOL
+═══════════════════════════════════════════════════════════════
+
+For each risk category, search evidence for indicators:
+
+1. **COMPETITIVE RISKS** [cite SIG-xxx or OPP-xxx]
+   - Existing vendor relationships
+   - Competitor product mentions
+   - Switching cost indicators
+
+2. **BUDGET/TIMING RISKS** [cite evidence]
+   - Budget cycle indicators
+   - Recent large purchases
+   - Cost-cutting mentions
+
+3. **TECHNICAL RISKS** [cite evidence]
+   - Integration challenges
+   - Tech stack incompatibilities
+   - Legacy system mentions
+
+4. **ORGANIZATIONAL RISKS** [cite evidence]
+   - Restructuring signals
+   - Leadership changes
+   - Competing priorities
+
+5. **MARKET RISKS** [cite INDUSTRY knowledge]
+   - Industry trends affecting {industry}
+   - Regulatory changes
+
+═══════════════════════════════════════════════════════════════
+GROUNDING RULES (CRITICAL)
+═══════════════════════════════════════════════════════════════
+
+You are PROHIBITED from:
+- Inventing risks without supporting evidence from signals
+- Making up competitor names not mentioned in the evidence
+- Assuming budget constraints without evidence
+- Generic risks that apply to any company
+
+If you cannot find evidence for a risk, you MUST:
+- Tag it as [INDUSTRY] and frame it as "Companies in {industry} typically face..."
+- Mark it as lower priority
+
+═══════════════════════════════════════════════════════════════
+EXAMPLES
+═══════════════════════════════════════════════════════════════
+
+❌ BAD (generic, no evidence):
+"They probably have budget constraints this quarter"
+
+❌ BAD (invented competitor):
+"Strong presence of Competitor X" (when no competitor mentioned in signals)
+
+✅ GOOD (grounded with citation):
+"[SIG-003] Recent earnings call mentioned cost-cutting initiatives - budget approval may require executive sponsorship"
+
+✅ GOOD (grounded with opportunity reference):
+"[OPP-002] The Simulink opportunity faces integration risk - [SIG-007] indicates legacy FORTRAN codebase that may complicate deployment"
+
+✅ GOOD (industry knowledge tagged):
+"[INDUSTRY] Aerospace companies typically have 12-18 month procurement cycles - timing may extend sales cycle"
+
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════
+
+Return 3-7 evidence-grounded risks. Quality over quantity.
+
 {{
     "risks": [
-        "Strong competitor presence: Signals indicate active relationship with Competitor X based on [evidence]",
-        "Budget timing concern: Recent large infrastructure investment suggests limited budget for new tools",
-        "Integration complexity: Current tech stack includes legacy systems that may complicate deployment",
-        ...
+        "[SIG-xxx] Risk description with specific evidence citation",
+        "[OPP-xxx] Risk affecting specific opportunity with evidence",
+        "[INDUSTRY] Industry-level risk (only if no direct evidence)"
     ]
 }}"""
 
@@ -257,15 +419,18 @@ Return JSON:
         opportunities: list[Opportunity],
         risks: list[str],
         state: ResearchState,
-        feedback_context: str | None = None
+        feedback_context: str | None = None,
+        user_context: str = "",
+        seller_name: str = "Our Company"
     ) -> list[Opportunity]:
         """
-        Re-score opportunities with risk context.
+        Re-score opportunities with risk context and user objective alignment.
 
         For each opportunity, uses LLM to:
         - Factor in identified risks
         - Consider evidence quality
         - Evaluate market timing
+        - Score alignment with user's sales objective
         - Adjust confidence score
 
         Args:
@@ -273,6 +438,8 @@ Return JSON:
             risks: Identified competitive/market risks
             state: Current research state
             feedback_context: Optional feedback for retry
+            user_context: User's sales context/objectives
+            seller_name: Seller company name
 
         Returns:
             List of Opportunity objects with updated confidence scores
@@ -282,12 +449,13 @@ Return JSON:
 
         # Build opportunity data for prompt
         opportunities_data = []
-        for opp in opportunities:
+        for i, opp in enumerate(opportunities, 1):
             evidence_summary = "; ".join(
                 sig.content[:100] for sig in opp.evidence[:3]
             ) if opp.evidence else "No direct evidence"
 
             opportunities_data.append({
+                "id": f"OPP-{i:03d}",
                 "product_name": opp.product_name,
                 "rationale": opp.rationale[:300],
                 "current_confidence": opp.confidence.value,
@@ -297,42 +465,96 @@ Return JSON:
                 "existing_risks": opp.risks[:3]
             })
 
-        # Build feedback instruction
-        feedback_instruction = ""
-        if feedback_context:
-            feedback_instruction = f"""
-IMPORTANT: This is a retry based on human feedback:
-{feedback_context}
+        # Format risks with IDs
+        risks_formatted = self._format_risks_with_ids(risks)
+        seller_context = self._get_seller_context(seller_name)
 
-Adjust your scoring accordingly.
+        # Build feedback section
+        feedback_section = ""
+        if feedback_context:
+            feedback_section = f"""
+═══════════════════════════════════════════════════════════════
+COORDINATOR FEEDBACK (Address this in your scoring)
+═══════════════════════════════════════════════════════════════
+{feedback_context}
 """
 
-        prompt = f"""Re-evaluate confidence scores for opportunities at {account_name} ({industry}).
+        prompt = f"""### ROLE
+You are a Sales Strategy Analyst at {seller_name}. Your mission is to objectively re-score opportunities based on evidence quality, risk impact, and alignment with the user's sales objectives.
 
-OPPORTUNITIES TO SCORE:
+### STRATEGIC ALIGNMENT
+═══════════════════════════════════════════════════════════════
+
+**USER'S SALES OBJECTIVE (CRITICAL FOR SCORING):**
+{user_context if user_context else "No specific objective provided - score based on general fit"}
+
+{seller_context}
+
+**TARGET ACCOUNT:**
+- Company: {account_name}
+- Industry: {industry}
+{feedback_section}
+═══════════════════════════════════════════════════════════════
+OPPORTUNITIES TO SCORE
+═══════════════════════════════════════════════════════════════
 {json.dumps(opportunities_data, indent=2)}
 
-IDENTIFIED RISKS:
-{chr(10).join(f"- {r}" for r in risks) if risks else "No significant risks identified"}
-{feedback_instruction}
-For each opportunity, provide an updated confidence score (0.0-1.0) considering:
+═══════════════════════════════════════════════════════════════
+IDENTIFIED RISKS [RISK-xxx]
+═══════════════════════════════════════════════════════════════
+{risks_formatted}
 
-1. EVIDENCE QUALITY: How strong/reliable is the supporting evidence?
-2. RISK IMPACT: How do identified risks affect this specific opportunity?
-3. TIMING: Is the timing favorable based on signals?
-4. FIT STRENGTH: How well does the product match the actual need?
+═══════════════════════════════════════════════════════════════
+SCORING CRITERIA (Apply ALL factors)
+═══════════════════════════════════════════════════════════════
 
-Scoring guidelines:
-- 0.8-1.0: Strong evidence, minimal risks, clear need, good timing
-- 0.6-0.8: Moderate evidence, manageable risks, likely need
-- 0.4-0.6: Limited evidence, significant risks, uncertain need
-- 0.0-0.4: Weak evidence, high risks, speculative
+For each opportunity, evaluate and adjust score based on:
 
-Return JSON with product_name and new_score for each:
+1. **EVIDENCE QUALITY** (Base score impact: ±0.2)
+   - Strong evidence (multiple sources, specific quotes): +0.1 to +0.2
+   - Weak/generic evidence: -0.1 to -0.2
+
+2. **RISK IMPACT** (Adjustment: -0.1 to -0.3)
+   - Check if any [RISK-xxx] directly affects this opportunity
+   - High-impact risk: -0.2 to -0.3
+   - Moderate risk: -0.1
+
+3. **TIMING SIGNALS** (Adjustment: ±0.1)
+   - Active hiring in relevant area: +0.1
+   - Budget freeze indicators: -0.1
+
+4. **PRODUCT-NEED FIT** (Adjustment: ±0.1)
+   - Clear technical match: +0.1
+   - Tangential fit: -0.1
+
+5. **USER OBJECTIVE ALIGNMENT** (CRITICAL - Adjustment: ±0.15)
+   - HIGH alignment with user's stated objective: +0.1 to +0.15 BONUS
+   - MODERATE alignment: no adjustment
+   - LOW/NO alignment with user objective: -0.1 to -0.15 PENALTY
+
+═══════════════════════════════════════════════════════════════
+SCORING GUIDELINES
+═══════════════════════════════════════════════════════════════
+
+Final score interpretation:
+- 0.8-1.0: Pursue immediately - strong evidence, minimal risks, aligned with objective
+- 0.6-0.8: Qualified opportunity - good fit, manageable risks
+- 0.4-0.6: Needs development - limited evidence or significant risks
+- 0.0-0.4: Deprioritize - weak evidence, high risks, or misaligned
+
+═══════════════════════════════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════════════════════════════
+
+Return scores with rationale explaining the adjustment factors applied:
+
 {{
     "scored_opportunities": [
-        {{"product_name": "Product Name", "new_score": 0.75, "score_rationale": "Strong evidence from hiring patterns..."}},
-        ...
+        {{
+            "product_name": "Product Name",
+            "new_score": 0.75,
+            "score_rationale": "Evidence quality: +0.1 (3 job posting citations). Risk impact: -0.1 ([RISK-002] budget concerns). User objective alignment: +0.15 (directly matches simulation focus). Final: 0.75"
+        }}
     ]
 }}"""
 
@@ -405,18 +627,18 @@ Return JSON with product_name and new_score for each:
         risks: list[str],
         signals: list[Signal],
         account_name: str,
-        industry: str
+        industry: str,
+        user_context: str = "",
+        seller_name: str = "Our Company"
     ) -> list[Opportunity]:
         """
-        Enhance talking points with objection handling and evidence linking.
+        Enhance talking points with evidence-grounded objection handling.
 
+        Uses strict source citation requirements to prevent hallucination.
         For each opportunity:
-        - Links existing talking points to supporting evidence
-        - Adds objection handling based on identified risks
-        - Generates persona-specific messaging
-
-        This method makes talking points more actionable by connecting them
-        directly to the research evidence and addressing potential objections.
+        - Links talking points to supporting evidence with [SIG-xxx] citations
+        - Adds objection handling based on [RISK-xxx] citations
+        - Generates persona-specific messaging aligned with user objectives
 
         Args:
             opportunities: Scored opportunities
@@ -424,16 +646,23 @@ Return JSON with product_name and new_score for each:
             signals: Research signals for evidence linking
             account_name: Target company name
             industry: Target company industry
+            user_context: User's sales context/objectives
+            seller_name: Seller company name
 
         Returns:
-            Opportunities with enhanced talking points
+            Opportunities with enhanced, evidence-grounded talking points
         """
         if not opportunities:
             return opportunities
 
+        # Format with IDs for citation
+        signals_formatted = self._format_signals_with_ids(signals, limit=15)
+        risks_formatted = self._format_risks_with_ids(risks)
+        seller_context = self._get_seller_context(seller_name)
+
         # Build opportunity data for enhancement
         opps_data = []
-        for opp in opportunities:
+        for i, opp in enumerate(opportunities, 1):
             # Get evidence snippets for context
             evidence_texts = [
                 f"[{sig.signal_type}] {sig.content[:150]}"
@@ -441,20 +670,27 @@ Return JSON with product_name and new_score for each:
             ]
 
             opps_data.append({
+                "id": f"OPP-{i:03d}",
                 "product_name": opp.product_name,
                 "current_talking_points": opp.talking_points[:5],
                 "target_persona": opp.target_persona or "Unknown",
-                "opportunity_risks": opp.risks[:3],
                 "evidence_snippets": evidence_texts
             })
 
-        # Build signal context for evidence linking
-        signal_context = []
-        for s in signals[:10]:
-            signal_context.append(f"- [{s.signal_type}] {s.content[:200]}")
-        signal_context_text = "\n".join(signal_context) if signal_context else "No signals available"
+        prompt = f"""### ROLE
+You are an Enterprise Account Executive at {seller_name}. Your mission is to create evidence-grounded talking points that will resonate with {account_name} stakeholders.
 
-        prompt = f"""Enhance talking points for sales opportunities at {account_name} ({industry}).
+### STRATEGIC ALIGNMENT
+═══════════════════════════════════════════════════════════════
+
+**YOUR SALES OBJECTIVE:**
+{user_context if user_context else "Create compelling talking points for all opportunities"}
+
+{seller_context}
+
+**TARGET ACCOUNT:**
+- Company: {account_name}
+- Industry: {industry}
 
 ═══════════════════════════════════════════════════════════════
 OPPORTUNITIES TO ENHANCE
@@ -462,48 +698,84 @@ OPPORTUNITIES TO ENHANCE
 {json.dumps(opps_data, indent=2)}
 
 ═══════════════════════════════════════════════════════════════
-IDENTIFIED RISKS (use for objection handling)
+IDENTIFIED RISKS [RISK-xxx] (use for objection handling)
 ═══════════════════════════════════════════════════════════════
-{chr(10).join(f"- {r}" for r in risks) if risks else "No significant risks identified"}
-
-═══════════════════════════════════════════════════════════════
-RESEARCH SIGNALS (use for evidence linking)
-═══════════════════════════════════════════════════════════════
-{signal_context_text}
+{risks_formatted}
 
 ═══════════════════════════════════════════════════════════════
-ENHANCEMENT GUIDELINES
+INTELLIGENCE SIGNALS [SIG-xxx] (use for evidence linking)
+═══════════════════════════════════════════════════════════════
+{signals_formatted}
+
+═══════════════════════════════════════════════════════════════
+GROUNDING RULES (CRITICAL)
 ═══════════════════════════════════════════════════════════════
 
-For each opportunity, generate 2-3 ADDITIONAL talking points that:
+You are PROHIBITED from:
+- Inventing quotes not found in the provided evidence
+- Making up statistics or ROI numbers without [INDUSTRY] tag
+- Referencing documents, reports, or statements not in the signals
+- Creating talking points that cannot be traced to evidence
 
-1. **EVIDENCE LINKING**: Reference specific research findings
-   - Example: "Your Q3 investor report mentioned automation priorities - our tool directly addresses this"
-   - Example: "Your job posting for ML Engineer lists Python/TensorFlow - we integrate seamlessly"
+EACH talking point MUST include a source tag:
+- [SIG-xxx] - Referencing specific intelligence signal
+- [RISK-xxx] - Addressing identified risk (for objection handling)
+- [INDUSTRY] - General industry knowledge (use sparingly, max 1 per opportunity)
 
-2. **OBJECTION HANDLING**: Preemptively address the identified risks
-   - For competitor risk: "We offer migration assistance and parallel evaluation periods"
-   - For budget risk: "Flexible payment options and pilot programs available"
-   - For technical risk: "Our team provides dedicated integration support"
+═══════════════════════════════════════════════════════════════
+ENHANCEMENT PROTOCOL
+═══════════════════════════════════════════════════════════════
 
-3. **PERSONA TAILORING**: Adjust language for the target persona type
-   - Decision-makers: Focus on ROI, strategic value, competitive advantage
-   - Influencers: Focus on technical benefits, ease of adoption
-   - End-users: Focus on productivity gains, ease of use
+For each opportunity, generate 2-3 ADDITIONAL talking points:
+
+1. **EVIDENCE-LINKED POINT** [SIG-xxx]
+   - Connect specific signal to product value
+   - Quote or reference actual evidence
+
+2. **OBJECTION HANDLING** [RISK-xxx]
+   - Proactively address identified risks
+   - Provide concrete mitigation approach
+
+3. **PERSONA-TAILORED POINT** [SIG-xxx or INDUSTRY]
+   - Decision-makers: ROI, strategic value
+   - Influencers: Technical benefits, adoption ease
+   - End-users: Productivity gains
+
+═══════════════════════════════════════════════════════════════
+EXAMPLES
+═══════════════════════════════════════════════════════════════
+
+❌ BAD (hallucinated - DO NOT DO THIS):
+"Your CEO mentioned in a recent interview that automation is a priority"
+
+❌ BAD (generic, no citation):
+"Our product will help you be more efficient"
+
+❌ BAD (invented statistic):
+"Companies using our tool see 47% improvement"
+
+✅ GOOD (grounded with signal citation):
+"[SIG-003] Your job posting for Simulation Engineer requires Simulink experience - our training program accelerates onboarding"
+
+✅ GOOD (addressing risk):
+"[RISK-001] Regarding the integration concerns with legacy systems - we provide dedicated migration support and parallel operation capability"
+
+✅ GOOD (industry knowledge tagged):
+"[INDUSTRY] Aerospace companies using Model-Based Design typically reduce certification time by 30-40%"
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT
 ═══════════════════════════════════════════════════════════════
 
-Return JSON:
+Return JSON with citation-tagged talking points:
 {{
     "enhanced_opportunities": [
         {{
             "product_name": "Product Name",
             "additional_talking_points": [
-                "Evidence-based point referencing their specific signals",
-                "Objection handling point for their main risk",
-                "Persona-tailored value proposition"
+                "[SIG-xxx] Evidence-grounded point with specific citation",
+                "[RISK-xxx] Objection handling addressing specific risk",
+                "[INDUSTRY] Industry benchmark (if no direct evidence)"
             ]
         }}
     ]

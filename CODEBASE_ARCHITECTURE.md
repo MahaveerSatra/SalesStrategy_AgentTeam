@@ -1,8 +1,29 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-02-13
-**Status**: Phase 5 IN PROGRESS - Prompt Quality Improvements (Identifier DONE, Validator NEXT)
+**Last Updated**: 2026-02-14
+**Status**: Phase 5 COMPLETE - Prompt Quality Improvements (Identifier + Validator DONE)
 **Test Status**: ✅ 454 tests passing | 0 skipped
+
+---
+
+## Project Overview
+
+An AI-powered sales intelligence system that researches target accounts and identifies sales opportunities by matching a seller's product catalog to the customer's needs.
+
+### How It Works
+1. **User provides**: Account name (e.g., "Boeing"), industry, seller company (e.g., "MathWorks"), and optional sales context
+2. **Gatherer Agent**: Collects job postings, news, and web signals about the target account
+3. **Identifier Agent**: Extracts requirements from signals and matches them to seller's products
+4. **Validator Agent**: Assesses risks, scores opportunities, and enhances talking points
+5. **Coordinator Agent**: Orchestrates the workflow and handles human feedback loops
+6. **Output**: Research report with scored opportunities, discovery questions, and talking points
+
+### Key Technologies
+- **LangGraph**: Multi-agent workflow orchestration with checkpointing
+- **ChromaDB**: Vector database for product catalog semantic search
+- **LiteLLM**: Multi-provider LLM routing (Groq, Ollama, OpenAI)
+- **MCP**: Model Context Protocol for web search integration
+- **Pydantic**: Structured data validation for LLM outputs
 
 ---
 
@@ -13,22 +34,22 @@
 ### Current Status
 | Item | Status |
 |------|--------|
-| **Phase** | Phase 5 IN PROGRESS - Prompt Quality Improvements |
+| **Phase** | Phase 5 COMPLETE - Prompt Quality Improvements |
 | **Tests** | 454 passing, 0 skipped |
 | **System** | Fully functional, MCP web search WORKING |
 | **Identifier Agent** | ✅ COMPLETED - Both prompts improved with evidence grounding |
-| **Validator Agent** | 🔜 NEXT - Apply same techniques |
-| **Last Work** | Improved `_extract_requirements` and `_generate_opportunities` prompts |
+| **Validator Agent** | ✅ COMPLETED - All 3 prompts improved with evidence grounding |
+| **Last Work** | Improved `_assess_risks`, `_score_opportunities`, `_enhance_talking_points` prompts |
 
 ### What's Next (Priority Order)
 1. ~~**Cap Job Postings**~~ ✅ DONE - Added `max_job_postings=30` to config.py
 2. ~~**Improve Gatherer Prompt**~~ ✅ DONE - Added diagnostic logging for empty results
 3. ~~**Improve Identifier Prompts**~~ ✅ DONE - Both `_extract_requirements` and `_generate_opportunities`
-4. **Improve Validator Prompts** 🔜 NEXT - Apply same techniques to:
-   - `_assess_risks()` - Context-aware risk assessment
-   - `_score_opportunities()` - Re-score with user context alignment
-   - `_enhance_talking_points()` - Evidence-grounded objection handling
-5. **Re-run Boeing Demo** - Verify all improvements end-to-end
+4. ~~**Improve Validator Prompts**~~ ✅ DONE - All 3 methods improved:
+   - `_assess_risks()` - Evidence-grounded with [SIG-xxx], [OPP-xxx] citations
+   - `_score_opportunities()` - User objective alignment scoring (+/-0.15)
+   - `_enhance_talking_points()` - Grounding rules with [SIG-xxx], [RISK-xxx], [INDUSTRY] tags
+5. **Re-run Boeing Demo** 🔜 NEXT - Verify all improvements end-to-end
 
 ### Identifier Agent Improvements (COMPLETED 2026-02-13)
 
@@ -78,22 +99,77 @@ GOOD (grounded): ...
 {JSON schema}
 ```
 
-### Validator Agent - TODO (Apply Same Techniques)
+### Validator Agent Improvements (COMPLETED 2026-02-14)
 
-Apply the same patterns to these methods in `validator.py`:
+Applied the same prompt engineering techniques to `_assess_risks`, `_score_opportunities`, and `_enhance_talking_points`:
 
-| Method | Current Issue | Improvement Needed |
-|--------|---------------|-------------------|
-| `_assess_risks()` | Generic risks | Add seller context, use `[SIG-xxx]` citations |
-| `_score_opportunities()` | Ignores user_context | Score alignment with user's sales objective |
-| `_enhance_talking_points()` | Can hallucinate | Force `[JOB-xxx]`/`[SIG-xxx]`/`[INDUSTRY]` citations |
+| Technique | Implementation |
+|-----------|----------------|
+| **Role-Based Framing** | "Risk Assessment Analyst" / "Sales Strategy Analyst" / "Enterprise Account Executive" at {seller_name} |
+| **Strategic Alignment** | USER'S SALES OBJECTIVE, SELLER context, TARGET ACCOUNT at top of each prompt |
+| **Evidence Grounding** | "You are PROHIBITED from inventing risks/quotes without evidence" |
+| **Source Anchoring** | Must cite `[SIG-xxx]`, `[OPP-xxx]`, `[RISK-xxx]`, or `[INDUSTRY]` |
+| **User Objective Alignment** | Scoring criterion: +0.15 bonus for high alignment, -0.15 penalty for misalignment |
+| **Negative Examples** | BAD (generic/hallucinated) vs GOOD (grounded with citation) |
+| **Consistent Feedback** | Uses "COORDINATOR FEEDBACK" section when retrying |
 
-**Validator Line Numbers:**
-- `_assess_risks()` - line ~202
-- `_score_opportunities()` - line ~310
-- `_enhance_talking_points()` - line ~457
+**New Helper Methods Added to `validator.py`:**
+| Method | Purpose |
+|--------|---------|
+| `_format_signals_with_ids()` | Format signals as `[SIG-001]`, `[SIG-002]`, etc. |
+| `_format_opportunities_with_ids()` | Format opportunities as `[OPP-001]`, `[OPP-002]`, etc. |
+| `_format_risks_with_ids()` | Format risks as `[RISK-001]`, `[RISK-002]`, etc. |
+| `_get_seller_context()` | Return seller company context (MathWorks-specific or generic) |
 
-### Boeing Demo Results (2026-02-10)
+**Validator Line Numbers (after changes):**
+- `_format_signals_with_ids()` - line ~56
+- `_format_opportunities_with_ids()` - line ~77
+- `_format_risks_with_ids()` - line ~103
+- `_get_seller_context()` - line ~123
+- `_assess_risks()` - line ~151
+- `_score_opportunities()` - line ~255
+- `_enhance_talking_points()` - line ~402
+
+### Prompt Engineering Techniques Applied (Summary)
+
+All major prompts in Identifier and Validator now use this structure:
+
+```
+### ROLE
+You are a {Role} at {seller_name}. Your mission is to...
+
+### STRATEGIC ALIGNMENT
+**YOUR SALES OBJECTIVE:** {user_context}
+**SELLER:** {seller_context}
+**TARGET ACCOUNT:** {account_name} ({industry})
+
+### EVIDENCE DATA (Cite using IDs)
+[JOB-xxx], [SIG-xxx], [OPP-xxx], [RISK-xxx]
+
+### GROUNDING RULES (CRITICAL)
+You are PROHIBITED from:
+- Inventing quotes not in evidence
+- Making up statistics without [INDUSTRY] tag
+- Generic statements without citations
+
+### EXAMPLES
+❌ BAD (hallucinated): "Your CEO mentioned..."
+✅ GOOD (grounded): "[SIG-003] Your job posting indicates..."
+
+### OUTPUT FORMAT
+{JSON schema}
+```
+
+**Key Principles:**
+1. **Evidence Grounding**: Every claim must cite a source ID
+2. **User Objective Alignment**: Prompts prioritize alignment with user's stated sales focus
+3. **Seller Context**: Prompts include seller company information for proper framing
+4. **Negative Examples**: Show what NOT to do to reduce hallucination
+5. **Consistent Feedback**: Use "COORDINATOR FEEDBACK" section for retry loops
+
+---
+
+### Boeing Demo Results (2026-02-10) - BEFORE Improvements
 Ran: `python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --context "Focus: Commercial aircraft division. Sales Objective: Expand MathWorks usage in simulation and modeling team for fluid simulation and controls."`
 
 | Metric | Result | Issue |
@@ -114,24 +190,26 @@ The prompts in Gatherer, Identifier, and Validator agents don't receive or use t
 2. **Identifier** (`_extract_requirements`, `_generate_opportunities`): Doesn't prioritize requirements matching user's stated objectives
 3. **Validator** (`_assess_risks`, `_score_opportunities`, `_enhance_talking_points`): Doesn't filter/score based on context alignment
 
-### Files Modified / To Modify
+### Files Modified (Phase 5)
 | File | Status | Changes |
 |------|--------|---------|
 | `src/config.py` | ✅ DONE | Added `max_job_postings: int = 30` |
 | `src/agents/gatherer.py` | ✅ DONE | Cap job postings at 30, diagnostic logging for empty results |
 | `src/agents/identifier.py` | ✅ DONE | Full prompt overhaul with evidence grounding, 5 new helper methods |
-| `src/agents/validator.py` | 🔜 TODO | Apply same techniques to risk, scoring & talking points prompts |
+| `src/agents/validator.py` | ✅ DONE | Full prompt overhaul, 4 new helper methods, user objective alignment |
 | `src/cli/formatters.py` | ✅ DONE | Added "Data Collection Issues" section in CLI output |
+| `tests/test_agents/test_validator.py` | ✅ DONE | Updated test assertions for "COORDINATOR FEEDBACK" format |
+| `tests/test_integration/test_feedback_loops.py` | ✅ DONE | Updated test assertions for new feedback format |
 
-### Key Prompt Locations
+### Key Prompt Locations (All Updated)
 | Agent | Method | Line | Status | Purpose |
 |-------|--------|------|--------|---------|
 | Gatherer | `_analyze_job_posting_with_llm()` | ~936 | ⏸️ Deferred | Analyzes each job posting |
 | Identifier | `_extract_requirements()` | ~294 | ✅ DONE | Extracts needs with CoVe, evidence grounding |
 | Identifier | `_generate_opportunities()` | ~479 | ✅ DONE | Evidence-grounded opportunity generation |
-| Validator | `_assess_risks()` | ~202 | 🔜 TODO | Needs seller context, source citations |
-| Validator | `_score_opportunities()` | ~310 | 🔜 TODO | Needs user_context alignment scoring |
-| Validator | `_enhance_talking_points()` | ~457 | 🔜 TODO | Needs evidence grounding rules |
+| Validator | `_assess_risks()` | ~151 | ✅ DONE | Evidence-grounded with [SIG-xxx], [OPP-xxx] citations |
+| Validator | `_score_opportunities()` | ~255 | ✅ DONE | User objective alignment scoring (+/-0.15) |
+| Validator | `_enhance_talking_points()` | ~402 | ✅ DONE | Grounding rules with [SIG-xxx], [RISK-xxx], [INDUSTRY] tags |
 
 ### Implementation Principle
 **DO NOT hardcode seller-specific values** (e.g., "Simscape Fluids for fluid simulation"). The system must work for ANY seller. Instead:
@@ -158,17 +236,87 @@ python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --
 #    - ARR should be $100K+ for enterprise expansion
 ```
 
-### Verification Checklist (After Prompt Improvements)
-| Check | Before | Expected After |
-|-------|--------|----------------|
+### Verification Checklist (Re-run Boeing Demo After Improvements)
+
+**Command to verify improvements:**
+```powershell
+python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --output reports --context "Focus: Commercial aircraft division. Sales Objective: Expand MathWorks usage in simulation and modeling team for fluid simulation and controls."
+```
+
+| Check | Before (2026-02-10) | Expected After Improvements |
+|-------|---------------------|----------------------------|
 | Products recommended | Simulink Design Verifier | Simscape Fluids, Simulink, Aerospace Blockset |
 | Persona | "Manager of Materials Engineering" | "Director of Simulation Engineering" or similar |
 | ARR estimate | $30K | $100K-200K |
 | Discovery questions | Generic hiring questions | Simulation workflow questions |
-| Evidence cited | "sales intelligence" (hallucinated) | Actual job skills/technologies |
+| Evidence cited | "sales intelligence" (hallucinated) | Actual job skills with [JOB-xxx] citations |
 | Job postings analyzed | 54 | 30 (capped) |
+| Risk citations | Generic | [SIG-xxx], [OPP-xxx], [INDUSTRY] tags |
+| Talking points | May hallucinate | [SIG-xxx], [RISK-xxx] citations required |
 
 ---
+
+### Directory Structure
+
+```
+src/
+├── agents/
+│   ├── coordinator.py    # Orchestrates workflow, handles feedback
+│   ├── gatherer.py       # Collects job postings, news, signals
+│   ├── identifier.py     # Extracts requirements, generates opportunities
+│   └── validator.py      # Assesses risks, scores, enhances talking points
+├── core/
+│   ├── base_agent.py     # StatelessAgent base class
+│   ├── model_router.py   # LLM routing (Groq, Ollama, OpenAI)
+│   └── product_matcher.py # ChromaDB semantic search
+├── graph/
+│   └── workflow.py       # LangGraph workflow definition
+├── models/
+│   ├── state.py          # ResearchState TypedDict
+│   └── llm_schemas.py    # Pydantic schemas for LLM outputs
+├── cli/
+│   ├── main.py           # CLI entry point
+│   └── formatters.py     # Report formatting
+└── config.py             # Configuration (max_job_postings, etc.)
+
+tests/
+├── test_agents/          # Unit tests for each agent
+├── test_integration/     # Integration and E2E tests
+└── conftest.py           # Shared fixtures
+```
+
+---
+
+### ResearchState Fields (Key Data Passed Between Agents)
+
+```python
+class ResearchState(TypedDict):
+    # Input parameters
+    account_name: str                    # "Boeing"
+    industry: str                        # "aerospace"
+    seller_name: str                     # "MathWorks"
+    user_context: str | None             # User's sales objective
+    research_depth: ResearchDepth        # quick/standard/deep
+
+    # Gathered data (from Gatherer)
+    signals: list[Signal]                # News, hiring, tech stack signals
+    job_postings: list[dict]             # Raw job posting data
+    company_domain: str | None           # Auto-detected domain (e.g., "boeing.com")
+
+    # Identified data (from Identifier)
+    requirements: list[str]              # Extracted technical needs
+    opportunities: list[Opportunity]     # Matched products with rationale
+
+    # Validated data (from Validator)
+    validated_opportunities: list[Opportunity]  # Filtered by confidence > 0.6
+    competitive_risks: list[str]         # Identified risks with citations
+
+    # Workflow control
+    progress: ResearchProgress           # Tracks agent completion
+    feedback_context: str | None         # Retry feedback from coordinator
+    human_feedback: list[str]            # User feedback history
+    waiting_for_human: bool              # Paused for user input
+```
 
 ### Previous Bug Fixes (2026-02-08/09)
 | Bug | File | Fix |
@@ -400,18 +548,23 @@ python -m src.cli setup-catalog --seller "MathWorks" --force
 2. **✅ DONE: Gatherer Agent Prompts Improved** (2026-02-06)
    - See "Prompt Improvements (2026-02-06) - Gatherer Agent" section below for details
 
-3. **⏳ NEXT: Improve Identifier Agent Prompts**
+3. **✅ DONE: Identifier Agent Prompts Improved** (2026-02-13)
    - File: `src/agents/identifier.py`
-   - Focus: Product-to-need matching, opportunity identification
-   - Goal: More accurate product recommendations, better rationale
+   - Methods: `_extract_requirements()`, `_generate_opportunities()`
+   - Added: Evidence grounding, source citations [JOB-xxx]/[SIG-xxx], Chain-of-Verification
 
-4. **⏳ PENDING: Improve Validator Agent Prompts**
+4. **✅ DONE: Validator Agent Prompts Improved** (2026-02-14)
    - File: `src/agents/validator.py`
-   - Focus: Confidence scoring, risk assessment
-   - Goal: More calibrated confidence scores, better risk identification
+   - Methods: `_assess_risks()`, `_score_opportunities()`, `_enhance_talking_points()`
+   - Added: Evidence grounding, user objective alignment scoring, [SIG-xxx]/[RISK-xxx]/[INDUSTRY] citations
 
-5. **Run More Demos** (Boeing, Tesla, Rivian) with strategic context
-6. **Create Demo Materials** (README update, LinkedIn post, interview guide)
+5. **🔜 NEXT: Re-run Boeing Demo** - Verify all improvements end-to-end
+   ```powershell
+   python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --output reports --context "Focus: Commercial aircraft division. Sales Objective: Expand MathWorks usage in simulation and modeling team for fluid simulation and controls."
+   ```
+
+6. **⏳ PENDING: Run More Demos** (Tesla, Rivian) with strategic context
+7. **⏳ PENDING: Create Demo Materials** (README update, LinkedIn post, interview guide)
 
 ---
 
