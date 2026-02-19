@@ -581,8 +581,8 @@ class TestGathererAgentParallelExecution:
         # The mock returns 3 queries, so search should be called 3 times
         assert mock_mcp_client.search.call_count == 3
 
-        # News search called 3 times (top 3 strategic queries from _build_news_queries)
-        assert mock_mcp_client.search_news.call_count == 3
+        # News search called 5 times (strategic queries from _build_news_queries)
+        assert mock_mcp_client.search_news.call_count == 5
 
         # Job scraper called once
         mock_job_scraper.fetch.assert_called_once()

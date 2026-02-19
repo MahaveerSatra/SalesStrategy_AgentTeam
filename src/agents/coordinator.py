@@ -665,6 +665,137 @@ Example when we can proceed:
             iteration=current_iteration
         )
 
+    def _estimate_tokens(self, text: str) -> int:
+        """Rough token estimate: ~4 chars per token for English text."""
+        return len(text) // 4
+
+    def _build_compact_context(
+        self,
+        opportunities: list,
+        signals: list,
+        job_postings: list,
+        risks: list,
+    ) -> tuple[str, str, str, str, int]:
+        """
+        Build compact JSON context for report generation, staying within token limits.
+
+        Uses progressive truncation if context exceeds target_tokens config setting.
+
+        Returns:
+            Tuple of (opps_json, signals_json, jobs_json, risks_json, estimated_tokens)
+        """
+        from src.config import settings
+        from src.models.state import Opportunity
+
+        max_opps = settings.report_max_opportunities
+        max_signals = settings.report_max_signals
+        max_jobs = settings.report_max_jobs
+        max_risks = settings.report_max_risks
+        content_limit = settings.report_signal_content_limit
+        target_tokens = settings.report_target_tokens
+        rationale_limit = settings.report_rationale_char_limit
+
+        # Build compact opportunities (essential fields only)
+        opps_data = []
+        for opp in opportunities[:max_opps]:
+            if isinstance(opp, Opportunity):
+                opp_compact = {
+                    "product": opp.product_name,
+                    "confidence": opp.confidence_score,
+                    "rationale": opp.rationale[:rationale_limit] if opp.rationale else "",
+                    "persona": opp.target_persona or "Unknown",
+                    "evidence": [
+                        f"[{e.signal_type}] {e.content[:content_limit]}"
+                        for e in (opp.evidence or [])[:2]  # Top 2 evidence only
+                    ]
+                }
+                opps_data.append(opp_compact)
+            elif isinstance(opp, dict):
+                opps_data.append({
+                    "product": opp.get("product_name", "Unknown"),
+                    "confidence": opp.get("confidence_score", 0.5),
+                    "rationale": opp.get("rationale", "")[:rationale_limit],
+                    "persona": opp.get("target_persona", "Unknown"),
+                    "evidence": []
+                })
+
+        # Build compact signals
+        signals_data = []
+        for sig in signals[:max_signals]:
+            if hasattr(sig, 'signal_type'):
+                signals_data.append({
+                    "type": sig.signal_type,
+                    "src": sig.source[:50] if sig.source else "",
+                    "content": sig.content[:content_limit] if sig.content else ""
+                })
+            elif isinstance(sig, dict):
+                signals_data.append({
+                    "type": sig.get("signal_type", "unknown"),
+                    "src": sig.get("source", "")[:50],
+                    "content": sig.get("content", "")[:content_limit]
+                })
+
+        # Build compact jobs (title and department only)
+        jobs_data = []
+        for job in job_postings[:max_jobs]:
+            if hasattr(job, 'title'):
+                jobs_data.append({
+                    "title": job.title,
+                    "dept": getattr(job, 'department', 'Unknown')
+                })
+            elif isinstance(job, dict):
+                jobs_data.append({
+                    "title": job.get("title", "Unknown"),
+                    "dept": job.get("department", "Unknown")
+                })
+
+        # Build compact risks
+        risks_data = []
+        for risk in (risks or [])[:max_risks]:
+            if isinstance(risk, dict):
+                risks_data.append({
+                    "type": risk.get("risk_type", "unknown"),
+                    "desc": risk.get("description", "")[:150]
+                })
+            elif hasattr(risk, 'risk_type'):
+                risks_data.append({
+                    "type": risk.risk_type,
+                    "desc": (risk.description[:150] if hasattr(risk, 'description') else "")
+                })
+
+        # Convert to compact JSON (no indent)
+        opps_json = json.dumps(opps_data, default=str)
+        signals_json = json.dumps(signals_data, default=str)
+        jobs_json = json.dumps(jobs_data, default=str)
+        risks_json = json.dumps(risks_data, default=str) if risks_data else "[]"
+
+        # Estimate total tokens
+        total_context = opps_json + signals_json + jobs_json + risks_json
+        estimated_tokens = self._estimate_tokens(total_context)
+
+        # Progressive truncation if still over limit
+        if estimated_tokens > target_tokens and len(opps_data) > 3:
+            # Reduce to top 3 opportunities
+            opps_json = json.dumps(opps_data[:3], default=str)
+            estimated_tokens = self._estimate_tokens(opps_json + signals_json + jobs_json + risks_json)
+
+        if estimated_tokens > target_tokens and len(signals_data) > 5:
+            # Reduce signals
+            signals_json = json.dumps(signals_data[:5], default=str)
+            estimated_tokens = self._estimate_tokens(opps_json + signals_json + jobs_json + risks_json)
+
+        self.logger.info(
+            "coordinator_context_built",
+            opportunities=len(opps_data),
+            signals=len(signals_data),
+            jobs=len(jobs_data),
+            risks=len(risks_data),
+            estimated_tokens=estimated_tokens,
+            target_tokens=target_tokens
+        )
+
+        return opps_json, signals_json, jobs_json, risks_json, estimated_tokens
+
     async def _format_report(self, state: ResearchState) -> str:
         """
         Format validated opportunities as human-readable sales briefing.
@@ -702,53 +833,13 @@ Example when we can proceed:
         user_context = state.get("user_context", "")
         seller_name = state.get("seller_name", "our company")  # type: ignore
 
-        # Build opportunities JSON for LLM with full evidence
-        opps_data = []
-        for opp in opportunities:
-            if isinstance(opp, Opportunity):
-                opp_dict = opp.model_dump()
-                # Include evidence details for citation
-                opp_dict["evidence_details"] = [
-                    {"source": e.source, "type": e.signal_type, "content": e.content[:200]}
-                    for e in opp.evidence[:3]  # Top 3 evidence items
-                ] if opp.evidence else []
-                opps_data.append(opp_dict)
-            elif isinstance(opp, dict):
-                opps_data.append(opp)
-
-        # Build signals summary for context
-        signals_summary = []
-        for sig in signals[:10]:  # Top 10 signals
-            if hasattr(sig, 'model_dump'):
-                signals_summary.append({
-                    "type": sig.signal_type,
-                    "source": sig.source,
-                    "content": sig.content[:150],
-                    "confidence": sig.confidence
-                })
-            elif isinstance(sig, dict):
-                signals_summary.append({
-                    "type": sig.get("signal_type", "unknown"),
-                    "source": sig.get("source", "unknown"),
-                    "content": sig.get("content", "")[:150],
-                    "confidence": sig.get("confidence", 0.5)
-                })
-
-        # Build job postings summary
-        jobs_summary = []
-        for job in job_postings[:5]:  # Top 5 jobs
-            if hasattr(job, 'model_dump'):
-                jobs_summary.append({
-                    "title": job.title,
-                    "department": getattr(job, 'department', 'Unknown'),
-                    "key_requirements": getattr(job, 'requirements', [])[:3]
-                })
-            elif isinstance(job, dict):
-                jobs_summary.append({
-                    "title": job.get("title", "Unknown"),
-                    "department": job.get("department", "Unknown"),
-                    "key_requirements": job.get("requirements", [])[:3]
-                })
+        # Build compact context to stay within token limits (rate limit prevention)
+        opps_json, signals_json, jobs_json, risks_json, est_tokens = self._build_compact_context(
+            opportunities=opportunities,
+            signals=signals,
+            job_postings=job_postings,
+            risks=risks,
+        )
 
         prompt = f"""You are creating a CRISP, ACTIONABLE sales briefing. Be concise - every word must earn its place.
 
@@ -759,10 +850,10 @@ CONTEXT: {user_context or "General research"}
 DATA COLLECTED:
 - {len(signals)} signals | {len(job_postings)} job postings | {len(opportunities)} opportunities
 
-SIGNALS: {json.dumps(signals_summary, indent=2, default=str)}
-JOBS: {json.dumps(jobs_summary, indent=2, default=str)}
-OPPORTUNITIES: {json.dumps(opps_data, indent=2, default=str)}
-RISKS: {json.dumps(risks, indent=2) if risks else "None"}
+SIGNALS: {signals_json}
+JOBS: {jobs_json}
+OPPORTUNITIES: {opps_json}
+RISKS: {risks_json}
 
 ═══════════════════════════════════════════════════════════════════════════════
 CRITICAL RULES

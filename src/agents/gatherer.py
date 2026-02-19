@@ -780,19 +780,26 @@ RULES:
 
     def _build_news_queries(self, account_name: str, industry: str) -> list[str]:
         """
-        Generate top 3 strategic news queries for sales intelligence.
+        Generate strategic news queries for sales intelligence.
+
+        Uses simple, broad queries that work well with DuckDuckGo's basic search.
+        Avoids complex operators which aren't supported by the MCP.
 
         Args:
             account_name: Company name
             industry: Industry vertical
 
         Returns:
-            List of news search queries
+            List of news search queries (simple keywords, no operators)
         """
+        # Keep queries simple - DuckDuckGo MCP doesn't support complex operators
+        # Use broad terms that are likely to return results
         queries = [
-            f"{account_name} technology investment digital transformation",
-            f"{account_name} partnership announcement expansion",
-            f"{account_name} leadership change CTO CIO technology",
+            f"{account_name} latest news",                    # Most likely to return results
+            f"{account_name} {industry} news 2026",           # Industry-specific news
+            f"{account_name} technology announcement",        # Tech-focused
+            f"{account_name} partnership deal",               # Business development
+            f"{account_name} hiring expansion",               # Growth signals
         ]
 
         return queries

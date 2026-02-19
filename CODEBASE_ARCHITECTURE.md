@@ -1,7 +1,7 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-02-14
-**Status**: Phase 5 COMPLETE + VERIFIED - Boeing Demo Successful (3 opportunities, 7 risks)
+**Last Updated**: 2026-02-19
+**Status**: Phase 6 IN PROGRESS - Rate Limit + Web Search Investigation
 **Test Status**: ✅ 454 tests passing | 0 skipped
 
 ---
@@ -31,48 +31,67 @@ An AI-powered sales intelligence system that researches target accounts and iden
 
 **READ THIS FIRST** when restoring context after clearing chat.
 
-### Latest Session Summary (2026-02-14)
+### Latest Session Summary (2026-02-19)
 
 **What Was Done This Session:**
-1. Ran Boeing demo → discovered JSON parsing failure (LLM returned markdown instead of JSON)
-2. Fixed OUTPUT FORMAT sections in `identifier.py` (2 prompts) and `validator.py` (3 prompts)
-3. Added explicit "JSON ONLY" enforcement: `**RESPOND WITH VALID JSON ONLY. NO markdown...**`
-4. Re-ran Boeing demo → SUCCESS: 10 requirements, 3 opportunities, 7 risks
-5. **Simscape Fluids** (85% confidence) now recommended - matches user's "fluid simulation" objective!
+1. Investigated why web search and news return 0 results
+2. **Root Cause Found**: DuckDuckGo MCP doesn't support `site:` operators or boolean `OR`
+3. Fixed `search_news()` to use simple queries with progressive fallback strategy
+4. Added semaphore (max 2 concurrent) + lock for proper rate limiting across parallel requests
+5. Improved news query templates in gatherer (simpler, more likely to succeed)
+6. **Partial Fix**: Tech stack queries now return 5 results (was 0), but news still limited
 
 **Files Changed This Session:**
 | File | Change | Lines |
 |------|--------|-------|
-| `src/agents/identifier.py` | Added JSON-only enforcement to `_extract_requirements` | ~415-432 |
-| `src/agents/identifier.py` | Added JSON-only enforcement to `_generate_opportunities` | ~622-649 |
-| `src/agents/validator.py` | Added JSON-only enforcement to `_assess_risks` | ~380-398 |
-| `src/agents/validator.py` | Added JSON-only enforcement to `_score_opportunities` | ~551-568 |
-| `src/agents/validator.py` | Added JSON-only enforcement to `_enhance_talking_points` | ~777-794 |
+| `src/data_sources/mcp_ddg_client.py` | Fixed `search_news()` - removed site operators, added fallback | ~301-360 |
+| `src/data_sources/mcp_ddg_client.py` | Added semaphore + lock for rate limiting | ~78-100, ~151-175, ~196-270 |
+| `src/data_sources/mcp_ddg_client.py` | Added debug logging for MCP responses | ~219-247 |
+| `src/agents/gatherer.py` | Improved `_build_news_queries()` - simpler templates | ~781-800 |
+| `tests/test_agents/test_gatherer.py` | Updated test to expect 5 news queries | ~585 |
 
-**The Fix (copy this pattern for future prompts):**
-```
-═══════════════════════════════════════════════════════════════
-OUTPUT FORMAT (CRITICAL - JSON ONLY)
-═══════════════════════════════════════════════════════════════
+**DuckDuckGo MCP Limitations (documented):**
+- Only supports `search` and `fetch_content` tools
+- **Does NOT support**: `site:` operators, boolean `OR`, news-specific search
+- Returns `202 Accepted` (vs `200 OK`) when rate limited → 0 results
+- Simple queries like "Boeing official website" work; complex ones fail
 
-**RESPOND WITH VALID JSON ONLY. NO markdown, NO explanatory text, NO code fences.**
+**Current Search Results (Boeing Demo):**
+| Query Type | Before Fix | After Fix |
+|------------|------------|-----------|
+| "Boeing official website" | 5 results | 5 results |
+| "Boeing engineering tech stack" | 0 results | **5 results** ✅ |
+| Other search queries | 0 results | 0 results |
+| News queries (all variations) | 0 results | 0 results |
 
-Your ENTIRE response must be this exact JSON structure:
-{...json schema...}
+**Remaining Issue**: DuckDuckGo MCP returns 0 for most queries - this appears to be a fundamental limitation of the MCP server or DuckDuckGo's API, not our code.
 
-**IMPORTANT: Start your response with { and end with }. Nothing else.**
-```
+### Previous Session Summary (2026-02-15)
+
+**What Was Done:**
+1. Implemented Phase 6 Priority 1: Rate Limit Handling via context truncation
+2. Added config settings for report context limits
+3. Added `_estimate_tokens()` and `_build_compact_context()` helpers to coordinator.py
+4. Re-ran Boeing demo → SUCCESS: estimated_tokens=786 (down from ~20-35k)
+
+### Previous Session Summary (2026-02-14)
+
+**What Was Done:**
+1. Fixed JSON parsing in Identifier/Validator prompts
+2. Added explicit "JSON ONLY" enforcement to OUTPUT FORMAT sections
+3. Re-ran Boeing demo → SUCCESS: 10 requirements, 3 opportunities, 7 risks
 
 ### Current Status
 | Item | Status |
 |------|--------|
-| **Phase** | Phase 5 COMPLETE + VERIFIED |
+| **Phase** | Phase 6 IN PROGRESS (Rate Limit Handling DONE) |
 | **Tests** | 454 passing, 0 skipped |
 | **System** | Fully functional, MCP web search WORKING |
+| **Rate Limit Fix** | ✅ COMPLETED - Context truncation reduces ~20-35k tokens to ~800 tokens |
 | **Identifier Agent** | ✅ COMPLETED - JSON parsing fix applied (2026-02-14) |
 | **Validator Agent** | ✅ COMPLETED - All 3 prompts improved with evidence grounding |
-| **Boeing Demo** | ✅ VERIFIED - 10 requirements, 3 opportunities, 7 risks |
-| **Last Work** | Fixed JSON parsing in Identifier/Validator prompts, verified with Boeing demo |
+| **Boeing Demo** | ✅ VERIFIED - 2 opportunities, 7 risks, no rate limit errors |
+| **Last Work** | Implemented context truncation in coordinator.py (2026-02-15) |
 
 ### Demo Command (Use This to Verify System)
 ```powershell
@@ -89,11 +108,14 @@ python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --
 ```
 
 ### Known Issues
-1. **Rate Limit**: Coordinator hits Groq 8B rate limit for large contexts (34k tokens). Workarounds:
-   - Use larger model (groq/llama-3.3-70b-versatile)
-   - Truncate opportunity context before final report
-   - Add retry logic with exponential backoff
-2. **News Search**: DuckDuckGo MCP returns 0 news items (intermittent issue)
+1. ~~**Rate Limit**~~: ✅ FIXED (2026-02-15) - Context truncation reduces tokens from ~20-35k to ~800
+2. **Web/News Search**: DuckDuckGo MCP has severe limitations (investigated 2026-02-19):
+   - Only supports basic keyword search - no `site:` operators, no boolean `OR`
+   - Returns `202 Accepted` when rate limited → 0 results
+   - Simple queries work ("Boeing official website" → 5 results)
+   - Complex queries fail ("Boeing partnership with simulation software" → 0 results)
+   - **Workaround applied**: Semaphore limits to 2 concurrent requests, added fallback strategies
+   - **Potential fix**: Consider alternative search APIs (Google Custom Search, Bing, SerpAPI)
 3. **ARR Estimation**: Not yet implemented in structured output
 
 ### What's Next (Priority Order)
@@ -105,7 +127,8 @@ python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --
    - `_score_opportunities()` - User objective alignment scoring (+/-0.15)
    - `_enhance_talking_points()` - Grounding rules with [SIG-xxx], [RISK-xxx], [INDUSTRY] tags
 5. ~~**Re-run Boeing Demo**~~ ✅ VERIFIED - 2026-02-14 results below
-6. **Phase 6** 🔜 NEXT - Consider: ARR estimation, rate limit handling, larger model support
+6. ~~**Phase 6 Priority 1: Rate Limit Handling**~~ ✅ DONE (2026-02-15) - Context truncation in coordinator
+7. **Phase 6 Priority 2** 🔜 NEXT - Consider: ARR estimation, news search reliability
 
 ### Identifier Agent Improvements (COMPLETED 2026-02-13)
 
@@ -340,19 +363,24 @@ python -m src.cli research "Boeing" --industry aerospace --seller "MathWorks" --
 
 ---
 
-## Phase 6: Potential Improvements (NOT STARTED)
+## Phase 6: Improvements (IN PROGRESS)
 
-These are potential next steps to consider. **Do not start without user approval.**
-
-### Priority 1: Rate Limit Handling
+### Priority 1: Rate Limit Handling ✅ COMPLETED (2026-02-15)
 **Problem**: Coordinator hits Groq 8B rate limit for large contexts (34k tokens).
-**Options**:
-1. Use larger model for coordinator (groq/llama-3.3-70b-versatile)
-2. Truncate opportunity context before final report generation
-3. Add retry logic with exponential backoff and model fallback
-4. Split coordinator report generation into smaller chunks
+**Solution Implemented**: Context truncation via `_build_compact_context()` method.
 
-**Files to modify**: `src/agents/coordinator.py`, `src/core/model_router.py`
+**Changes Made:**
+| File | Change |
+|------|--------|
+| `src/config.py` | Added 6 config settings: `report_max_opportunities=5`, `report_max_signals=8`, `report_max_jobs=4`, `report_max_risks=5`, `report_signal_content_limit=120`, `report_target_tokens=12000` |
+| `src/agents/coordinator.py` | Added `_estimate_tokens()` - rough token estimation (~4 chars/token) |
+| `src/agents/coordinator.py` | Added `_build_compact_context()` - builds compact JSON with essential fields only |
+| `src/agents/coordinator.py` | Modified `_format_report()` - uses compact context, no JSON indent |
+
+**Results:**
+- Token reduction: ~20-35k → ~800 tokens (97% reduction)
+- Boeing demo: Completed without rate limit errors
+- Log entry: `coordinator_context_built estimated_tokens=786 target_tokens=12000`
 
 ### Priority 2: ARR Estimation
 **Problem**: ARR estimates not consistently included in opportunity output.

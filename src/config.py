@@ -84,6 +84,14 @@ class Settings(BaseSettings):
     report_rationale_char_limit: int = Field(default=300, description="Character limit for rationale")
     report_show_full_content: bool = Field(default=False, description="Show full content without truncation")
 
+    # Report Context Limits (for rate limit prevention)
+    report_max_opportunities: int = Field(default=5, description="Max opportunities in report context")
+    report_max_signals: int = Field(default=8, description="Max signals in report context")
+    report_max_jobs: int = Field(default=4, description="Max job postings in report context")
+    report_max_risks: int = Field(default=5, description="Max risks in report context")
+    report_signal_content_limit: int = Field(default=120, description="Char limit for signal content")
+    report_target_tokens: int = Field(default=12000, description="Target token limit for report context")
+
     # Checkpointing
     checkpoint_dir: str = Field(default="data/checkpoints", description="Checkpoint directory")
     

@@ -75,13 +75,19 @@ class DuckDuckGoMCPClient:
     Includes aggressive rate limiting to avoid bot detection.
     """
 
-    def __init__(self, cache_ttl_hours: int = 1, min_request_interval: float = 2.0):
+    def __init__(
+        self,
+        cache_ttl_hours: int = 1,
+        min_request_interval: float = 2.0,
+        max_concurrent_requests: int = 2
+    ):
         """
         Initialize MCP client.
 
         Args:
             cache_ttl_hours: Cache TTL in hours
-            min_request_interval: Minimum seconds between requests (default: 1.0 to avoid bot detection)
+            min_request_interval: Minimum seconds between requests (default: 2.0 to avoid bot detection)
+            max_concurrent_requests: Maximum number of concurrent requests (default: 2)
         """
         self.cache = MCPCache(ttl_hours=cache_ttl_hours)
         self.request_count = 0
@@ -94,6 +100,10 @@ class DuckDuckGoMCPClient:
         # Rate limiting to avoid bot detection
         self.min_request_interval = min_request_interval
         self._last_request_time: datetime | None = None
+
+        # Semaphore to limit concurrent requests (DuckDuckGo rate limits aggressively)
+        self._request_semaphore = asyncio.Semaphore(max_concurrent_requests)
+        self._request_lock = asyncio.Lock()  # For serializing rate limit checks
 
         self.logger = logger.bind(component="mcp_client", source="ddg")
 
@@ -142,20 +152,25 @@ class DuckDuckGoMCPClient:
         """
         Enforce rate limiting by waiting if needed.
         Ensures minimum interval between requests to avoid bot detection.
+        Uses a lock to properly serialize rate limit checks across concurrent requests.
         """
-        if self._last_request_time is None:
-            self._last_request_time = datetime.now()
-            return
+        async with self._request_lock:
+            if self._last_request_time is None:
+                self._last_request_time = datetime.now()
+                return
 
-        elapsed = (datetime.now() - self._last_request_time).total_seconds()
-        if elapsed < self.min_request_interval:
-            wait_time = self.min_request_interval - elapsed
-            self.logger.debug(
-                "rate_limit_wait",
-                elapsed=f"{elapsed:.2f}s",
-                wait_time=f"{wait_time:.2f}s"
-            )
-            await asyncio.sleep(wait_time)
+            elapsed = (datetime.now() - self._last_request_time).total_seconds()
+            if elapsed < self.min_request_interval:
+                wait_time = self.min_request_interval - elapsed
+                self.logger.debug(
+                    "rate_limit_wait",
+                    elapsed=f"{elapsed:.2f}s",
+                    wait_time=f"{wait_time:.2f}s"
+                )
+                await asyncio.sleep(wait_time)
+
+            # Update last request time after waiting
+            self._last_request_time = datetime.now()
 
         self._last_request_time = datetime.now()
 
@@ -186,49 +201,72 @@ class DuckDuckGoMCPClient:
         if not self.session:
             raise DataSourceError("MCP session not initialized. Use 'async with' context manager.")
 
-        try:
-            # Enforce rate limiting before making request
-            await self._wait_for_rate_limit()
+        # Use semaphore to limit concurrent requests (DuckDuckGo rate limits aggressively)
+        async with self._request_semaphore:
+            try:
+                # Enforce rate limiting before making request
+                await self._wait_for_rate_limit()
 
-            start_time = datetime.now()
-            self.logger.info("search_started", query=query, max_results=max_results)
+                start_time = datetime.now()
+                self.logger.info("search_started", query=query, max_results=max_results)
 
-            # Call MCP tool
-            result = await self.session.call_tool(
-                "search",
-                arguments={"query": query, "max_results": max_results}
-            )
+                # Call MCP tool
+                result = await self.session.call_tool(
+                    "search",
+                    arguments={"query": query, "max_results": max_results}
+                )
 
-            # Parse results using flexible parsing
-            search_results = []
-            if result and hasattr(result, 'content') and result.content:
-                for item in result.content:
-                    if hasattr(item, 'text'):
-                        text = item.text
-                        parsed_results = self._parse_search_results_flexible(text)
-                        search_results.extend(parsed_results)
+                # Parse results using flexible parsing
+                search_results = []
+                if result and hasattr(result, 'content') and result.content:
+                    for item in result.content:
+                        if hasattr(item, 'text'):
+                            text = item.text
+                            # Debug log raw response for troubleshooting
+                            if not text or text.strip() == "":
+                                self.logger.warning(
+                                    "mcp_returned_empty_text",
+                                    query=query,
+                                    content_items=len(result.content) if result.content else 0
+                                )
+                            else:
+                                self.logger.debug(
+                                    "mcp_raw_response",
+                                    query=query,
+                                    text_preview=text[:200] if len(text) > 200 else text
+                                )
+                            parsed_results = self._parse_search_results_flexible(text)
+                            search_results.extend(parsed_results)
+                else:
+                    # Log when MCP returns nothing
+                    self.logger.warning(
+                        "mcp_returned_no_content",
+                        query=query,
+                        has_result=bool(result),
+                        has_content_attr=hasattr(result, 'content') if result else False
+                    )
 
-            # Track metrics
-            latency = (datetime.now() - start_time).total_seconds() * 1000
-            self._latencies.append(latency)
-            self.request_count += 1
+                # Track metrics
+                latency = (datetime.now() - start_time).total_seconds() * 1000
+                self._latencies.append(latency)
+                self.request_count += 1
 
-            self.logger.info(
-                "search_completed",
-                query=query,
-                result_count=len(search_results),
-                latency_ms=latency
-            )
+                self.logger.info(
+                    "search_completed",
+                    query=query,
+                    result_count=len(search_results),
+                    latency_ms=latency
+                )
 
-            # Cache results
-            self.cache.set("search", search_results, query=query, max_results=max_results)
+                # Cache results
+                self.cache.set("search", search_results, query=query, max_results=max_results)
 
-            return search_results
+                return search_results
 
-        except Exception as e:
-            self.error_count += 1
-            self.logger.error("search_failed", query=query, error=str(e))
-            raise DataSourceError(f"DuckDuckGo search failed: {e}")
+            except Exception as e:
+                self.error_count += 1
+                self.logger.error("search_failed", query=query, error=str(e))
+                raise DataSourceError(f"DuckDuckGo search failed: {e}")
 
     @retry(
         stop=stop_after_attempt(3),
@@ -300,10 +338,11 @@ class DuckDuckGoMCPClient:
 
     async def search_news(self, query: str, max_results: int = 5) -> list[NewsItem]:
         """
-        Search for news articles via MCP with news-optimized query strategy.
+        Search for news articles via MCP with progressive fallback strategy.
 
-        Uses site-specific searches to prioritize reputable news sources,
-        then falls back to general news search if needed.
+        DuckDuckGo MCP does NOT support site: operators or boolean OR.
+        Uses simple query variations with news-related keywords and falls back
+        to simpler queries if results are empty.
 
         Args:
             query: Search query (typically company name + topic)
@@ -312,20 +351,38 @@ class DuckDuckGoMCPClient:
         Returns:
             List of NewsItem objects with relevance scoring
         """
-        # News-optimized query strategy:
-        # Include site operators for major news sources to improve relevance
-        news_sources = [
-            "reuters.com", "bloomberg.com", "wsj.com", "businesswire.com",
-            "prnewswire.com", "techcrunch.com", "zdnet.com", "theregister.com"
+        # Progressive query strategy - try simpler queries if complex ones fail
+        # DuckDuckGo MCP only supports basic keyword search
+        query_strategies = [
+            f"{query} news",                    # "Boeing technology investment news"
+            f"{query} announcement",            # "Boeing technology investment announcement"
+            f"{query} press release",           # "Boeing technology investment press release"
+            query,                              # Just the raw query as last resort
         ]
 
-        # Build news-optimized query with OR operators for news sites
-        site_operators = " OR ".join(f"site:{site}" for site in news_sources[:4])
-        news_query = f"({query}) ({site_operators} OR news OR press release OR announcement)"
+        search_results = []
+        successful_query = None
 
-        self.logger.debug("news_search_query", original=query, optimized=news_query)
+        for news_query in query_strategies:
+            self.logger.debug("news_search_trying", query=news_query)
+            search_results = await self.search(news_query, max_results=max_results + 5)
 
-        search_results = await self.search(news_query, max_results=max_results + 5)
+            if search_results:
+                successful_query = news_query
+                self.logger.info(
+                    "news_search_succeeded",
+                    original_query=query,
+                    successful_query=news_query,
+                    result_count=len(search_results)
+                )
+                break
+
+        if not search_results:
+            self.logger.warning(
+                "news_search_all_strategies_failed",
+                query=query,
+                strategies_tried=len(query_strategies)
+            )
 
         news_items = []
         for result in search_results:
