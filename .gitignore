@@ -10,7 +10,7 @@ env/
 dist/
 build/
 .claude/
-Status_Plan/
+
 
 # Environment
 .env
@@ -38,3 +38,10 @@ data/cache/*
 # OS
 .DS_Store
 Thumbs.db
+
+#frontend
+frontend/node_modules
+
+# Context
+Status_Plan/
+CONTEXT_PHASE7_UI.md

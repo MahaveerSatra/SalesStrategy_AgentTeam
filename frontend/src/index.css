@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  @apply bg-white text-slate-800;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
+}
+
+/* React Flow overrides for light theme */
+.react-flow__node {
+  @apply shadow-md;
+}
+
+.react-flow__edge-path {
+  @apply stroke-slate-400;
+}
+
+.react-flow__background {
+  @apply bg-slate-50;
+}
+
+/* Markdown content styling */
+.markdown-content h1 {
+  @apply text-2xl font-bold text-slate-900 mb-4;
+}
+
+.markdown-content h2 {
+  @apply text-xl font-semibold text-slate-900 mb-3 mt-6;
+}
+
+.markdown-content h3 {
+  @apply text-lg font-medium text-slate-700 mb-2 mt-4;
+}
+
+.markdown-content p {
+  @apply text-slate-600 mb-3;
+}
+
+.markdown-content ul {
+  @apply list-disc list-inside mb-3 text-slate-600;
+}
+
+.markdown-content li {
+  @apply mb-1;
+}
+
+.markdown-content strong {
+  @apply text-slate-900 font-semibold;
+}
+
+.markdown-content code {
+  @apply bg-slate-100 px-1.5 py-0.5 rounded text-blue-600 text-sm;
+}
+
+.markdown-content blockquote {
+  @apply border-l-4 border-blue-500 pl-4 italic text-slate-500;
+}
+
+/* Card hover effects */
+.card-hover {
+  @apply transition-all duration-200 hover:shadow-lg hover:border-blue-200;
+}
+
+/* Trust-building gradient backgrounds */
+.trust-gradient {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f0fdf4 100%);
+}
+
+.header-gradient {
+  background: linear-gradient(90deg, #1e40af 0%, #1d4ed8 50%, #2563eb 100%);
+}

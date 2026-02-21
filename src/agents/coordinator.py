@@ -651,8 +651,14 @@ Example when we can proceed:
         # Store report in state for later reference
         state["current_report"] = report  # type: ignore
 
-        # Present to human with feedback prompt
-        state["human_question"] = report
+        # Present to human with simple feedback prompt (not the full report)
+        state["human_question"] = (
+            "Please review the research report above. You can:\n"
+            "• Say **'approved'** to finalize the report\n"
+            "• Ask to **'dig deeper on [topic]'** for more research\n"
+            "• Request **'different products'** to explore other opportunities\n"
+            "• Provide **specific feedback** to refine the analysis"
+        )
         state["waiting_for_human"] = True
 
         # Increment workflow iteration counter
@@ -1090,20 +1096,22 @@ USER FEEDBACK
 ROUTING OPTIONS (Choose ONE)
 ═══════════════════════════════════════════════════════════════
 
-**COMPLETE** - User is satisfied, work is done
-- Trigger words: "approved", "looks good", "great", "perfect", "done", "thanks", "ship it", "good to go", "accepted", "finalize", "save"
-- Positive sentiment without specific change requests
-- DEFAULT if feedback is ambiguous but positive
+**COMPLETE** - User EXPLICITLY approves the work (STRICT criteria)
+- ONLY trigger words: "approved", "looks good", "perfect", "done", "ship it", "good to go", "accepted", "finalize", "save this", "that's it"
+- Must be EXPLICIT approval, not just absence of complaints
+- NEVER mark as complete if user is asking questions or providing information
 
-**GATHERER** - User wants MORE DATA on specific topics
+**GATHERER** - User wants MORE DATA or provides new context (DEFAULT for unclear)
 - Trigger words: "dig deeper", "more info", "research more", "find out about", "what about their [X]", "explore", "investigate"
 - User identifies a TOPIC they want more information about
-- Not about finding different products, but getting more evidence
+- User provides CONTEXT about what they already have or what they need
+- User ASKS QUESTIONS about the account or products
+- User mentions specific technologies, products, or use cases they want to focus on
 
 **IDENTIFIER** - User wants DIFFERENT OPPORTUNITIES
-- Trigger words: "different products", "other opportunities", "new angle", "what else", "alternatives", "not these products"
+- Trigger words: "different products", "other opportunities", "new angle", "what else", "alternatives", "not these products", "instead"
 - User is not satisfied with the PRODUCTS suggested
-- Wants to explore different product matches, not more data on current ones
+- Wants to explore different product matches
 
 **VALIDATOR** - User questions CONFIDENCE SCORES
 - Trigger words: "confidence too high", "confidence too low", "re-evaluate", "re-score", "seems off", "disagree with rating"
@@ -1111,28 +1119,36 @@ ROUTING OPTIONS (Choose ONE)
 - Rare - only use when explicitly about scoring
 
 ═══════════════════════════════════════════════════════════════
-DECISION PRIORITY
+DECISION PRIORITY (IMPORTANT - Follow strictly!)
 ═══════════════════════════════════════════════════════════════
 
-1. If ANY approval language present → COMPLETE
-2. If questioning scores specifically → VALIDATOR
-3. If wants different products → IDENTIFIER
-4. If wants more research on topics → GATHERER
-5. If unclear → COMPLETE (assume satisfaction)
+1. If user asks a QUESTION → GATHERER (they want more info)
+2. If user provides NEW CONTEXT about account → GATHERER (use this to refine search)
+3. If user mentions specific technology/product they want → IDENTIFIER
+4. If user questions scores → VALIDATOR
+5. If EXPLICIT approval words like "approved", "done", "ship it" → COMPLETE
+6. If unclear or just informational → GATHERER (NOT COMPLETE - gather more data)
+
+CRITICAL: Only use COMPLETE if user EXPLICITLY says they approve.
+Providing information ≠ approval. Asking questions ≠ approval.
 
 ═══════════════════════════════════════════════════════════════
 EXAMPLES
 ═══════════════════════════════════════════════════════════════
 
-"looks good, approved" → COMPLETE
-"this is great, thanks!" → COMPLETE
+"looks good, approved" → COMPLETE (explicit approval)
+"approved" → COMPLETE (explicit approval)
+"ship it" → COMPLETE (explicit approval)
+"They already use X, can you focus on Y?" → GATHERER (providing context + question)
+"What about their simulation needs?" → GATHERER (asking question)
+"Is there a product for CFD simulation?" → IDENTIFIER (asking about specific product)
 "dig deeper on their cloud initiatives" → GATHERER
 "tell me more about their hiring in AI" → GATHERER
 "what about opportunities for Simulink instead?" → IDENTIFIER
 "find different products to pitch" → IDENTIFIER
-"the 85% confidence on MATLAB seems too high" → VALIDATOR
-"ok" → COMPLETE (ambiguous but not negative)
-"interesting" → COMPLETE (not requesting changes)
+"the 85% confidence seems too high" → VALIDATOR
+"interesting" → GATHERER (not explicit approval - gather more data)
+"ok but can you also check..." → GATHERER (has a follow-up request)
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT
