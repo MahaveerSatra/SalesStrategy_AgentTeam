@@ -8,6 +8,7 @@ from typing import Any
 import structlog
 
 from src.graph.workflow import ResearchWorkflow
+from src.graph.sse_callbacks import SSECallbackHandler
 from src.models.state import (
     ResearchState,
     ResearchDepth,
@@ -254,10 +255,19 @@ class WorkflowService:
 
         self._running.add(thread_id)
 
+        # PRE-CREATE SSE QUEUE before workflow starts
+        # This ensures events emitted before frontend connects are buffered
+        from api.sse.event_stream import event_emitter
+        event_emitter.create_queue(thread_id)
+        logger.info("sse_queue_pre_created", thread_id=thread_id)
+
+        # Create SSE callback handler for real-time frontend updates
+        sse_callback = SSECallbackHandler(thread_id)
+
         try:
-            # Run workflow in thread pool (it's synchronous internally)
+            # Run workflow in thread pool with SSE callback
             result = await asyncio.to_thread(
-                workflow.run, state, thread_id
+                workflow.run, state, thread_id, sse_callback
             )
             self._states[thread_id] = result
             return result
@@ -311,10 +321,19 @@ class WorkflowService:
 
         self._running.add(thread_id)
 
+        # PRE-CREATE SSE QUEUE before workflow resumes
+        # This ensures events emitted before frontend reconnects are buffered
+        from api.sse.event_stream import event_emitter
+        event_emitter.create_queue(thread_id)
+        logger.info("sse_queue_pre_created_for_feedback", thread_id=thread_id)
+
+        # Create SSE callback handler for real-time frontend updates
+        sse_callback = SSECallbackHandler(thread_id)
+
         try:
-            # Resume workflow with feedback
+            # Resume workflow with feedback and SSE callback
             result = await asyncio.to_thread(
-                workflow.resume, thread_id, feedback
+                workflow.resume, thread_id, feedback, sse_callback
             )
             self._states[thread_id] = result
             return result
@@ -333,6 +352,30 @@ class WorkflowService:
     def is_running(self, thread_id: str) -> bool:
         """Check if a workflow is currently running."""
         return thread_id in self._running
+
+    async def stop_research(self, thread_id: str) -> bool:
+        """
+        Stop a running research workflow.
+
+        Args:
+            thread_id: The thread ID to stop
+
+        Returns:
+            True if stopped, False if not running
+        """
+        if thread_id not in self._running:
+            return False
+
+        # Remove from running set - marks workflow as stopped
+        self._running.discard(thread_id)
+
+        # Update state to indicate stopped
+        if thread_id in self._states:
+            self._states[thread_id]["status"] = "stopped"
+            self._states[thread_id]["error_messages"] = self._states[thread_id].get("error_messages", []) + ["Research stopped by user"]
+
+        logger.info("research_stopped", thread_id=thread_id)
+        return True
 
 
 # Singleton instance for dependency injection

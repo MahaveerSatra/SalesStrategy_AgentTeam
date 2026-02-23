@@ -29,9 +29,12 @@ const AGENT_STEPS: AgentStep[] = [
     progressKey: 'coordinator_complete',
     icon: Target,
     activeMessages: [
-      'Validating account information...',
+      'Briefing the team...',
+      'Analyzing your objectives...',
+      'Validating account intel...',
       'Checking industry alignment...',
-      'Preparing research parameters...',
+      'Preparing the research mission...',
+      'Strategizing the approach...',
     ],
   },
   {
@@ -41,10 +44,16 @@ const AGENT_STEPS: AgentStep[] = [
     progressKey: 'gatherer_complete',
     icon: Search,
     activeMessages: [
-      'Searching company news...',
-      'Analyzing job postings...',
-      'Gathering market signals...',
-      'Collecting competitive intelligence...',
+      'Scouring the web for insights...',
+      'Hunting for competitive intelligence...',
+      'Decoding job postings...',
+      'Tracking funding announcements...',
+      'Investigating tech stack clues...',
+      'Following the money trail...',
+      'Intercepting market signals...',
+      'Mining LinkedIn goldmines...',
+      'Analyzing press releases...',
+      'Discovering pain points...',
     ],
   },
   {
@@ -54,10 +63,14 @@ const AGENT_STEPS: AgentStep[] = [
     progressKey: 'identifier_complete',
     icon: Lightbulb,
     activeMessages: [
-      'Analyzing gathered signals...',
-      'Matching products to needs...',
-      'Identifying sales opportunities...',
-      'Building opportunity rationale...',
+      'Matching solutions to pain points...',
+      'Connecting the dots...',
+      'Building your battle plan...',
+      'Crafting value propositions...',
+      'Identifying decision makers...',
+      'Mapping the buying committee...',
+      'Finding the perfect fit...',
+      'Discovering hidden opportunities...',
     ],
   },
   {
@@ -67,10 +80,14 @@ const AGENT_STEPS: AgentStep[] = [
     progressKey: 'validator_complete',
     icon: Shield,
     activeMessages: [
-      'Evaluating evidence strength...',
-      'Scoring confidence levels...',
-      'Assessing competitive risks...',
-      'Validating opportunity quality...',
+      'Stress-testing our hypotheses...',
+      'Calculating confidence scores...',
+      'Assessing competitive threats...',
+      'Validating deal potential...',
+      'Scoring opportunity quality...',
+      'Running the numbers...',
+      'Checking our assumptions...',
+      'Preparing your edge...',
     ],
   },
 ];
@@ -102,15 +119,15 @@ function getStepStatus(
 function StatusIcon({ status }: { status: NodeStatus }) {
   switch (status) {
     case 'running':
-      return <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />;
+      return <Loader2 className="w-5 h-5 text-teal-600 animate-spin" />;
     case 'complete':
-      return <CheckCircle2 className="w-5 h-5 text-green-600" />;
+      return <CheckCircle2 className="w-5 h-5 text-emerald-600" />;
     case 'error':
-      return <AlertCircle className="w-5 h-5 text-red-600" />;
+      return <AlertCircle className="w-5 h-5 text-rose-600" />;
     case 'waiting':
       return <Clock className="w-5 h-5 text-amber-600" />;
     default:
-      return <Circle className="w-5 h-5 text-slate-300" />;
+      return <Circle className="w-5 h-5 text-zinc-300" />;
   }
 }
 
@@ -144,7 +161,7 @@ export function AgentProgress({
 }: AgentProgressProps) {
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-slate-600 uppercase tracking-wide">
+      <h3 className="text-sm font-semibold text-zinc-600 uppercase tracking-wide">
         Agent Progress
       </h3>
 
@@ -162,36 +179,36 @@ export function AgentProgress({
               key={step.id}
               className={`
                 rounded-lg transition-all overflow-hidden
-                ${isActive ? 'bg-blue-50 border border-blue-200 shadow-sm' : 'bg-slate-50 border border-slate-100'}
+                ${isActive ? 'bg-teal-50 border border-teal-200 shadow-sm' : 'bg-zinc-50 border border-zinc-100'}
               `}
             >
               {/* Main row */}
               <div className="flex items-center gap-3 p-3">
-                <div className={`p-2 rounded-lg ${isActive ? 'bg-blue-100' : 'bg-slate-100'}`}>
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-blue-600' : 'text-slate-500'}`} />
+                <div className={`p-2 rounded-lg ${isActive ? 'bg-teal-100' : 'bg-zinc-100'}`}>
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-teal-600' : 'text-zinc-500'}`} />
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span
                       className={`font-medium ${
-                        isActive ? 'text-blue-700' : status === 'complete' ? 'text-green-700' : 'text-slate-700'
+                        isActive ? 'text-teal-700' : status === 'complete' ? 'text-emerald-700' : 'text-zinc-700'
                       }`}
                     >
                       {step.label}
                     </span>
                     {isActive && (
-                      <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium animate-pulse">
+                      <span className="text-xs px-2 py-0.5 bg-teal-100 text-teal-700 rounded-full font-medium animate-pulse">
                         Running
                       </span>
                     )}
                     {status === 'complete' && (
-                      <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
+                      <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full font-medium">
                         Complete
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 truncate">{step.description}</p>
+                  <p className="text-xs text-zinc-500 truncate">{step.description}</p>
                 </div>
 
                 <StatusIcon status={status} />
@@ -200,7 +217,7 @@ export function AgentProgress({
               {/* Activity detail row - only show when active */}
               {isActive && (
                 <div className="px-3 pb-3 pt-0">
-                  <div className="ml-11 p-2 bg-blue-100/50 rounded border border-blue-200/50">
+                  <div className="ml-11 p-2 bg-teal-100/50 rounded border border-teal-200/50">
                     <ActivityDisplay
                       sseActivity={sseActivity}
                       defaultMessages={step.activeMessages}
@@ -256,8 +273,8 @@ function ActivityDisplay({
 
   return (
     <div className="flex items-center gap-2">
-      <Loader2 className="w-3 h-3 text-blue-500 animate-spin flex-shrink-0" />
-      <span className="text-xs text-blue-700 font-medium truncate">
+      <Loader2 className="w-3 h-3 text-teal-500 animate-spin flex-shrink-0" />
+      <span className="text-xs text-teal-700 font-medium truncate">
         {displayMessage}
       </span>
     </div>

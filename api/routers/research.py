@@ -209,6 +209,38 @@ async def get_report(thread_id: str) -> dict:
     }
 
 
+@router.post("/{thread_id}/stop")
+async def stop_research(thread_id: str) -> dict:
+    """
+    Stop a running research workflow.
+
+    Stops the workflow gracefully, preserving any data collected so far.
+    """
+    state = await workflow_service.get_state(thread_id)
+
+    if not state:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Research thread {thread_id} not found"
+        )
+
+    stopped = await workflow_service.stop_research(thread_id)
+
+    if not stopped:
+        raise HTTPException(
+            status_code=400,
+            detail="Research is not currently running"
+        )
+
+    logger.info("research_stopped_by_user", thread_id=thread_id)
+
+    return {
+        "status": "stopped",
+        "thread_id": thread_id,
+        "message": "Research stopped successfully",
+    }
+
+
 @router.get("/list", response_model=ThreadListResponse)
 async def list_threads() -> ThreadListResponse:
     """

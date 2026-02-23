@@ -99,6 +99,20 @@ export async function listThreads(): Promise<{
 }
 
 /**
+ * Stop a running research workflow.
+ */
+export async function stopResearch(threadId: string): Promise<{
+  status: string;
+  thread_id: string;
+  message: string;
+}> {
+  const response = await fetch(`${API_BASE}/research/${threadId}/stop`, {
+    method: 'POST',
+  });
+  return handleResponse(response);
+}
+
+/**
  * Health check.
  */
 export async function healthCheck(): Promise<{

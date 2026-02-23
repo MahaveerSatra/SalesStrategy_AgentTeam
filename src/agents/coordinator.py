@@ -847,80 +847,114 @@ Example when we can proceed:
             risks=risks,
         )
 
-        prompt = f"""You are creating a CRISP, ACTIONABLE sales briefing. Be concise - every word must earn its place.
+        prompt = f"""You are an elite sales strategist creating a battle-ready brief for a sales rep. The rep will read this before walking into a meeting. Make every word count.
 
+═══════════════════════════════════════════════════════════════════════════════
+CONTEXT
+═══════════════════════════════════════════════════════════════════════════════
 CUSTOMER: {account} ({industry})
 SELLER: {seller_name}
-CONTEXT: {user_context or "General research"}
+SALES CONTEXT: {user_context or "General research - initial outreach"}
 
-DATA COLLECTED:
-- {len(signals)} signals | {len(job_postings)} job postings | {len(opportunities)} opportunities
+INTELLIGENCE GATHERED:
+- {len(signals)} market signals analyzed
+- {len(job_postings)} job postings scanned
+- {len(opportunities)} opportunities identified
 
-SIGNALS: {signals_json}
-JOBS: {jobs_json}
-OPPORTUNITIES: {opps_json}
-RISKS: {risks_json}
+RAW SIGNALS (use as evidence):
+{signals_json}
+
+JOB POSTINGS (hiring = pain points):
+{jobs_json}
+
+VALIDATED OPPORTUNITIES:
+{opps_json}
+
+COMPETITIVE RISKS:
+{risks_json}
 
 ═══════════════════════════════════════════════════════════════════════════════
-CRITICAL RULES
+CRITICAL REQUIREMENTS
 ═══════════════════════════════════════════════════════════════════════════════
-1. NO HALLUCINATIONS - Only cite evidence that exists in the data above
-2. BE SPECIFIC - Quote actual job titles, news, or signals. No generic statements.
-3. BE CONCISE - Max 5 sections. User can ask for more detail if needed.
-4. SIGNAL QUALITY - Flag when evidence is weak. Transparency builds trust.
+1. SPECIFIC NOT GENERIC - Every claim MUST reference actual data above. Quote it.
+   BAD: "They're investing in cloud"
+   GOOD: "Their job posting for 'AWS Solutions Architect' (posted 3 days ago) signals cloud migration"
+
+2. NO HALLUCINATIONS - If you can't cite evidence from the data, don't say it.
+
+3. EVIDENCE QUALITY MATTERS - Be transparent:
+   - STRONG: Multiple signals confirm (job + news + tech stack)
+   - MODERATE: 1-2 signals suggest
+   - WEAK: Inference without direct evidence - flag for verification
+
+4. WHY NOW - Every opportunity needs a timing trigger. What changed?
+
+5. TALKING POINTS = ACTUAL STATEMENTS the rep can say in a meeting. Not summaries.
 
 ═══════════════════════════════════════════════════════════════════════════════
-REPORT FORMAT (5 SECTIONS MAX)
+REPORT FORMAT
 ═══════════════════════════════════════════════════════════════════════════════
 
-## 🎯 Executive Summary (3 sentences max)
-- #1 opportunity + WHY NOW (cite the specific trigger/signal)
-- Potential business impact
-- Key risk or caveat if evidence is thin
+## 🎯 Executive Summary
+
+**At a Glance:**
+- **Best Opportunity:** [Product] — [X]% confidence
+- **Key Decision Maker:** [Likely title based on signals]
+- **Why Now:** [The specific trigger from signals/jobs that creates urgency]
+- **Caveat:** [If evidence is weak, state it honestly]
 
 ---
 
 ## 💡 Top Opportunities
 
-For each opportunity (max 3):
+For each (max 3, ranked by confidence):
 
-### [Product] — [X]% confidence | Signal: STRONG/MODERATE/WEAK
+### 1. [Product Name] — [X]% Confidence
 
-**Decision Maker:** [Title] - [why they care, 1 line]
+**The Signal:** "[Direct quote from job posting, news, or signal]"
+— Source: [job posting/news/etc]
 
-**Evidence:** "[Quote the actual signal/job posting/news]" — Source: [where from]
+**Target Persona:** [Job title] — They care because [specific reason tied to their role]
 
-**The Pitch:** "We help {industry} teams [specific outcome]. Our [product] enables [capability]."
+**Why Now:** [What changed that makes this urgent? Reference the signal timestamp or trigger]
 
-**If evidence is WEAK, state:** "⚠️ Needs verification: [what to ask to confirm]"
+**Talking Points (say these in the meeting):**
+1. "I noticed you recently posted for [actual job title]. What's driving that investment?"
+2. "[Specific observation from signal] — how is that initiative progressing?"
+3. "Our [product] helps [industry] teams [specific outcome]. Would that align with your [initiative from signal]?"
 
----
-
-## 🎤 Discovery Questions (Top 4)
-
-Questions that reference the ACTUAL research findings:
-1. "I saw you're hiring for [actual job title]. What's driving that?"
-2. "Your [actual signal] suggests [inference]. How is that initiative going?"
-3. "[Status quo challenge based on industry]"
-4. "[Commitment/pilot question]"
+**If Signal is WEAK:**
+⚠️ *Needs verification* — Ask: "[Specific question to confirm the hypothesis]"
 
 ---
 
-## ⚠️ Risks & Competition
+## 🎤 Discovery Questions
 
-- **[Risk/Competitor]:** [Our counter-positioning, 1 line]
-- **Weak signals to verify:** [List any opportunities with thin evidence]
+Based on your research, ask these:
+
+1. **About their hiring:** "You're hiring [actual job titles]. What capability are you building?"
+2. **About their initiatives:** "[Reference actual signal] — what problem are you trying to solve?"
+3. **Challenge status quo:** "How are you currently handling [pain point from signal]?"
+4. **Next step opener:** "If we could [specific value prop], would that be worth a deeper conversation?"
+
+---
+
+## ⚠️ Risks to Watch
+
+{risks_json if risks else "No major competitive risks identified in signals."}
+
+**Evidence gaps to fill:** [List any opportunities where signals are weak]
 
 ---
 
-## 🚀 Next Steps (2-3 actions)
+## 🚀 Recommended Next Steps
 
-1. **Immediate:** [Action] — Why now: [timing driver]
-2. **Value-first offer:** [Free resource/audit to offer]
-3. **Follow-up:** [Specific next step]
+1. **Before the meeting:** Research [specific person/topic] to fill evidence gaps
+2. **Opener:** Lead with [most compelling signal/trigger]
+3. **Ask:** "[Best discovery question from above]"
 
 ---
-💬 **Feedback:** 'approved' to finalize | 'dig deeper on X' for more research | 'different angle' for other opportunities
+*💬 Feedback: 'approved' to finalize | 'dig deeper on [topic]' | 'find other products'*
 """
 
         try:
@@ -1232,31 +1266,74 @@ Return JSON:
         - What they want to see different
         - Specific areas to focus on
 
+        Uses ACTUAL signals and opportunities from state - no hardcoded examples.
+
         Args:
             state: Current research state (modified in-place)
             route: Determined routing decision
             feedback: Original human feedback
         """
-        # Build context based on route - provide SPECIFIC, ACTIONABLE instructions
-        agent_instructions = {
-            WorkflowRoute.GATHERER: """
+        # Get actual data from state to provide context
+        account_name = state.get("account_name", "the target company")
+        industry = state.get("industry", "")
+        signals = state.get("signals", [])
+        opportunities = state.get("validated_opportunities", []) or state.get("opportunities", [])
+
+        # Build signal summary from ACTUAL data
+        signal_summary = ""
+        if signals:
+            signal_items = []
+            for sig in signals[:5]:
+                if hasattr(sig, 'signal_type'):
+                    signal_items.append(f"- {sig.signal_type}: {sig.content[:150] if sig.content else ''}")
+                elif isinstance(sig, dict):
+                    signal_items.append(f"- {sig.get('signal_type', 'signal')}: {sig.get('content', '')[:150]}")
+            signal_summary = "\n".join(signal_items)
+
+        # Build opportunity summary from ACTUAL data
+        opp_summary = ""
+        if opportunities:
+            opp_items = []
+            for opp in opportunities[:3]:
+                if hasattr(opp, 'product_name'):
+                    opp_items.append(f"- {opp.product_name}: {opp.rationale[:100] if opp.rationale else ''}")
+                elif isinstance(opp, dict):
+                    opp_items.append(f"- {opp.get('product_name', 'product')}: {opp.get('rationale', '')[:100]}")
+            opp_summary = "\n".join(opp_items)
+
+        # Agent-specific guidance (no hardcoded company examples)
+        agent_guidance = {
+            WorkflowRoute.GATHERER: f"""
 The GATHERER agent collects data from web searches, job postings, and news.
-Tell it EXACTLY what topics to research and what sources to prioritize.
-Example: "Research Boeing's cloud migration initiatives. Focus on: AWS partnerships, hiring for cloud architects, recent announcements about digital transformation."
-""",
-            WorkflowRoute.IDENTIFIER: """
+Generate instructions specific to {account_name} based on their industry ({industry}) and the signals already found.
+Focus on topics the user wants to explore deeper.""",
+            WorkflowRoute.IDENTIFIER: f"""
 The IDENTIFIER agent matches seller products to customer needs.
-Tell it EXACTLY what product categories to explore or avoid.
-Example: "Focus on data visualization and analytics products. Skip infrastructure products - they already have a solution there."
-""",
-            WorkflowRoute.VALIDATOR: """
+Generate instructions to find different/better product matches for {account_name}.
+Consider what products might address the signals already identified.""",
+            WorkflowRoute.VALIDATOR: f"""
 The VALIDATOR agent scores opportunities and assesses risks.
-Tell it EXACTLY which scores to re-evaluate and why.
-Example: "Re-evaluate MATLAB confidence. User thinks 85% is too high because Boeing primarily uses Python. Consider language preferences in scoring."
-"""
+Generate instructions to re-evaluate scores for {account_name}'s opportunities.
+Reference specific products and why their confidence might need adjustment."""
         }
 
         prompt = f"""You are translating user feedback into SPECIFIC INSTRUCTIONS for the {route.value} agent.
+
+═══════════════════════════════════════════════════════════════
+CURRENT RESEARCH TARGET
+═══════════════════════════════════════════════════════════════
+Account: {account_name}
+Industry: {industry}
+
+═══════════════════════════════════════════════════════════════
+SIGNALS ALREADY FOUND
+═══════════════════════════════════════════════════════════════
+{signal_summary if signal_summary else "No signals gathered yet."}
+
+═══════════════════════════════════════════════════════════════
+OPPORTUNITIES IDENTIFIED
+═══════════════════════════════════════════════════════════════
+{opp_summary if opp_summary else "No opportunities identified yet."}
 
 ═══════════════════════════════════════════════════════════════
 USER FEEDBACK
@@ -1266,30 +1343,27 @@ USER FEEDBACK
 ═══════════════════════════════════════════════════════════════
 AGENT CONTEXT
 ═══════════════════════════════════════════════════════════════
-{agent_instructions.get(route, "Provide specific actionable guidance.")}
+{agent_guidance.get(route, "Provide specific actionable guidance.")}
 
 ═══════════════════════════════════════════════════════════════
 YOUR TASK
 ═══════════════════════════════════════════════════════════════
 
-Convert the user's feedback into a CLEAR, ACTIONABLE instruction.
+Convert the user's feedback into a CLEAR, ACTIONABLE instruction for {account_name}.
 
-Rules:
-1. Be SPECIFIC - name exact topics, products, or areas to focus on
-2. Be DIRECTIVE - use imperative language ("Research X", "Focus on Y", "Avoid Z")
-3. Be CONCISE - one paragraph max
-4. EXTRACT intent - even if user was vague, make it specific
-
-Examples:
-- User: "dig deeper on cloud" → "Research their cloud infrastructure initiatives. Look for: cloud migration projects, AWS/Azure/GCP partnerships, DevOps hiring, containerization mentions in job posts."
-- User: "what about analytics?" → "Focus on analytics and data science products. Look for opportunities with: dashboards, reporting tools, data visualization, BI platforms. De-prioritize current product suggestions."
-- User: "confidence seems off" → "Re-evaluate all confidence scores. User expressed general skepticism. Apply stricter evidence requirements and lower scores where evidence is circumstantial."
+CRITICAL RULES:
+1. ONLY reference {account_name} - do NOT use example companies
+2. Use the actual signals and opportunities shown above as context
+3. Be SPECIFIC - name exact topics from the signals or user feedback
+4. Be DIRECTIVE - use imperative language ("Research X", "Focus on Y")
+5. Be CONCISE - one paragraph max
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT
 ═══════════════════════════════════════════════════════════════
 
 Return ONLY the instruction text (no JSON, no preamble). Start directly with the action.
+Reference {account_name} specifically, NOT example companies.
 """
 
         try:

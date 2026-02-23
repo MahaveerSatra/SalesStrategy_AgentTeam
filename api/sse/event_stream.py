@@ -4,6 +4,7 @@ Streams workflow progress to the frontend as agents complete their work.
 """
 import asyncio
 import json
+from collections import deque
 from datetime import datetime
 from enum import Enum
 from typing import AsyncGenerator, Any
@@ -53,16 +54,23 @@ class EventEmitter:
     """
     Event emitter for workflow progress.
     Used to push events to SSE streams.
+
+    Includes event buffering to capture events emitted before
+    the client connects to the SSE stream.
     """
 
-    def __init__(self):
+    def __init__(self, buffer_size: int = 50):
         self._queues: dict[str, asyncio.Queue] = {}
         self._active: set[str] = set()
+        self._event_buffer: dict[str, deque] = {}  # Buffer for early events
+        self.buffer_size = buffer_size
 
     def create_queue(self, thread_id: str) -> asyncio.Queue:
         """Create a new event queue for a thread."""
         if thread_id not in self._queues:
             self._queues[thread_id] = asyncio.Queue()
+        if thread_id not in self._event_buffer:
+            self._event_buffer[thread_id] = deque(maxlen=self.buffer_size)
         self._active.add(thread_id)
         return self._queues[thread_id]
 
@@ -71,10 +79,32 @@ class EventEmitter:
         return self._queues.get(thread_id)
 
     async def emit(self, thread_id: str, event: WorkflowEvent):
-        """Emit an event to all listeners of a thread."""
+        """
+        Emit an event to all listeners of a thread.
+
+        If no queue exists yet (client hasn't connected), the event
+        is buffered and will be sent when the client connects.
+        """
+        # Always buffer the event (for late-connecting clients)
+        if thread_id not in self._event_buffer:
+            self._event_buffer[thread_id] = deque(maxlen=self.buffer_size)
+        self._event_buffer[thread_id].append(event)
+
+        # Also queue if listener exists
         queue = self._queues.get(thread_id)
         if queue:
             await queue.put(event)
+        else:
+            logger.debug("sse_event_buffered", thread_id=thread_id, event=event.event.value)
+
+    def get_buffered_events(self, thread_id: str) -> list[WorkflowEvent]:
+        """Get all buffered events for a thread."""
+        return list(self._event_buffer.get(thread_id, []))
+
+    def clear_buffer(self, thread_id: str):
+        """Clear the event buffer for a thread."""
+        if thread_id in self._event_buffer:
+            self._event_buffer[thread_id].clear()
 
     def close(self, thread_id: str):
         """Close the event stream for a thread."""
@@ -85,6 +115,9 @@ class EventEmitter:
                 self._queues[thread_id].put_nowait(None)
             except asyncio.QueueFull:
                 pass
+        # Clean up buffer
+        if thread_id in self._event_buffer:
+            del self._event_buffer[thread_id]
 
     def is_active(self, thread_id: str) -> bool:
         """Check if a thread has active listeners."""
@@ -115,6 +148,17 @@ async def create_event_generator(
     logger.info("sse_stream_started", thread_id=thread_id)
 
     try:
+        # SEND BUFFERED EVENTS FIRST (events emitted before client connected)
+        buffered_events = event_emitter.get_buffered_events(thread_id)
+        if buffered_events:
+            logger.info("sse_sending_buffered_events",
+                       thread_id=thread_id, count=len(buffered_events))
+            for event in buffered_events:
+                yield event.to_sse()
+
+        # Clear buffer after sending (avoid duplicates on reconnect)
+        event_emitter.clear_buffer(thread_id)
+
         while True:
             # Check timeout
             elapsed = asyncio.get_event_loop().time() - start_time

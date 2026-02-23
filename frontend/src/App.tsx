@@ -2,19 +2,21 @@
  * Main application component for Sales Research and Strategy Agent Team.
  */
 
-import { useState } from 'react';
-import { Users, RotateCcw, Github, Clock, PlayCircle, ChevronRight } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Clock, ChevronDown, ChevronRight, Github, Heart, StopCircle } from 'lucide-react';
 
 import {
   ResearchForm,
-  AgentProgress,
-  ResultsPanel,
-  HumanFeedback,
   WorkflowGraph,
+  ReportView,
+  HumanFeedback,
 } from '@/components';
 import { useResearchWorkflow } from '@/hooks/useResearchWorkflow';
 import { useSSEStream } from '@/hooks/useSSEStream';
-import type { ResearchRequest, Progress, ThreadSummary } from '@/types/research';
+import type { ResearchRequest, ThreadSummary } from '@/types/research';
+
+// View state type for managing which view is shown
+type ViewState = 'form' | 'research' | 'report';
 
 function formatDate(dateStr?: string): string {
   if (!dateStr) return '';
@@ -28,40 +30,56 @@ function formatDate(dateStr?: string): string {
 function getStatusColor(status: string): string {
   switch (status) {
     case 'running':
-      return 'text-blue-600 bg-blue-50';
+      return 'text-teal-600 bg-teal-50';
     case 'waiting_for_human':
       return 'text-amber-600 bg-amber-50';
     case 'completed':
-      return 'text-green-600 bg-green-50';
+      return 'text-emerald-600 bg-emerald-50';
     case 'error':
-      return 'text-red-600 bg-red-50';
+      return 'text-rose-600 bg-rose-50';
     default:
-      return 'text-slate-600 bg-slate-50';
+      return 'text-zinc-600 bg-zinc-50';
   }
+}
+
+// Helper to get current step label from active node
+function getCurrentStepLabel(activeNode: string | null, nodeActivities: Record<string, string>): string {
+  if (!activeNode) return 'Initializing...';
+
+  const labels: Record<string, string> = {
+    'coordinator_entry': 'Coordinating research...',
+    'gatherer': nodeActivities['gatherer'] || 'Gathering signals...',
+    'identifier': nodeActivities['identifier'] || 'Identifying opportunities...',
+    'validator': nodeActivities['validator'] || 'Validating findings...',
+    'coordinator_exit': 'Generating report...',
+    'human_feedback': 'Awaiting your feedback...',
+  };
+
+  return labels[activeNode] || 'Processing...';
 }
 
 function SessionCard({ session, onResume }: { session: ThreadSummary; onResume: () => void }) {
   return (
     <button
       onClick={onResume}
-      className="w-full text-left p-4 bg-white border border-slate-200 rounded-lg card-hover group"
+      className="w-full text-left p-4 card-hover group"
     >
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <h3 className="font-medium text-slate-900 group-hover:text-blue-700">
+          <h3 className="font-medium text-zinc-900 group-hover:text-teal-600 transition-colors">
             {session.account_name}
           </h3>
-          <p className="text-sm text-slate-500">{session.industry}</p>
+          <p className="text-sm text-zinc-500">{session.industry}</p>
         </div>
         <div className="flex items-center gap-3">
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(session.status)}`}>
             {session.status === 'waiting_for_human' ? 'Needs Review' : session.status}
           </span>
-          <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-blue-600 transition-colors" />
+          <ChevronRight className="w-5 h-5 text-zinc-400 group-hover:text-teal-500 transition-colors" />
         </div>
       </div>
       {session.started_at && (
-        <div className="flex items-center gap-1 mt-2 text-xs text-slate-400">
+        <div className="flex items-center gap-1 mt-2 text-xs text-zinc-400">
           <Clock className="w-3 h-3" />
           {formatDate(session.started_at)}
         </div>
@@ -70,8 +88,56 @@ function SessionCard({ session, onResume }: { session: ThreadSummary; onResume: 
   );
 }
 
+// Collapsible Previous Sessions component
+function PreviousSessions({
+  sessions,
+  onResume,
+  isLoading
+}: {
+  sessions: ThreadSummary[];
+  onResume: (session: ThreadSummary) => void;
+  isLoading: boolean;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  if (sessions.length === 0 && !isLoading) {
+    return null;
+  }
+
+  return (
+    <div className="mt-8">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="btn-collapse"
+      >
+        <ChevronDown
+          className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+        />
+        Previous Sessions {!isLoading && `(${sessions.length})`}
+      </button>
+
+      {isExpanded && (
+        <div className="mt-4 space-y-2">
+          {isLoading ? (
+            <p className="text-sm text-zinc-500 py-2">Loading sessions...</p>
+          ) : (
+            sessions.map(session => (
+              <SessionCard
+                key={session.thread_id}
+                session={session}
+                onResume={() => onResume(session)}
+              />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
-  const [showFeedback, setShowFeedback] = useState(false);
+  const [viewState, setViewState] = useState<ViewState>('form');
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
   const {
     threadId,
@@ -80,6 +146,7 @@ function App() {
     error,
     start,
     sendFeedback,
+    stop,
     reset,
     resumeThread,
     previousSessions,
@@ -88,75 +155,113 @@ function App() {
     isWaitingForFeedback,
   } = useResearchWorkflow();
 
-  const { activeNode, nodeStatuses, nodeActivities } = useSSEStream({
+  const { activeNode, nodeStatuses, nodeActivities, reconnect, resetStatuses } = useSSEStream({
     threadId,
     autoConnect: true,
   });
 
+  // Auto-transition to report view when research completes with a full report
+  useEffect(() => {
+    if (isWaitingForFeedback && state?.current_report) {
+      setViewState('report');
+      setShowFeedbackModal(false);  // Don't show modal if we have report view
+    }
+  }, [isWaitingForFeedback, state?.current_report]);
+
+  // Show feedback modal when waiting for human input (questions or report)
+  useEffect(() => {
+    if (isWaitingForFeedback && !state?.current_report && state?.human_question) {
+      // Show modal for clarifying questions (no report yet)
+      setShowFeedbackModal(true);
+    } else if (!isWaitingForFeedback) {
+      setShowFeedbackModal(false);
+    }
+  }, [isWaitingForFeedback, state?.current_report, state?.human_question]);
+
+  // Transition to research view when starting new research
+  useEffect(() => {
+    if (threadId && !isWaitingForFeedback) {
+      setViewState('research');
+    }
+  }, [threadId, isWaitingForFeedback]);
+
+  // Reset view state when no thread
+  useEffect(() => {
+    if (!threadId) {
+      setViewState('form');
+    }
+  }, [threadId]);
+
   const handleStartResearch = async (request: ResearchRequest) => {
+    setViewState('research');
     await start(request);
   };
 
   const handleFeedback = async (feedback: string) => {
+    // Close the modal first
+    setShowFeedbackModal(false);
+
+    // Reset progress before submitting feedback
+    resetStatuses();
+
+    // Return to research view to show graph again
+    setViewState('research');
+
     await sendFeedback(feedback);
-    setShowFeedback(false);
+
+    // Reconnect SSE to catch new events
+    reconnect();
   };
 
   const handleReset = () => {
     reset();
-    setShowFeedback(false);
+    setViewState('form');
+  };
+
+  const handleStop = async () => {
+    await stop();
+    handleReset();
   };
 
   const handleResume = (session: ThreadSummary) => {
     resumeThread(session.thread_id);
+    // Will auto-transition to research or report based on state
   };
 
-  // Show feedback modal when waiting
-  const shouldShowFeedback = isWaitingForFeedback && state?.current_report;
-
-  // Default progress when no state
-  const progress: Progress = state?.progress || {
-    coordinator_complete: false,
-    gatherer_complete: false,
-    identifier_complete: false,
-    validator_complete: false,
-    completed_agents: [],
-  };
-
-  // Filter active sessions (running or waiting for human)
-  const activeSessions = previousSessions.filter(
-    s => s.status === 'running' || s.status === 'waiting_for_human'
-  );
+  // If we're in report view, show the full-page report
+  if (viewState === 'report' && state?.current_report) {
+    return (
+      <ReportView
+        report={state.current_report}
+        signals={state.signals}
+        question={state.human_question}
+        accountName={state.account_name}
+        onFeedback={handleFeedback}
+        onHome={handleReset}
+        isLoading={isLoading}
+      />
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      {/* Header */}
+    <div className="page-bg min-h-screen">
+      {/* Header - Logo clickable for home navigation */}
       <header className="header-gradient text-white sticky top-0 z-40 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          {/* Logo - Clickable for home navigation */}
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-3 hover:opacity-90 transition-opacity"
+          >
             <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
               <Users className="w-6 h-6 text-white" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold">
-                Sales Research and Strategy Agent Team
-              </h1>
-              <p className="text-sm text-blue-100">
-                Agentic Sales Strategy Team
-              </p>
-            </div>
-          </div>
+            <h1 className="text-xl font-bold tracking-tight">
+              Agentic Sales Strategy Team
+            </h1>
+          </button>
 
           <div className="flex items-center gap-3">
-            {threadId && (
-              <button
-                onClick={handleReset}
-                className="flex items-center gap-2 px-4 py-2 text-sm text-white/90 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <RotateCcw className="w-4 h-4" />
-                New Research
-              </button>
-            )}
             <a
               href="https://github.com/MahaveerSatra/SalesStrategy_AgentTeam"
               target="_blank"
@@ -172,159 +277,130 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        {!threadId ? (
-          /* Initial Form View */
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-slate-900 mb-3">
-                Research a Target Account
+        {viewState === 'form' && !threadId ? (
+          /* Initial Form View - Dopamine Design */
+          <div className="max-w-3xl mx-auto relative overflow-visible">
+            {/* Decorative Blobs */}
+            <div className="blob-pink blob-animate" style={{ top: '-50px', left: '-100px' }} />
+            <div className="blob-blue blob-animate" style={{ top: '200px', right: '-80px', animationDelay: '2s' }} />
+            <div className="blob-teal blob-animate" style={{ bottom: '100px', left: '-60px', animationDelay: '4s' }} />
+
+            {/* Hero Section */}
+            <div className="hero-section text-center mb-10 relative z-10">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-teal-50 to-pink-50 rounded-full border border-teal-100 mb-6">
+                <span className="w-2 h-2 bg-teal-400 rounded-full animate-pulse" />
+                <span className="text-sm font-medium text-zinc-600">AI-Powered Sales Intelligence</span>
+              </div>
+              <h2 className="text-4xl font-bold mb-4">
+                <span className="bg-gradient-to-r from-zinc-900 via-zinc-700 to-zinc-900 bg-clip-text text-transparent">
+                  Research a Target Customer
+                </span>
               </h2>
-              <p className="text-slate-600 text-lg">
-                Enter the account details below and let our AI agent team identify sales opportunities
+              <p className="text-zinc-500 text-lg max-w-lg mx-auto">
+                Enter details below and let our AI agents identify
+                <span className="text-teal-600 font-semibold"> sales opportunities</span>
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Research Form */}
-              <div className="lg:col-span-2">
-                <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
-                  <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <PlayCircle className="w-5 h-5 text-blue-600" />
-                    Start New Research
-                  </h3>
+            {/* Research Form - Playful Card with Stacked Effect */}
+            <div className="form-wrapper relative z-10">
+              <div className="form-stack">
+                <div className="form-playful">
                   <ResearchForm onSubmit={handleStartResearch} isLoading={isLoading} />
                 </div>
               </div>
+            </div>
 
-              {/* Previous Sessions */}
-              <div className="lg:col-span-1">
-                <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
-                  <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-blue-600" />
-                    Active Sessions
-                  </h3>
+            {/* Previous Sessions - Collapsible Bottom Section */}
+            <div className="relative z-10">
+              <PreviousSessions
+                sessions={previousSessions}
+                onResume={handleResume}
+                isLoading={isLoadingSessions}
+              />
+            </div>
 
-                  {isLoadingSessions ? (
-                    <div className="text-center py-4 text-slate-500">Loading...</div>
-                  ) : activeSessions.length === 0 ? (
-                    <div className="text-center py-4 text-slate-500">
-                      No active sessions
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {activeSessions.map((session) => (
-                        <SessionCard
-                          key={session.thread_id}
-                          session={session}
-                          onResume={() => handleResume(session)}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+            {/* Footer Credit */}
+            <div className="footer-credit mt-12 relative z-10">
+              <span>Made with </span>
+              <Heart className="heart w-4 h-4 inline-block fill-current" />
+              <span> by </span>
+              <span className="font-semibold bg-gradient-to-r from-teal-600 to-pink-500 bg-clip-text text-transparent">
+                Mahaveer
+              </span>
             </div>
           </div>
         ) : (
-          /* Research In Progress View - New Layout */
-          <div className="space-y-6">
-            {/* Top Section: Graph and Status Side by Side */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Left: Workflow Graph */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-slate-100 bg-slate-50">
-                  <h2 className="font-semibold text-slate-900">Agent Workflow</h2>
-                  {state && (
-                    <p className="text-sm text-slate-500 mt-1">
-                      Researching: <span className="font-medium text-slate-700">{state.account_name}</span>
-                    </p>
-                  )}
-                </div>
-                <div className="h-[400px]">
-                  <WorkflowGraph
-                    state={state}
-                    activeNode={activeNode}
-                    nodeStatuses={nodeStatuses}
-                  />
-                </div>
-              </div>
-
-              {/* Right: Agent Status */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-                  <h2 className="font-semibold text-slate-900">Agent Status</h2>
+          /* Research In Progress View - Full Width Graph with Status Line */
+          <div className="space-y-4">
+            {/* Status Bar - Title with Stop button on same row */}
+            <div className="form-card p-4">
+              <div className="flex flex-col gap-2">
+                {/* Title row with Stop button */}
+                <div className="flex items-center justify-between">
+                  <h2 className="font-semibold text-zinc-900">
+                    Researching: <span className="text-teal-600">{state?.account_name}</span>
+                  </h2>
+                  {/* Stop button on the right of title row */}
                   {isRunning && (
-                    <span className="flex items-center gap-2 text-sm text-blue-600">
-                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                      Processing...
-                    </span>
-                  )}
-                  {isWaitingForFeedback && (
                     <button
-                      onClick={() => setShowFeedback(true)}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+                      onClick={handleStop}
+                      disabled={isLoading}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200 disabled:opacity-50"
                     >
-                      Review & Respond
+                      <StopCircle className="w-4 h-4" />
+                      Stop
                     </button>
                   )}
                 </div>
-                <div className="p-4">
-                  <AgentProgress
-                    progress={progress}
-                    nodeStatuses={nodeStatuses}
-                    activeNode={activeNode}
-                    nodeActivities={nodeActivities}
-                  />
-                </div>
+
+                {/* Progress status as sub-heading */}
+                {isRunning && (
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                    <span className="text-amber-700 font-medium text-sm">
+                      {getCurrentStepLabel(activeNode, nodeActivities)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Bottom Section: Results */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-slate-100 bg-slate-50">
-                <h2 className="font-semibold text-slate-900">Research Results</h2>
-              </div>
-              <div className="p-6">
-                <ResultsPanel
-                  signals={state?.signals || []}
-                  opportunities={state?.validated_opportunities || state?.opportunities || []}
-                  risks={state?.competitive_risks || []}
-                  techStack={state?.tech_stack || []}
+            {/* Workflow Graph - 100% width, clickable report node */}
+            <div className="w-full form-card overflow-hidden">
+              <div className="h-[320px]">
+                <WorkflowGraph
+                  state={state}
+                  activeNode={activeNode}
+                  nodeStatuses={nodeStatuses}
+                  onReportClick={() => {
+                    if (state?.current_report) {
+                      setViewState('report');
+                    }
+                  }}
                 />
               </div>
             </div>
 
             {/* Error Display */}
             {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-                <p className="text-red-700 text-sm">{error.message}</p>
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                <p className="text-rose-700 text-sm">{error.message}</p>
               </div>
             )}
           </div>
         )}
       </main>
 
-      {/* Human Feedback Modal */}
-      {shouldShowFeedback && showFeedback && (
+      {/* Human Feedback Modal - shown for clarifying questions */}
+      {showFeedbackModal && state && (
         <HumanFeedback
-          report={state?.current_report || ''}
-          question={state?.human_question}
+          report={state.current_report || ''}
+          question={state.human_question}
           onSubmit={handleFeedback}
-          onClose={() => setShowFeedback(false)}
+          onClose={() => setShowFeedbackModal(false)}
           isLoading={isLoading}
         />
-      )}
-
-      {/* Auto-show feedback when ready */}
-      {shouldShowFeedback && !showFeedback && (
-        <div className="fixed bottom-4 right-4 z-50">
-          <button
-            onClick={() => setShowFeedback(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-lg shadow-blue-900/20 animate-pulse"
-          >
-            Research Complete - Review Now
-          </button>
-        </div>
       )}
     </div>
   );

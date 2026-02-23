@@ -10,6 +10,7 @@ import {
   getResearchState,
   submitFeedback,
   listThreads,
+  stopResearch,
 } from '@/lib/api';
 import type { ResearchRequest, ResearchState, ThreadSummary } from '@/types/research';
 
@@ -45,6 +46,7 @@ interface UseResearchWorkflowResult {
   // Actions
   start: (request: ResearchRequest) => Promise<string>;
   sendFeedback: (feedback: string) => Promise<void>;
+  stop: () => Promise<void>;
   reset: () => void;
   resumeThread: (threadId: string) => void;
 
@@ -62,6 +64,8 @@ interface UseResearchWorkflowResult {
 export function useResearchWorkflow(): UseResearchWorkflowResult {
   // Initialize from localStorage
   const [threadId, setThreadId] = useState<string | null>(() => getStoredThreadId());
+  // Track when feedback was submitted to force polling
+  const [feedbackSubmittedAt, setFeedbackSubmittedAt] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
   // Persist threadId to localStorage whenever it changes
@@ -80,9 +84,31 @@ export function useResearchWorkflow(): UseResearchWorkflowResult {
     enabled: !!threadId,
     refetchInterval: (query) => {
       const data = query.state.data;
-      // Stop polling when waiting for human or completed
-      if (data?.waiting_for_human || data?.status === 'completed') {
+
+      // After feedback submitted, poll for 60 seconds to catch updates
+      // This ensures we see the workflow restart and complete
+      if (feedbackSubmittedAt && Date.now() - feedbackSubmittedAt < 60000) {
+        // If workflow completed or waiting again, we can stop
+        if (data?.waiting_for_human && Date.now() - feedbackSubmittedAt > 5000) {
+          // Workflow reached waiting state again after feedback
+          setFeedbackSubmittedAt(null);
+          return false;
+        }
+        if (data?.status === 'completed') {
+          setFeedbackSubmittedAt(null);
+          return false;
+        }
+        return 2000; // Keep polling
+      }
+
+      // Stop polling when completed
+      if (data?.status === 'completed') {
         return false;
+      }
+      // When waiting for human, poll slowly to catch report updates
+      // (coordinator may still be generating the report after asking question)
+      if (data?.waiting_for_human) {
+        return 5000; // Poll every 5 seconds
       }
       // Poll every 2 seconds while running
       return data?.status === 'running' ? 2000 : false;
@@ -119,6 +145,15 @@ export function useResearchWorkflow(): UseResearchWorkflowResult {
     },
   });
 
+  // Mutation to stop research
+  const stopMutation = useMutation({
+    mutationFn: (threadId: string) => stopResearch(threadId),
+    onSuccess: () => {
+      // Invalidate to refetch state
+      queryClient.invalidateQueries({ queryKey: ['research', threadId] });
+    },
+  });
+
   const start = useCallback(
     async (request: ResearchRequest): Promise<string> => {
       const result = await startMutation.mutateAsync(request);
@@ -131,8 +166,18 @@ export function useResearchWorkflow(): UseResearchWorkflowResult {
     async (feedback: string): Promise<void> => {
       if (!threadId) throw new Error('No active research thread');
       await feedbackMutation.mutateAsync({ threadId, feedback });
+      // Trigger polling to catch workflow updates
+      setFeedbackSubmittedAt(Date.now());
     },
     [threadId, feedbackMutation]
+  );
+
+  const stop = useCallback(
+    async (): Promise<void> => {
+      if (!threadId) throw new Error('No active research thread');
+      await stopMutation.mutateAsync(threadId);
+    },
+    [threadId, stopMutation]
   );
 
   const reset = useCallback(() => {
@@ -153,10 +198,11 @@ export function useResearchWorkflow(): UseResearchWorkflowResult {
   return {
     threadId,
     state: state ?? null,
-    isLoading: isLoading || startMutation.isPending || feedbackMutation.isPending,
-    error: error ?? startMutation.error ?? feedbackMutation.error ?? null,
+    isLoading: isLoading || startMutation.isPending || feedbackMutation.isPending || stopMutation.isPending,
+    error: error ?? startMutation.error ?? feedbackMutation.error ?? stopMutation.error ?? null,
     start,
     sendFeedback,
+    stop,
     reset,
     resumeThread,
     previousSessions: sessionsData?.threads ?? [],

@@ -32,6 +32,10 @@ from ..data_sources.product_catalog import ProductMatcher
 
 import structlog
 import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .sse_callbacks import SSECallbackHandler
 
 logger = structlog.get_logger(__name__)
 
@@ -128,6 +132,10 @@ class ResearchWorkflow:
         self.checkpointer = None
         self.app = None
         self._setup_checkpointing()
+
+        # SSE callback handler for real-time frontend updates
+        # Set by workflow_service before running
+        self._sse_callback: "SSECallbackHandler | None" = None
 
     def _setup_checkpointing(self) -> None:
         """Initialize SQLite checkpointing (synchronous version)."""
@@ -237,6 +245,10 @@ class ResearchWorkflow:
             account=account
         )
 
+        # Emit SSE event for frontend
+        if self._sse_callback:
+            self._sse_callback.on_node_start("coordinator_entry", state)
+
         # Run async process in sync context
         asyncio.run(self.coordinator.process_entry(state))
 
@@ -250,6 +262,10 @@ class ResearchWorkflow:
             "coordinator_entry_completed",
             needs_human=needs_human
         )
+
+        # Emit SSE completion event
+        if self._sse_callback:
+            self._sse_callback.on_node_end("coordinator_entry", state)
 
         return state
 
@@ -271,6 +287,10 @@ class ResearchWorkflow:
             account=account,
             feedback_context=state.get("feedback_context")
         )
+
+        # Emit SSE event for frontend
+        if self._sse_callback:
+            self._sse_callback.on_node_start("gatherer", state)
 
         # Run async process in sync context with proper MCP session initialization
         # The MCP client requires async context manager to initialize the session
@@ -296,6 +316,10 @@ class ResearchWorkflow:
             jobs_count=jobs_count
         )
 
+        # Emit SSE completion event
+        if self._sse_callback:
+            self._sse_callback.on_node_end("gatherer", state)
+
         return state
 
     def _identifier_node(self, state: ResearchState) -> ResearchState:
@@ -315,6 +339,10 @@ class ResearchWorkflow:
             account=account_name,
             feedback_context=state.get("feedback_context")
         )
+
+        # Emit SSE event for frontend
+        if self._sse_callback:
+            self._sse_callback.on_node_start("identifier", state)
 
         # Create IdentifierAgent with seller's product catalog (lazily initialized)
         # The ProductMatcher uses the SELLER's products (e.g., MathWorks),
@@ -359,6 +387,10 @@ class ResearchWorkflow:
             opportunities_count=opportunities_count
         )
 
+        # Emit SSE completion event
+        if self._sse_callback:
+            self._sse_callback.on_node_end("identifier", state)
+
         return state
 
     def _validator_node(self, state: ResearchState) -> ResearchState:
@@ -380,6 +412,10 @@ class ResearchWorkflow:
             opportunities_count=opp_count
         )
 
+        # Emit SSE event for frontend
+        if self._sse_callback:
+            self._sse_callback.on_node_start("validator", state)
+
         # Run async process in sync context
         asyncio.run(self.validator.process(state))
 
@@ -397,6 +433,10 @@ class ResearchWorkflow:
             validated_count=validated_count,
             risks_count=risks_count
         )
+
+        # Emit SSE completion event
+        if self._sse_callback:
+            self._sse_callback.on_node_end("validator", state)
 
         return state
 
@@ -416,6 +456,10 @@ class ResearchWorkflow:
             opportunities=validated_count
         )
 
+        # Emit SSE event for frontend
+        if self._sse_callback:
+            self._sse_callback.on_node_start("coordinator_exit", state)
+
         # Run async process in sync context
         asyncio.run(self.coordinator.process_exit(state))
 
@@ -425,6 +469,10 @@ class ResearchWorkflow:
             "coordinator_exit_completed",
             report_length=len(state.get("current_report") or "")
         )
+
+        # Emit SSE completion event
+        if self._sse_callback:
+            self._sse_callback.on_node_end("coordinator_exit", state)
 
         return state
 
@@ -443,6 +491,10 @@ class ResearchWorkflow:
             "coordinator_feedback_started",
             feedback_count=len(state.get("human_feedback", []))
         )
+
+        # Emit SSE event for frontend (re-use coordinator_entry for feedback processing)
+        if self._sse_callback:
+            self._sse_callback.on_node_start("coordinator_feedback", state)
 
         # Run async process in sync context
         asyncio.run(self.coordinator.process_feedback(state))
@@ -463,6 +515,10 @@ class ResearchWorkflow:
             next_route=next_route
         )
 
+        # Emit SSE completion event
+        if self._sse_callback:
+            self._sse_callback.on_node_end("coordinator_feedback", state)
+
         return state
 
     def _wait_for_human_node(self, state: ResearchState) -> ResearchState:
@@ -478,6 +534,12 @@ class ResearchWorkflow:
             "wait_for_human",
             question=state.get("human_question", "")[:100] if state.get("human_question") else None
         )
+
+        # Emit SSE event for frontend - waiting for human
+        if self._sse_callback:
+            self._sse_callback.on_node_start("_wait_for_human_node", state)
+            # Also emit waiting_for_human event
+            self._sse_callback.on_node_end("_wait_for_human_node", state)
 
         # If we have feedback and came from coordinator_exit, process it
         if state.get("human_feedback") and state.get("current_report"):
@@ -555,7 +617,8 @@ class ResearchWorkflow:
     def run(
         self,
         state: ResearchState,
-        thread_id: str | None = None
+        thread_id: str | None = None,
+        sse_callback: "SSECallbackHandler | None" = None
     ) -> ResearchState:
         """
         Run the research workflow (synchronous version).
@@ -565,10 +628,14 @@ class ResearchWorkflow:
         Args:
             state: Initial research state
             thread_id: Optional thread ID for checkpointing
+            sse_callback: Optional SSE callback handler for frontend updates
 
         Returns:
             Research state (may be incomplete if waiting for human)
         """
+        # Store SSE callback for node functions to use
+        self._sse_callback = sse_callback
+
         # Create config for checkpointing
         config = {
             "configurable": {
@@ -582,24 +649,29 @@ class ResearchWorkflow:
             thread_id=config["configurable"]["thread_id"]
         )
 
-        # Run workflow (synchronous)
-        result = self.app.invoke(state, config)
+        try:
+            # Run workflow (synchronous)
+            result = self.app.invoke(state, config)
 
-        # Check if waiting for human
-        if result.get("waiting_for_human"):
-            logger.info(
-                "workflow_paused_for_human",
-                question=result.get("human_question", "")[:100] if result.get("human_question") else None
-            )
-        else:
-            logger.info("workflow_completed", account=state["account_name"])
+            # Check if waiting for human
+            if result.get("waiting_for_human"):
+                logger.info(
+                    "workflow_paused_for_human",
+                    question=result.get("human_question", "")[:100] if result.get("human_question") else None
+                )
+            else:
+                logger.info("workflow_completed", account=state["account_name"])
 
-        return result
+            return result
+        finally:
+            # Clear callback after run completes
+            self._sse_callback = None
 
     def resume(
         self,
         thread_id: str,
-        human_input: str | None = None
+        human_input: str | None = None,
+        sse_callback: "SSECallbackHandler | None" = None
     ) -> ResearchState:
         """
         Resume a workflow from checkpoint with optional human input.
@@ -607,10 +679,14 @@ class ResearchWorkflow:
         Args:
             thread_id: Thread ID to resume
             human_input: Optional human feedback/response
+            sse_callback: Optional SSE callback handler for frontend updates
 
         Returns:
             Updated research state
         """
+        # Store SSE callback for node functions to use
+        self._sse_callback = sse_callback
+
         config = {"configurable": {"thread_id": thread_id}}
 
         # Get current state
@@ -653,11 +729,15 @@ class ResearchWorkflow:
 
         logger.info("workflow_resumed", thread_id=thread_id)
 
-        # Resume execution from checkpoint by passing None
-        # This continues from where the workflow was interrupted
-        result = self.app.invoke(None, config)
+        try:
+            # Resume execution from checkpoint by passing None
+            # This continues from where the workflow was interrupted
+            result = self.app.invoke(None, config)
 
-        return result
+            return result
+        finally:
+            # Clear callback after run completes
+            self._sse_callback = None
 
     def get_state(self, thread_id: str) -> ResearchState | None:
         """

@@ -84,16 +84,485 @@ body {
   @apply border-l-4 border-blue-500 pl-4 italic text-slate-500;
 }
 
-/* Card hover effects */
-.card-hover {
-  @apply transition-all duration-200 hover:shadow-lg hover:border-blue-200;
+/* Custom prose styling for report readability */
+.prose-report {
+  @apply max-w-none;
+  line-height: 1.8;
 }
 
-/* Trust-building gradient backgrounds */
-.trust-gradient {
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f0fdf4 100%);
+.prose-report p {
+  @apply text-zinc-700 mb-6;
+  line-height: 1.8;
 }
 
+.prose-report h1 {
+  @apply text-2xl font-bold text-zinc-900 mt-8 mb-4;
+  line-height: 1.3;
+}
+
+.prose-report h2 {
+  @apply text-xl font-semibold text-zinc-900 mt-8 mb-4;
+  line-height: 1.3;
+}
+
+.prose-report h3 {
+  @apply text-lg font-semibold text-zinc-800 mt-6 mb-3;
+  line-height: 1.4;
+}
+
+.prose-report h4 {
+  @apply text-base font-semibold text-zinc-800 mt-5 mb-2;
+  line-height: 1.4;
+}
+
+.prose-report ul, .prose-report ol {
+  @apply my-4 pl-6;
+}
+
+.prose-report ul {
+  list-style-type: disc;
+}
+
+.prose-report ol {
+  list-style-type: decimal;
+}
+
+.prose-report li {
+  @apply mb-3 text-zinc-700;
+  line-height: 1.7;
+}
+
+.prose-report li::marker {
+  @apply text-teal-600;
+}
+
+.prose-report strong {
+  @apply text-zinc-900 font-semibold;
+}
+
+.prose-report a {
+  @apply text-teal-600 hover:text-teal-700 underline decoration-teal-300 hover:decoration-teal-500;
+  transition: all 0.15s ease;
+}
+
+.prose-report code {
+  @apply bg-zinc-100 text-zinc-800 px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+.prose-report blockquote {
+  @apply border-l-4 border-teal-400 pl-4 py-2 my-4 italic text-zinc-600 bg-zinc-50 rounded-r-lg;
+}
+
+.prose-report hr {
+  @apply my-8 border-zinc-200;
+}
+
+/* ==========================================
+   Dopamine Design System - Playful & Bold
+   ========================================== */
+
+/* Page background with subtle gradient */
+.page-bg {
+  background: linear-gradient(180deg, #fafafa 0%, #f0fdf4 50%, #f0fdfa 100%);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: clip; /* Prevent horizontal scroll but allow visual overflow */
+}
+
+/* Hero section with decorative elements */
+.hero-section {
+  position: relative;
+  padding: 2rem 0;
+}
+
+/* Decorative gradient blobs */
+.blob-pink {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.3) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.blob-blue {
+  position: absolute;
+  width: 250px;
+  height: 250px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.25) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.blob-teal {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(20, 184, 166, 0.3) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(30px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Organic shape decorations */
+.squiggle {
+  position: absolute;
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Form wrapper with layered effect */
+.form-wrapper {
+  position: relative;
+  z-index: 1;
+}
+
+/* Stacked paper effect */
+.form-stack {
+  position: relative;
+  z-index: 1; /* Create stacking context */
+}
+
+.form-stack::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  right: -8px;
+  bottom: -8px;
+  background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%);
+  border-radius: 24px;
+  z-index: 1; /* Changed from -1 - pink layer */
+  transform: rotate(-1deg);
+}
+
+.form-stack::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: -4px;
+  bottom: -4px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-radius: 24px;
+  z-index: 2; /* Changed from -1 - green layer on top of pink */
+  transform: rotate(0.5deg);
+}
+
+/* Header gradient - teal */
 .header-gradient {
-  background: linear-gradient(90deg, #1e40af 0%, #1d4ed8 50%, #2563eb 100%);
+  background: linear-gradient(135deg, #0f766e 0%, #0d9488 50%, #14b8a6 100%);
+}
+
+/* Form card - Linear-style soft elevation */
+.form-card {
+  @apply bg-white rounded-2xl;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.03),
+    0 2px 4px rgba(0, 0, 0, 0.03),
+    0 12px 24px rgba(0, 0, 0, 0.06);
+}
+
+/* Primary button - teal gradient with lift effect */
+.btn-primary {
+  @apply px-6 py-3 font-semibold text-white rounded-xl;
+  background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%);
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.3);
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(13, 148, 136, 0.4);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  @apply shadow-none cursor-not-allowed;
+  background: #d4d4d8;
+}
+
+/* Input field - minimal with teal focus */
+.input-field {
+  @apply w-full px-4 py-3 bg-white rounded-xl;
+  @apply text-zinc-900 placeholder-zinc-400;
+  @apply transition-all duration-200;
+  border: 1px solid #e4e4e7;
+}
+
+.input-field:focus {
+  @apply outline-none;
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+}
+
+/* Select field styling */
+.select-field {
+  @apply w-full px-4 py-3 bg-white rounded-xl;
+  @apply text-zinc-900;
+  @apply transition-all duration-200;
+  border: 1px solid #e4e4e7;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2371717a' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25rem;
+  padding-right: 2.5rem;
+}
+
+.select-field:focus {
+  @apply outline-none;
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
+}
+
+/* Session card hover - subtle teal accent */
+.card-hover {
+  @apply transition-all duration-200 bg-white rounded-xl;
+  border: 1px solid #e4e4e7;
+}
+
+.card-hover:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: #99f6e4;
+}
+
+/* Secondary button style */
+.btn-secondary {
+  @apply px-4 py-2 font-medium rounded-lg;
+  @apply text-zinc-600 bg-white;
+  @apply transition-all duration-200;
+  border: 1px solid #e4e4e7;
+}
+
+.btn-secondary:hover {
+  @apply text-teal-600 border-teal-200 bg-teal-50;
+}
+
+/* Collapsible section button */
+.btn-collapse {
+  @apply flex items-center gap-2 text-sm font-medium;
+  @apply text-zinc-500 hover:text-teal-600;
+  @apply transition-colors duration-200;
+}
+
+/* ==========================================
+   Dopamine Form Styling
+   ========================================== */
+
+/* Playful form card with gradient border */
+.form-playful {
+  @apply bg-white rounded-3xl p-8;
+  position: relative;
+  z-index: 3; /* Above the stacked paper pseudo-elements */
+  background: linear-gradient(white, white) padding-box,
+              linear-gradient(135deg, #14b8a6, #ec4899, #3b82f6) border-box;
+  border: 2px solid transparent;
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 20px 50px -12px rgba(20, 184, 166, 0.15);
+}
+
+/* Accent pill badges */
+.pill-accent {
+  @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
+  background: linear-gradient(135deg, #f0fdfa 0%, #fdf2f8 100%);
+  border: 1px solid rgba(20, 184, 166, 0.2);
+}
+
+/* Floating label style */
+.label-playful {
+  @apply flex items-center gap-2 text-sm font-semibold mb-2;
+  background: linear-gradient(135deg, #0f766e, #6366f1);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Icon wrapper with gradient background */
+.icon-gradient {
+  @apply p-1.5 rounded-lg;
+  background: linear-gradient(135deg, #ccfbf1 0%, #fce7f3 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Dopamine button - rainbow gradient on hover */
+.btn-dopamine {
+  @apply w-full py-4 px-6 font-bold text-white rounded-2xl;
+  @apply transition-all duration-300 ease-out;
+  @apply flex items-center justify-center gap-3;
+  background: linear-gradient(135deg, #0d9488 0%, #14b8a6 50%, #2dd4bf 100%);
+  box-shadow:
+    0 4px 15px rgba(13, 148, 136, 0.4),
+    0 0 0 0 rgba(236, 72, 153, 0);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-dopamine::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: left 0.5s ease;
+}
+
+.btn-dopamine:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.btn-dopamine:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow:
+    0 8px 25px rgba(13, 148, 136, 0.5),
+    0 0 0 3px rgba(236, 72, 153, 0.1);
+}
+
+.btn-dopamine:active:not(:disabled) {
+  transform: translateY(0) scale(0.99);
+}
+
+.btn-dopamine:disabled {
+  @apply cursor-not-allowed;
+  background: linear-gradient(135deg, #d4d4d8 0%, #a1a1aa 100%);
+  box-shadow: none;
+}
+
+/* Input with playful focus */
+.input-playful {
+  @apply w-full px-4 py-3.5 bg-white rounded-xl;
+  @apply text-zinc-800 placeholder-zinc-400 font-medium;
+  @apply transition-all duration-200;
+  border: 2px solid #e4e4e7;
+}
+
+.input-playful:hover {
+  border-color: #d4d4d8;
+}
+
+.input-playful:focus {
+  @apply outline-none;
+  border-color: #14b8a6;
+  box-shadow:
+    0 0 0 4px rgba(20, 184, 166, 0.1),
+    0 4px 12px rgba(20, 184, 166, 0.1);
+}
+
+/* Select with playful style */
+.select-playful {
+  @apply w-full px-4 py-3.5 bg-white rounded-xl;
+  @apply text-zinc-800 font-medium;
+  @apply transition-all duration-200;
+  border: 2px solid #e4e4e7;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2314b8a6' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 1rem center;
+  background-repeat: no-repeat;
+  background-size: 1.25rem;
+  padding-right: 3rem;
+}
+
+.select-playful:focus {
+  @apply outline-none;
+  border-color: #14b8a6;
+  box-shadow:
+    0 0 0 4px rgba(20, 184, 166, 0.1),
+    0 4px 12px rgba(20, 184, 166, 0.1);
+}
+
+/* Textarea playful */
+.textarea-playful {
+  @apply w-full px-4 py-3.5 bg-white rounded-xl;
+  @apply text-zinc-800 placeholder-zinc-400 font-medium;
+  @apply transition-all duration-200 resize-none;
+  border: 2px solid #e4e4e7;
+}
+
+.textarea-playful:focus {
+  @apply outline-none;
+  border-color: #14b8a6;
+  box-shadow:
+    0 0 0 4px rgba(20, 184, 166, 0.1),
+    0 4px 12px rgba(20, 184, 166, 0.1);
+}
+
+/* Field group with subtle divider */
+.field-group {
+  @apply relative;
+}
+
+.field-group::after {
+  content: '';
+  position: absolute;
+  bottom: -0.75rem;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #e4e4e7, transparent);
+}
+
+.field-group:last-of-type::after {
+  display: none;
+}
+
+/* Footer credit */
+.footer-credit {
+  @apply text-center py-6 text-sm;
+  color: #a1a1aa;
+}
+
+.footer-credit .heart {
+  @apply inline-block;
+  color: #ec4899;
+  animation: heartbeat 1.5s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* Decorative sparkle */
+.sparkle {
+  @apply absolute;
+  width: 20px;
+  height: 20px;
+  background: radial-gradient(circle, #fbbf24 0%, transparent 70%);
+  border-radius: 50%;
+  opacity: 0.6;
+  animation: sparkle 3s ease-in-out infinite;
+}
+
+@keyframes sparkle {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 0.8; transform: scale(1.2); }
+}
+
+/* Floating animation for blobs */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-20px) rotate(5deg); }
+}
+
+.blob-animate {
+  animation: float 8s ease-in-out infinite;
 }

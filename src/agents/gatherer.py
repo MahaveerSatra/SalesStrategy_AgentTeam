@@ -20,9 +20,11 @@ from src.models.llm_schemas import (
 )
 from src.data_sources.mcp_ddg_client import DuckDuckGoMCPClient
 from src.data_sources.job_boards import JobBoardScraper
+from src.data_sources.fallback_search import FallbackWebSearch
 from src.core.model_router import ModelRouter
 from src.core.exceptions import DataSourceError
 from src.config import settings
+from src.models.domain import SearchResult, NewsItem
 
 logger = structlog.get_logger(__name__)
 
@@ -71,6 +73,7 @@ class GathererAgent(StatelessAgent):
         self.mcp_client = mcp_client
         self.job_scraper = job_scraper
         self.model_router = model_router
+        self.fallback_search = FallbackWebSearch()  # Fallback when MCP unavailable
         self._analysis_cache: dict[int, Signal] = {}  # Cache LLM analyses by URL hash
 
     async def process(self, state: ResearchState) -> None:
@@ -416,7 +419,9 @@ class GathererAgent(StatelessAgent):
 
     async def _search_company_info(self, query: str, max_results: int = 10) -> list[Any]:
         """
-        Search for company information.
+        Search for company information with fallback.
+
+        Tries MCP client first, falls back to direct HTTP search if MCP fails.
 
         Args:
             query: Search query
@@ -424,16 +429,53 @@ class GathererAgent(StatelessAgent):
 
         Returns:
             List of SearchResult objects
-
-        Raises:
-            Exception: If search fails (caught by caller)
         """
+        # Try MCP client first
         try:
             results = await self.mcp_client.search(query, max_results=max_results)
-            return results
+            if results:
+                self.logger.debug("mcp_search_success", query=query, count=len(results))
+                return results
         except Exception as e:
-            self.logger.error("company_search_failed", query=query, error=str(e))
-            raise
+            self.logger.warning(
+                "mcp_search_failed_trying_fallback",
+                query=query,
+                error=str(e),
+                error_type=type(e).__name__
+            )
+
+        # Fallback to direct HTTP search
+        try:
+            self.logger.info("using_fallback_search", query=query)
+            fallback_results = await self.fallback_search.search(query, max_results)
+
+            if fallback_results:
+                # Convert dict results to SearchResult objects
+                search_results = []
+                for r in fallback_results:
+                    search_results.append(SearchResult(
+                        title=r.get('title', ''),
+                        url=r.get('url', ''),
+                        snippet=r.get('snippet', ''),
+                        source='duckduckgo_fallback'
+                    ))
+                self.logger.info(
+                    "fallback_search_success",
+                    query=query,
+                    count=len(search_results)
+                )
+                return search_results
+            else:
+                self.logger.warning("fallback_search_empty", query=query)
+                return []
+
+        except Exception as e:
+            self.logger.error(
+                "fallback_search_failed",
+                query=query,
+                error=str(e)
+            )
+            return []  # Return empty list instead of raising
 
     async def _fetch_job_postings(self, company_name: str, company_domain: str) -> list[Any]:
         """
@@ -616,7 +658,9 @@ class GathererAgent(StatelessAgent):
 
     async def _search_news(self, query: str, max_results: int = 5) -> list[Any]:
         """
-        Search for news articles.
+        Search for news articles with fallback.
+
+        Tries MCP client first, falls back to direct HTTP search if MCP fails.
 
         Args:
             query: News search query
@@ -624,16 +668,53 @@ class GathererAgent(StatelessAgent):
 
         Returns:
             List of NewsItem objects
-
-        Raises:
-            Exception: If search fails (caught by caller)
         """
+        # Try MCP client first
         try:
             news = await self.mcp_client.search_news(query, max_results=max_results)
-            return news
+            if news:
+                self.logger.debug("mcp_news_success", query=query, count=len(news))
+                return news
         except Exception as e:
-            self.logger.error("news_search_failed", query=query, error=str(e))
-            raise
+            self.logger.warning(
+                "mcp_news_failed_trying_fallback",
+                query=query,
+                error=str(e),
+                error_type=type(e).__name__
+            )
+
+        # Fallback to direct HTTP search (news-focused)
+        try:
+            self.logger.info("using_fallback_news_search", query=query)
+            fallback_results = await self.fallback_search.search_news(query, max_results)
+
+            if fallback_results:
+                # Convert dict results to NewsItem objects
+                news_items = []
+                for r in fallback_results:
+                    news_items.append(NewsItem(
+                        title=r.get('title', ''),
+                        url=r.get('url', ''),
+                        summary=r.get('snippet', ''),
+                        source='duckduckgo_fallback'
+                    ))
+                self.logger.info(
+                    "fallback_news_success",
+                    query=query,
+                    count=len(news_items)
+                )
+                return news_items
+            else:
+                self.logger.warning("fallback_news_empty", query=query)
+                return []
+
+        except Exception as e:
+            self.logger.error(
+                "fallback_news_failed",
+                query=query,
+                error=str(e)
+            )
+            return []  # Return empty list instead of raising
 
     def _extract_tech_stack(self, job_postings: list[dict]) -> list[str]:
         """
