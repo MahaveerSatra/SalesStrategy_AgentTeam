@@ -241,6 +241,34 @@ async def stop_research(thread_id: str) -> dict:
     }
 
 
+@router.post("/{thread_id}/discard")
+async def discard_research(thread_id: str) -> dict:
+    """
+    Permanently stop and discard a research workflow.
+
+    Unlike /stop which preserves state for resumption, this endpoint
+    completely removes the research - it will NOT appear in Previous Sessions
+    and cannot be resumed.
+    """
+    state = await workflow_service.get_state(thread_id)
+
+    if not state:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Research thread {thread_id} not found"
+        )
+
+    await workflow_service.discard_research(thread_id)
+
+    logger.info("research_discarded_by_user", thread_id=thread_id)
+
+    return {
+        "status": "discarded",
+        "thread_id": thread_id,
+        "message": "Research permanently stopped and discarded",
+    }
+
+
 @router.get("/list", response_model=ThreadListResponse)
 async def list_threads() -> ThreadListResponse:
     """

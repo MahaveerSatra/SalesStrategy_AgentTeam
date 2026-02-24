@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import { Download, Send, Github, Users, X, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
+import { Download, Send, Github, Users, X, ExternalLink, ChevronDown, ChevronRight, ArrowLeft } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { Signal } from '@/types/research';
 
@@ -15,6 +15,7 @@ interface ReportViewProps {
   accountName?: string;
   onFeedback: (feedback: string) => void;
   onHome: () => void;
+  onAgentGraph: () => void;
   isLoading?: boolean;
 }
 
@@ -189,6 +190,7 @@ export function ReportView({
   accountName,
   onFeedback,
   onHome,
+  onAgentGraph,
   isLoading = false,
 }: ReportViewProps) {
   const [customFeedback, setCustomFeedback] = useState('');
@@ -235,6 +237,14 @@ export function ReportView({
           </button>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={onAgentGraph}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-white/90 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+              title="Back to agent graph"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Agent Graph
+            </button>
             <button
               onClick={handleExport}
               className="flex items-center gap-2 px-4 py-2 text-sm text-white/90 hover:text-white hover:bg-white/10 rounded-lg transition-colors"

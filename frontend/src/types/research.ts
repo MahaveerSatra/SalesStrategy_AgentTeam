@@ -9,6 +9,7 @@ export type ResearchStatus =
   | 'running'
   | 'waiting_for_human'
   | 'completed'
+  | 'stopped'  // Research paused by user, can be resumed
   | 'error';
 
 export type WorkflowEventType =

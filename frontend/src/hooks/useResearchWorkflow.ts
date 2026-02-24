@@ -11,6 +11,7 @@ import {
   submitFeedback,
   listThreads,
   stopResearch,
+  discardResearch,
 } from '@/lib/api';
 import type { ResearchRequest, ResearchState, ThreadSummary } from '@/types/research';
 
@@ -47,6 +48,7 @@ interface UseResearchWorkflowResult {
   start: (request: ResearchRequest) => Promise<string>;
   sendFeedback: (feedback: string) => Promise<void>;
   stop: () => Promise<void>;
+  discard: () => Promise<void>;
   reset: () => void;
   resumeThread: (threadId: string) => void;
 
@@ -145,12 +147,23 @@ export function useResearchWorkflow(): UseResearchWorkflowResult {
     },
   });
 
-  // Mutation to stop research
+  // Mutation to stop (pause) research - preserves state
   const stopMutation = useMutation({
     mutationFn: (threadId: string) => stopResearch(threadId),
     onSuccess: () => {
       // Invalidate to refetch state
       queryClient.invalidateQueries({ queryKey: ['research', threadId] });
+    },
+  });
+
+  // Mutation to discard research - permanently removes state
+  const discardMutation = useMutation({
+    mutationFn: (threadId: string) => discardResearch(threadId),
+    onSuccess: () => {
+      // Clear the thread from cache completely
+      queryClient.removeQueries({ queryKey: ['research', threadId] });
+      // Refresh sessions list to remove this thread
+      queryClient.invalidateQueries({ queryKey: ['research-sessions'] });
     },
   });
 
@@ -180,6 +193,15 @@ export function useResearchWorkflow(): UseResearchWorkflowResult {
     [threadId, stopMutation]
   );
 
+  const discard = useCallback(
+    async (): Promise<void> => {
+      if (!threadId) throw new Error('No active research thread');
+      await discardMutation.mutateAsync(threadId);
+      setThreadId(null); // Clear thread ID since research is gone
+    },
+    [threadId, discardMutation]
+  );
+
   const reset = useCallback(() => {
     setThreadId(null);
     queryClient.removeQueries({ queryKey: ['research'] });
@@ -198,11 +220,12 @@ export function useResearchWorkflow(): UseResearchWorkflowResult {
   return {
     threadId,
     state: state ?? null,
-    isLoading: isLoading || startMutation.isPending || feedbackMutation.isPending || stopMutation.isPending,
-    error: error ?? startMutation.error ?? feedbackMutation.error ?? stopMutation.error ?? null,
+    isLoading: isLoading || startMutation.isPending || feedbackMutation.isPending || stopMutation.isPending || discardMutation.isPending,
+    error: error ?? startMutation.error ?? feedbackMutation.error ?? stopMutation.error ?? discardMutation.error ?? null,
     start,
     sendFeedback,
     stop,
+    discard,
     reset,
     resumeThread,
     previousSessions: sessionsData?.threads ?? [],

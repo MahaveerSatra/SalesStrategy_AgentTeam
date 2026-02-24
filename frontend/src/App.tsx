@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Users, Clock, ChevronDown, ChevronRight, Github, Heart, StopCircle } from 'lucide-react';
+import { Users, Clock, ChevronDown, ChevronRight, Github, Heart, StopCircle, Play, Pause, Network, ArrowLeft } from 'lucide-react';
 
 import {
   ResearchForm,
@@ -16,7 +16,7 @@ import { useSSEStream } from '@/hooks/useSSEStream';
 import type { ResearchRequest, ThreadSummary } from '@/types/research';
 
 // View state type for managing which view is shown
-type ViewState = 'form' | 'research' | 'report';
+type ViewState = 'form' | 'research' | 'report' | 'graph';
 
 function formatDate(dateStr?: string): string {
   if (!dateStr) return '';
@@ -35,6 +35,8 @@ function getStatusColor(status: string): string {
       return 'text-amber-600 bg-amber-50';
     case 'completed':
       return 'text-emerald-600 bg-emerald-50';
+    case 'stopped':
+      return 'text-orange-600 bg-orange-50';
     case 'error':
       return 'text-rose-600 bg-rose-50';
     default:
@@ -59,6 +61,8 @@ function getCurrentStepLabel(activeNode: string | null, nodeActivities: Record<s
 }
 
 function SessionCard({ session, onResume }: { session: ThreadSummary; onResume: () => void }) {
+  const isStopped = session.status === 'stopped';
+
   return (
     <button
       onClick={onResume}
@@ -73,9 +77,13 @@ function SessionCard({ session, onResume }: { session: ThreadSummary; onResume: 
         </div>
         <div className="flex items-center gap-3">
           <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(session.status)}`}>
-            {session.status === 'waiting_for_human' ? 'Needs Review' : session.status}
+            {isStopped ? 'Paused' : session.status === 'waiting_for_human' ? 'Needs Review' : session.status}
           </span>
-          <ChevronRight className="w-5 h-5 text-zinc-400 group-hover:text-teal-500 transition-colors" />
+          {isStopped ? (
+            <Play className="w-5 h-5 text-teal-500" />
+          ) : (
+            <ChevronRight className="w-5 h-5 text-zinc-400 group-hover:text-teal-500 transition-colors" />
+          )}
         </div>
       </div>
       {session.started_at && (
@@ -147,6 +155,7 @@ function App() {
     start,
     sendFeedback,
     stop,
+    discard,
     reset,
     resumeThread,
     previousSessions,
@@ -170,7 +179,7 @@ function App() {
 
   // Show feedback modal when waiting for human input (questions or report)
   useEffect(() => {
-    if (isWaitingForFeedback && !state?.current_report && state?.human_question) {
+    if (isWaitingForFeedback && state?.status !== 'stopped' && !state?.current_report && state?.human_question) {
       // Show modal for clarifying questions (no report yet)
       setShowFeedbackModal(true);
     } else if (!isWaitingForFeedback) {
@@ -185,12 +194,12 @@ function App() {
     }
   }, [threadId, isWaitingForFeedback]);
 
-  // Reset view state when no thread
+  // Reset view state when no thread (but not when in graph preview mode)
   useEffect(() => {
-    if (!threadId) {
+    if (!threadId && viewState !== 'graph') {
       setViewState('form');
     }
-  }, [threadId]);
+  }, [threadId, viewState]);
 
   const handleStartResearch = async (request: ResearchRequest) => {
     setViewState('research');
@@ -218,15 +227,61 @@ function App() {
     setViewState('form');
   };
 
-  const handleStop = async () => {
+  const handlePause = async () => {
     await stop();
-    handleReset();
+    // Don't reset - keep showing the research view with paused state
+    // User can click Resume to continue or Stop to discard
+  };
+
+  const handleDiscard = async () => {
+    await discard();
+    setViewState('form'); // Go back to form since research is gone
   };
 
   const handleResume = (session: ThreadSummary) => {
     resumeThread(session.thread_id);
-    // Will auto-transition to research or report based on state
+    // If stopped, go to research view (will show Resume button)
+    if (session.status === 'stopped') {
+      setViewState('research');
+    }
+    // Other statuses will auto-transition based on state via useEffect
   };
+
+  // If we're in graph preview mode, show the workflow graph without an active thread
+  if (viewState === 'graph') {
+    return (
+      <div className="page-bg min-h-screen">
+        <header className="header-gradient text-white sticky top-0 z-40 shadow-lg">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <button
+              onClick={handleReset}
+              className="flex items-center gap-3 hover:opacity-90 transition-opacity"
+            >
+              <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-xl font-bold tracking-tight">Agentic Sales Strategy Team</h1>
+            </button>
+            <button
+              onClick={() => setViewState('form')}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </button>
+          </div>
+        </header>
+        <main className="max-w-7xl mx-auto px-4 py-4">
+          <p className="text-center text-slate-500 text-sm mb-4">
+            Agent workflow — start research to see it run live
+          </p>
+          <div className="h-[calc(100vh-140px)]">
+            <WorkflowGraph state={null} activeNode={null} nodeStatuses={{}} />
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   // If we're in report view, show the full-page report
   if (viewState === 'report' && state?.current_report) {
@@ -238,6 +293,7 @@ function App() {
         accountName={state.account_name}
         onFeedback={handleFeedback}
         onHome={handleReset}
+        onAgentGraph={() => setViewState('research')}
         isLoading={isLoading}
       />
     );
@@ -262,6 +318,16 @@ function App() {
           </button>
 
           <div className="flex items-center gap-3">
+            {viewState === 'form' && (
+              <button
+                onClick={() => setViewState('graph')}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                title="Preview the agent workflow"
+              >
+                <Network className="w-4 h-4" />
+                View Workflow
+              </button>
+            )}
             <a
               href="https://github.com/MahaveerSatra/SalesStrategy_AgentTeam"
               target="_blank"
@@ -339,23 +405,62 @@ function App() {
                 {/* Title row with Stop button */}
                 <div className="flex items-center justify-between">
                   <h2 className="font-semibold text-zinc-900">
-                    Researching: <span className="text-teal-600">{state?.account_name}</span>
+                    {state?.status === 'stopped' ? 'Paused: ' : 'Researching: '}
+                    <span className="text-teal-600">{state?.account_name}</span>
                   </h2>
-                  {/* Stop button on the right of title row */}
-                  {isRunning && (
-                    <button
-                      onClick={handleStop}
-                      disabled={isLoading}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200 disabled:opacity-50"
-                    >
-                      <StopCircle className="w-4 h-4" />
-                      Stop
-                    </button>
+                  {/* Show Resume/Stop buttons if paused, otherwise show Pause/Stop buttons */}
+                  {state?.status === 'stopped' ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => sendFeedback('continue')}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-teal-600 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors border border-teal-200 disabled:opacity-50"
+                      >
+                        <Play className="w-4 h-4" />
+                        Resume
+                      </button>
+                      <button
+                        onClick={handleDiscard}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200 disabled:opacity-50"
+                      >
+                        <StopCircle className="w-4 h-4" />
+                        Stop
+                      </button>
+                    </div>
+                  ) : isRunning && (
+                    <div className="flex items-center gap-2">
+                      {/* PAUSE button - saves checkpoint, can resume */}
+                      <button
+                        onClick={handlePause}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors border border-amber-200 disabled:opacity-50"
+                      >
+                        <Pause className="w-4 h-4" />
+                        Pause
+                      </button>
+                      {/* STOP button - discards research permanently */}
+                      <button
+                        onClick={handleDiscard}
+                        disabled={isLoading}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors border border-rose-200 disabled:opacity-50"
+                      >
+                        <StopCircle className="w-4 h-4" />
+                        Stop
+                      </button>
+                    </div>
                   )}
                 </div>
 
                 {/* Progress status as sub-heading */}
-                {isRunning && (
+                {state?.status === 'stopped' ? (
+                  <div className="flex items-center gap-2 text-orange-600">
+                    <Pause className="w-4 h-4" />
+                    <span className="font-medium text-sm">
+                      Research paused - Resume to continue or Stop to discard
+                    </span>
+                  </div>
+                ) : isRunning && (
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
                     <span className="text-amber-700 font-medium text-sm">

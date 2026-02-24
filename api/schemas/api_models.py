@@ -21,6 +21,7 @@ class ResearchStatusEnum(str, Enum):
     RUNNING = "running"
     WAITING_FOR_HUMAN = "waiting_for_human"
     COMPLETED = "completed"
+    STOPPED = "stopped"  # Research paused by user, can be resumed
     ERROR = "error"
 
 

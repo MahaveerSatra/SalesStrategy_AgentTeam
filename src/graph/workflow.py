@@ -14,6 +14,7 @@ Workflow Architecture:
 from typing import Literal
 from datetime import datetime
 import asyncio
+import threading
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.sqlite import SqliteSaver
@@ -137,6 +138,10 @@ class ResearchWorkflow:
         # Set by workflow_service before running
         self._sse_callback: "SSECallbackHandler | None" = None
 
+        # Cancellation event for stopping workflow mid-execution
+        # Set by workflow_service when stop is requested
+        self._cancel_event: threading.Event | None = None
+
     def _setup_checkpointing(self) -> None:
         """Initialize SQLite checkpointing (synchronous version)."""
         import os
@@ -225,6 +230,28 @@ class ResearchWorkflow:
         return workflow
 
     # ─────────────────────────────────────────────────────────────────────────
+    # CANCELLATION SUPPORT
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _check_cancelled(self, state: ResearchState) -> bool:
+        """
+        Check if workflow cancellation was requested.
+
+        If cancelled, marks the state appropriately for later resumption.
+
+        Returns:
+            True if cancelled, False otherwise
+        """
+        if self._cancel_event and self._cancel_event.is_set():
+            logger.info("workflow_cancellation_detected")
+            # Mark state for later resumption
+            state["status"] = "stopped"
+            state["waiting_for_human"] = True  # Allows resume via feedback
+            state["human_question"] = "Research was paused. Click Resume to continue."
+            return True
+        return False
+
+    # ─────────────────────────────────────────────────────────────────────────
     # NODE FUNCTIONS
     # ─────────────────────────────────────────────────────────────────────────
 
@@ -237,6 +264,11 @@ class ResearchWorkflow:
         - Normalize company name
         - Generate clarifying questions if needed
         """
+        # Check for cancellation at start of node
+        if self._check_cancelled(state):
+            _print_stage("CANCELLED", "Research stopped by user", "complete")
+            return state
+
         account = state.get("account_name", "company")
         _print_stage("INITIALIZING", f"Validating inputs for {account}...", "running")
 
@@ -279,6 +311,11 @@ class ResearchWorkflow:
         - Gather news articles
         - Analyze each source with LLM
         """
+        # Check for cancellation at start of node
+        if self._check_cancelled(state):
+            _print_stage("CANCELLED", "Stopping at gatherer", "complete")
+            return state
+
         account = state.get("account_name", "company")
         _print_stage("GATHERING DATA", f"Searching web, jobs, and news for {account}...", "running")
 
@@ -331,6 +368,11 @@ class ResearchWorkflow:
         - Match to products using semantic search
         - Generate opportunity hypotheses
         """
+        # Check for cancellation at start of node
+        if self._check_cancelled(state):
+            _print_stage("CANCELLED", "Stopping at identifier", "complete")
+            return state
+
         account_name = state.get("account_name", "unknown")
         _print_stage("IDENTIFYING OPPORTUNITIES", f"Analyzing data and matching products for {account_name}...", "running")
 
@@ -402,6 +444,11 @@ class ResearchWorkflow:
         - Score confidence for each opportunity
         - Filter low-confidence opportunities
         """
+        # Check for cancellation at start of node
+        if self._check_cancelled(state):
+            _print_stage("CANCELLED", "Stopping at validator", "complete")
+            return state
+
         account = state.get("account_name", "company")
         opp_count = len(state.get("opportunities", []))
         _print_stage("VALIDATING", f"Scoring {opp_count} opportunities and assessing risks...", "running")
@@ -448,6 +495,11 @@ class ResearchWorkflow:
         - Format validated opportunities as report
         - Set up human-in-loop for feedback
         """
+        # Check for cancellation at start of node
+        if self._check_cancelled(state):
+            _print_stage("CANCELLED", "Stopping at coordinator exit", "complete")
+            return state
+
         validated_count = len(state.get("validated_opportunities", []))
         _print_stage("PREPARING REPORT", f"Formatting {validated_count} validated opportunities...", "running")
 
@@ -618,7 +670,8 @@ class ResearchWorkflow:
         self,
         state: ResearchState,
         thread_id: str | None = None,
-        sse_callback: "SSECallbackHandler | None" = None
+        sse_callback: "SSECallbackHandler | None" = None,
+        cancel_event: threading.Event | None = None
     ) -> ResearchState:
         """
         Run the research workflow (synchronous version).
@@ -629,12 +682,14 @@ class ResearchWorkflow:
             state: Initial research state
             thread_id: Optional thread ID for checkpointing
             sse_callback: Optional SSE callback handler for frontend updates
+            cancel_event: Optional threading event to signal cancellation
 
         Returns:
-            Research state (may be incomplete if waiting for human)
+            Research state (may be incomplete if waiting for human or cancelled)
         """
-        # Store SSE callback for node functions to use
+        # Store SSE callback and cancel event for node functions to use
         self._sse_callback = sse_callback
+        self._cancel_event = cancel_event
 
         # Create config for checkpointing
         config = {
@@ -664,14 +719,16 @@ class ResearchWorkflow:
 
             return result
         finally:
-            # Clear callback after run completes
+            # Clear callback and cancel event after run completes
             self._sse_callback = None
+            self._cancel_event = None
 
     def resume(
         self,
         thread_id: str,
         human_input: str | None = None,
-        sse_callback: "SSECallbackHandler | None" = None
+        sse_callback: "SSECallbackHandler | None" = None,
+        cancel_event: threading.Event | None = None
     ) -> ResearchState:
         """
         Resume a workflow from checkpoint with optional human input.
@@ -680,12 +737,14 @@ class ResearchWorkflow:
             thread_id: Thread ID to resume
             human_input: Optional human feedback/response
             sse_callback: Optional SSE callback handler for frontend updates
+            cancel_event: Optional threading event to signal cancellation
 
         Returns:
             Updated research state
         """
-        # Store SSE callback for node functions to use
+        # Store SSE callback and cancel event for node functions to use
         self._sse_callback = sse_callback
+        self._cancel_event = cancel_event
 
         config = {"configurable": {"thread_id": thread_id}}
 
@@ -736,8 +795,9 @@ class ResearchWorkflow:
 
             return result
         finally:
-            # Clear callback after run completes
+            # Clear callback and cancel event after run completes
             self._sse_callback = None
+            self._cancel_event = None
 
     def get_state(self, thread_id: str) -> ResearchState | None:
         """

@@ -92,7 +92,7 @@ function AgentNodeComponent({ data, selected }: NodeProps<AgentNodeData>) {
   return (
     <div
       className={`
-        relative px-4 py-3 rounded-lg border-2 min-w-[140px] transition-all duration-300
+        relative px-4 py-3 rounded-lg border-2 w-[180px] transition-all duration-300
         ${statusClasses[status]}
         ${selected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-white' : ''}
       `}

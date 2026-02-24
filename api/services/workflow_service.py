@@ -3,6 +3,7 @@ Workflow service wrapping the ResearchWorkflow for API use.
 Provides async methods for starting, monitoring, and controlling research workflows.
 """
 import asyncio
+import threading
 from datetime import datetime
 from typing import Any
 import structlog
@@ -40,6 +41,7 @@ class WorkflowService:
         self._workflows: dict[str, ResearchWorkflow] = {}
         self._states: dict[str, ResearchState] = {}
         self._running: set[str] = set()
+        self._cancel_events: dict[str, threading.Event] = {}  # Cancellation signals for workflows
 
     def _generate_thread_id(self, account_name: str) -> str:
         """Generate a unique thread ID for a research workflow."""
@@ -66,6 +68,9 @@ class WorkflowService:
         """Determine the current status of a workflow."""
         if thread_id in self._running:
             return ResearchStatusEnum.RUNNING
+        # Check for stopped status BEFORE other checks
+        if state.get("status") == "stopped":
+            return ResearchStatusEnum.STOPPED
         if state.get("error_messages"):
             return ResearchStatusEnum.ERROR
         if state.get("waiting_for_human"):
@@ -253,6 +258,10 @@ class WorkflowService:
         seller_name = state["seller_name"]
         workflow = self._get_or_create_workflow(seller_name, thread_id)
 
+        # Create cancellation event for this workflow
+        cancel_event = threading.Event()
+        self._cancel_events[thread_id] = cancel_event
+
         self._running.add(thread_id)
 
         # PRE-CREATE SSE QUEUE before workflow starts
@@ -265,14 +274,15 @@ class WorkflowService:
         sse_callback = SSECallbackHandler(thread_id)
 
         try:
-            # Run workflow in thread pool with SSE callback
+            # Run workflow in thread pool with SSE callback and cancel event
             result = await asyncio.to_thread(
-                workflow.run, state, thread_id, sse_callback
+                workflow.run, state, thread_id, sse_callback, cancel_event
             )
             self._states[thread_id] = result
             return result
         finally:
             self._running.discard(thread_id)
+            self._cancel_events.pop(thread_id, None)  # Clean up cancel event
 
     async def get_state(self, thread_id: str) -> ResearchState | None:
         """
@@ -316,8 +326,16 @@ class WorkflowService:
         if not state:
             raise ValueError(f"Thread {thread_id} not found")
 
+        # Clear stopped status when resuming
+        if state.get("status") == "stopped":
+            state["status"] = "running"
+
         seller_name = state["seller_name"]
         workflow = self._get_or_create_workflow(seller_name, thread_id)
+
+        # Create cancellation event for resumed workflow
+        cancel_event = threading.Event()
+        self._cancel_events[thread_id] = cancel_event
 
         self._running.add(thread_id)
 
@@ -331,14 +349,15 @@ class WorkflowService:
         sse_callback = SSECallbackHandler(thread_id)
 
         try:
-            # Resume workflow with feedback and SSE callback
+            # Resume workflow with feedback, SSE callback, and cancel event
             result = await asyncio.to_thread(
-                workflow.resume, thread_id, feedback, sse_callback
+                workflow.resume, thread_id, feedback, sse_callback, cancel_event
             )
             self._states[thread_id] = result
             return result
         finally:
             self._running.discard(thread_id)
+            self._cancel_events.pop(thread_id, None)  # Clean up cancel event
 
     async def list_threads(self) -> list[tuple[str, ResearchState]]:
         """
@@ -355,7 +374,8 @@ class WorkflowService:
 
     async def stop_research(self, thread_id: str) -> bool:
         """
-        Stop a running research workflow.
+        Stop a running research workflow with proper cancellation.
+        Preserves state so research can be resumed later from Previous Sessions.
 
         Args:
             thread_id: The thread ID to stop
@@ -366,15 +386,58 @@ class WorkflowService:
         if thread_id not in self._running:
             return False
 
-        # Remove from running set - marks workflow as stopped
+        # Signal cancellation to the workflow thread
+        cancel_event = self._cancel_events.get(thread_id)
+        if cancel_event:
+            logger.info("signaling_workflow_cancellation", thread_id=thread_id)
+            cancel_event.set()  # Signal the workflow to stop
+
+        # Remove from running set
         self._running.discard(thread_id)
 
-        # Update state to indicate stopped
+        # Update state to indicate stopped - PRESERVE for later resumption
         if thread_id in self._states:
             self._states[thread_id]["status"] = "stopped"
-            self._states[thread_id]["error_messages"] = self._states[thread_id].get("error_messages", []) + ["Research stopped by user"]
+            self._states[thread_id]["waiting_for_human"] = True  # Allows resume via feedback
+            self._states[thread_id]["human_question"] = "Research was paused. Click Resume to continue."
+            self._states[thread_id]["last_updated"] = datetime.now().isoformat()
 
-        logger.info("research_stopped", thread_id=thread_id)
+        logger.info("research_stopped_preserving_state", thread_id=thread_id)
+        return True
+
+    async def discard_research(self, thread_id: str) -> bool:
+        """
+        Stop a running research workflow and DISCARD all state.
+        Unlike stop_research(), this permanently removes the research.
+        It will NOT appear in Previous Sessions and cannot be resumed.
+
+        Args:
+            thread_id: The thread ID to discard
+
+        Returns:
+            True if discarded, False if not found
+        """
+        # Signal cancellation if running
+        cancel_event = self._cancel_events.get(thread_id)
+        if cancel_event:
+            logger.info("signaling_workflow_cancellation_for_discard", thread_id=thread_id)
+            cancel_event.set()
+
+        # Remove from running set
+        self._running.discard(thread_id)
+
+        # DISCARD state completely (unlike stop which preserves)
+        if thread_id in self._states:
+            del self._states[thread_id]
+
+        # Clean up workflow instance
+        if thread_id in self._workflows:
+            del self._workflows[thread_id]
+
+        # Clean up cancel event
+        self._cancel_events.pop(thread_id, None)
+
+        logger.info("research_discarded", thread_id=thread_id)
         return True
 
 
