@@ -269,6 +269,22 @@ async def discard_research(thread_id: str) -> dict:
     }
 
 
+@router.get("/{thread_id}/node-traces")
+async def get_node_traces(thread_id: str) -> dict:
+    """
+    Get per-node execution traces for the observability panel.
+
+    Returns timing (start_time, end_time, duration_ms) and a state summary
+    for each agent node that has started or completed in this thread.
+    Used by the frontend trace panel when a user clicks on an agent node.
+    """
+    traces = workflow_service.get_node_traces(thread_id)
+    if not traces:
+        # Return empty dict (not 404) — frontend handles empty gracefully
+        return {}
+    return traces
+
+
 @router.get("/list", response_model=ThreadListResponse)
 async def list_threads() -> ThreadListResponse:
     """

@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react';
-import { Download, Send, Github, Users, X, ExternalLink, ChevronDown, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Download, Send, Github, Users, X, ExternalLink, ChevronDown, ChevronRight, ArrowLeft, CheckCircle, Search, RefreshCw, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { Signal } from '@/types/research';
 
@@ -271,10 +271,46 @@ export function ReportView({
         {/* Report Content */}
         <main className={`flex-1 ${selectedSignal ? 'max-w-[calc(100%-350px)]' : ''}`}>
           <div className="max-w-4xl mx-auto px-8 py-8">
-            {/* Question Banner */}
+            {/* Action Guide — shown when coordinator is waiting for feedback */}
             {question && (
-              <div className="mb-6 p-4 bg-teal-50 border border-teal-200 rounded-xl">
-                <p className="text-teal-800 font-medium">{question}</p>
+              <div className="mb-6 p-4 bg-teal-50 border border-teal-200 rounded-xl space-y-3">
+                <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide">
+                  What would you like to do next?
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => handleSubmit('approved')}
+                    disabled={isLoading}
+                    className="flex items-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors text-left"
+                  >
+                    <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                    Approve report
+                  </button>
+                  <button
+                    onClick={() => setCustomFeedback('dig deeper on ')}
+                    disabled={isLoading}
+                    className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-sm font-medium rounded-lg border border-slate-200 transition-colors text-left"
+                  >
+                    <Search className="w-4 h-4 flex-shrink-0 text-slate-500" />
+                    Dig deeper
+                  </button>
+                  <button
+                    onClick={() => handleSubmit('different products')}
+                    disabled={isLoading}
+                    className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-sm font-medium rounded-lg border border-slate-200 transition-colors text-left"
+                  >
+                    <RefreshCw className="w-4 h-4 flex-shrink-0 text-slate-500" />
+                    Different products
+                  </button>
+                  <button
+                    onClick={() => setCustomFeedback('')}
+                    disabled={isLoading}
+                    className="flex items-center gap-2 px-3 py-2 bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-700 text-sm font-medium rounded-lg border border-slate-200 transition-colors text-left"
+                  >
+                    <MessageSquare className="w-4 h-4 flex-shrink-0 text-slate-500" />
+                    Custom feedback ↓
+                  </button>
+                </div>
               </div>
             )}
 

@@ -7,6 +7,7 @@ import type {
   ResearchResponse,
   ResearchState,
   ThreadSummary,
+  NodeTrace,
 } from '@/types/research';
 
 const API_BASE = '/api';
@@ -126,6 +127,17 @@ export async function discardResearch(threadId: string): Promise<{
     method: 'POST',
   });
   return handleResponse(response);
+}
+
+/**
+ * Get per-node execution traces for the observability panel.
+ * Returns timing and state summaries for each agent node.
+ */
+export async function getNodeTraces(
+  threadId: string
+): Promise<Record<string, NodeTrace>> {
+  const response = await fetch(`${API_BASE}/research/${threadId}/node-traces`);
+  return handleResponse<Record<string, NodeTrace>>(response);
 }
 
 /**

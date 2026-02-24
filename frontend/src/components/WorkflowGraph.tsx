@@ -2,7 +2,7 @@
  * React Flow workflow visualization component.
  */
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect, useRef } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -11,6 +11,7 @@ import ReactFlow, {
   type NodeTypes,
   MarkerType,
   type NodeMouseHandler,
+  type ReactFlowInstance,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -22,6 +23,8 @@ interface WorkflowGraphProps {
   activeNode: string | null;
   nodeStatuses: Record<string, NodeStatus>;
   onReportClick?: () => void;
+  onAgentNodeClick?: (nodeId: string) => void;
+  fitViewTrigger?: number;
 }
 
 const nodeTypes: NodeTypes = {
@@ -247,12 +250,25 @@ const BASE_EDGES: Edge[] = [
   },
 ];
 
+const AGENT_NODES = ['coordinator_entry', 'gatherer', 'identifier', 'validator', 'coordinator_exit'];
+
 export function WorkflowGraph({
   state,
   activeNode,
   nodeStatuses,
   onReportClick,
+  onAgentNodeClick,
+  fitViewTrigger,
 }: WorkflowGraphProps) {
+  const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+
+  // Re-fit the graph after the panel open/close CSS transition completes (300ms)
+  useEffect(() => {
+    if (rfInstanceRef.current && fitViewTrigger !== undefined && fitViewTrigger > 0) {
+      rfInstanceRef.current.fitView({ padding: 0.15, duration: 300 });
+    }
+  }, [fitViewTrigger]);
+
   // Helper to get progress key for a node
   const getProgressKey = (nodeId: string): string | null => {
     switch (nodeId) {
@@ -371,18 +387,27 @@ export function WorkflowGraph({
     });
   }, [activeNode]);
 
-  // Handle node clicks - only Report node is clickable when report is ready
+  // Handle node clicks:
+  // - Report node: opens report view when report is ready
+  // - Agent nodes: opens trace panel when node has started or completed
   const handleNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
       if (node.id === 'report' && state?.current_report && onReportClick) {
         onReportClick();
+      } else if (AGENT_NODES.includes(node.id)) {
+        const status = nodeStatuses[node.id];
+        if ((status && status !== 'idle') || activeNode === node.id) {
+          onAgentNodeClick?.(node.id);
+        }
       }
     },
-    [state?.current_report, onReportClick]
+    [state?.current_report, onReportClick, nodeStatuses, activeNode, onAgentNodeClick]
   );
 
-  // Determine if report node should have clickable cursor
   const hasReport = Boolean(state?.current_report);
+  // Show pointer cursor when any agent node is clickable (running/complete) or report exists
+  const hasClickableNodes =
+    hasReport || AGENT_NODES.some(id => nodeStatuses[id] && nodeStatuses[id] !== 'idle') || Boolean(activeNode);
 
   return (
     <div className="w-full h-full bg-slate-50 rounded-lg overflow-hidden">
@@ -397,11 +422,12 @@ export function WorkflowGraph({
         proOptions={{ hideAttribution: true }}
         nodesDraggable={false}
         nodesConnectable={false}
-        elementsSelectable={hasReport}
+        elementsSelectable={hasClickableNodes}
         onNodeClick={handleNodeClick}
+        onInit={(instance) => { rfInstanceRef.current = instance; }}
         panOnDrag={false}
         zoomOnScroll={false}
-        className={hasReport ? 'cursor-pointer' : ''}
+        className={hasClickableNodes ? 'cursor-pointer' : ''}
       >
         <Background color="#e2e8f0" gap={20} size={1} />
         <Controls

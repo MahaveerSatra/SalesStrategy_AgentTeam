@@ -101,6 +101,9 @@ export interface ResearchState {
   started_at?: string;
   last_updated?: string;
   error_messages: string[];
+
+  // Observability
+  langsmith_url?: string;
 }
 
 export interface WorkflowEvent {
@@ -116,6 +119,42 @@ export interface ThreadSummary {
   status: ResearchStatus;
   started_at?: string;
   progress: Progress;
+}
+
+// Node trace types for observability panel
+export interface NodeTraceSummary {
+  // coordinator_entry
+  account_name?: string;
+  industry?: string;
+  company_domain?: string;
+  user_context?: string;
+  // gatherer
+  signals_count?: number;
+  job_postings_count?: number;
+  news_items_count?: number;
+  signal_previews?: Array<{ source: string; signal_type: string; confidence: number }>;
+  // identifier
+  opportunities_count?: number;
+  opportunity_previews?: Array<{ product_name: string; confidence_score: number }>;
+  // validator
+  validated_count?: number;
+  risks_count?: number;
+  tech_stack?: string[];
+  risk_previews?: string[];
+  // coordinator_exit
+  report_length?: number;
+  report_preview?: string;
+  workflow_iteration?: number;
+}
+
+export interface NodeTrace {
+  node_id: string;
+  node_label: string;
+  status: 'running' | 'complete' | 'error';
+  start_time: string;
+  end_time: string | null;
+  duration_ms: number | null;
+  summary: NodeTraceSummary;
 }
 
 // Node types for React Flow

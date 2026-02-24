@@ -5,3 +5,4 @@ export { HumanFeedback } from './HumanFeedback';
 export { WorkflowGraph } from './WorkflowGraph';
 export { AgentNode } from './AgentNode';
 export { ReportView } from './ReportView';
+export { NodeTracePanel } from './NodeTracePanel';

@@ -142,6 +142,9 @@ class ResearchWorkflow:
         # Set by workflow_service when stop is requested
         self._cancel_event: threading.Event | None = None
 
+        # LangSmith shareable run URL (set after run() completes if LangSmith configured)
+        self._langsmith_url: str | None = None
+
     def _setup_checkpointing(self) -> None:
         """Initialize SQLite checkpointing (synchronous version)."""
         import os
@@ -691,17 +694,26 @@ class ResearchWorkflow:
         self._sse_callback = sse_callback
         self._cancel_event = cancel_event
 
-        # Create config for checkpointing
+        import os
+        from uuid import uuid4
+
+        # Generate a unique run ID for LangSmith tracing
+        run_id = str(uuid4())
+        self._langsmith_url = None  # Reset from any previous run
+
+        # Create config for checkpointing + LangSmith run ID
         config = {
             "configurable": {
                 "thread_id": thread_id or f"research_{state['account_name']}"
-            }
+            },
+            "run_id": run_id,
         }
 
         logger.info(
             "workflow_started",
             account=state["account_name"],
-            thread_id=config["configurable"]["thread_id"]
+            thread_id=config["configurable"]["thread_id"],
+            run_id=run_id,
         )
 
         try:
@@ -716,6 +728,18 @@ class ResearchWorkflow:
                 )
             else:
                 logger.info("workflow_completed", account=state["account_name"])
+
+            # If LangSmith tracing is enabled, share the run and capture the public URL
+            if (os.environ.get("LANGCHAIN_TRACING_V2") == "true" and
+                    os.environ.get("LANGSMITH_API_KEY")):
+                try:
+                    from langsmith import Client as LangSmithClient
+                    ls_client = LangSmithClient()
+                    shared_url = ls_client.share_run(run_id)
+                    self._langsmith_url = str(shared_url)
+                    logger.info("langsmith_run_shared", url=self._langsmith_url, run_id=run_id)
+                except Exception as ls_err:
+                    logger.warning("langsmith_share_run_failed", error=str(ls_err), run_id=run_id)
 
             return result
         finally:

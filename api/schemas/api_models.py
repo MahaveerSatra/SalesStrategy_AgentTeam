@@ -142,6 +142,9 @@ class ResearchStateResponse(BaseModel):
     last_updated: datetime | None = None
     error_messages: list[str] = Field(default_factory=list)
 
+    # Observability
+    langsmith_url: str | None = None
+
 
 class FeedbackResponse(BaseModel):
     """Response after submitting feedback."""

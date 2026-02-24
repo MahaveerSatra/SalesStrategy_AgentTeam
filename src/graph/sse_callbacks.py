@@ -7,10 +7,34 @@ nodes execute.
 """
 from typing import Any, Dict, List, Optional, Union
 import asyncio
+from datetime import datetime
 from uuid import UUID
 import structlog
 
 logger = structlog.get_logger(__name__)
+
+
+# Human-readable labels for agent nodes (used in trace panel)
+NODE_LABELS = {
+    "coordinator_entry": "Coordinator",
+    "gatherer": "Gatherer",
+    "identifier": "Identifier",
+    "validator": "Validator",
+    "coordinator_exit": "Report Coordinator",
+}
+
+# Module-level trace store: thread_id → {node_id → trace dict}
+_node_traces: dict[str, dict[str, dict]] = {}
+
+
+def get_node_traces(thread_id: str) -> dict[str, dict]:
+    """Get all node traces for a thread (returns empty dict if none)."""
+    return _node_traces.get(thread_id, {})
+
+
+def clear_node_traces(thread_id: str) -> None:
+    """Clear all node traces for a thread (call on discard to free memory)."""
+    _node_traces.pop(thread_id, None)
 
 
 # Node name mapping: LangGraph internal names → Frontend node IDs
@@ -124,6 +148,18 @@ class SSECallbackHandler:
         account = inputs.get("account_name", "company") if isinstance(inputs, dict) else "company"
         description = self._get_description(mapped_node, account)
 
+        # Record trace start for observable nodes
+        if mapped_node in NODE_LABELS:
+            _node_traces.setdefault(self.thread_id, {})[mapped_node] = {
+                "node_id": mapped_node,
+                "node_label": NODE_LABELS[mapped_node],
+                "status": "running",
+                "start_time": datetime.now().isoformat(),
+                "end_time": None,
+                "duration_ms": None,
+                "summary": {},
+            }
+
         logger.info(
             "sse_callback_node_start",
             node=mapped_node,
@@ -163,6 +199,25 @@ class SSECallbackHandler:
                 thread_id=self.thread_id
             )
             self._emit_sync(self._emit_node_completed(mapped_node, metrics))
+
+        # Update trace with completion data
+        if mapped_node in NODE_LABELS:
+            existing = _node_traces.get(self.thread_id, {}).get(mapped_node, {})
+            end_time = datetime.now()
+            start_time_str = existing.get("start_time")
+            duration_ms = None
+            if start_time_str:
+                try:
+                    start_dt = datetime.fromisoformat(start_time_str)
+                    duration_ms = int((end_time - start_dt).total_seconds() * 1000)
+                except (ValueError, TypeError):
+                    pass
+            _node_traces.setdefault(self.thread_id, {})[mapped_node].update({
+                "status": "complete",
+                "end_time": end_time.isoformat(),
+                "duration_ms": duration_ms,
+                "summary": self._extract_summary(mapped_node, outputs),
+            })
 
         self._current_node = None
 
@@ -210,3 +265,83 @@ class SSECallbackHandler:
             metrics["validated_count"] = len(outputs.get("validated_opportunities", []))
             metrics["risks_count"] = len(outputs.get("competitive_risks", []))
         return metrics
+
+    def _extract_summary(self, node: str, outputs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract a rich state summary from node outputs for the trace panel.
+
+        Returns a node-specific dict with counts, previews, and key data points.
+        """
+        if not isinstance(outputs, dict):
+            return {}
+
+        summary: Dict[str, Any] = {}
+
+        if node == "coordinator_entry":
+            summary["account_name"] = outputs.get("account_name", "")
+            summary["industry"] = outputs.get("industry", "")
+            summary["company_domain"] = outputs.get("company_domain")
+            user_context = outputs.get("user_context")
+            if user_context:
+                summary["user_context"] = user_context[:200]
+
+        elif node == "gatherer":
+            signals = outputs.get("signals", [])
+            summary["signals_count"] = len(signals)
+            summary["job_postings_count"] = len(outputs.get("job_postings", []))
+            summary["news_items_count"] = len(outputs.get("news_items", []))
+            previews = []
+            for s in signals[:3]:
+                if isinstance(s, dict):
+                    meta = s.get("metadata", {}) or {}
+                    url = meta.get("url", "") or meta.get("source_url", "")
+                    content = (s.get("content", "") or "")[:100]
+                    previews.append({
+                        "source": content,
+                        "signal_type": url,
+                        "confidence": round(float(s.get("confidence", 0.5)), 2),
+                    })
+                elif hasattr(s, "content"):
+                    meta = getattr(s, "metadata", {}) or {}
+                    url = meta.get("url", "") or meta.get("source_url", "")
+                    content = (getattr(s, "content", "") or "")[:100]
+                    previews.append({
+                        "source": content,
+                        "signal_type": url,
+                        "confidence": round(float(s.confidence), 2),
+                    })
+            summary["signal_previews"] = previews
+
+        elif node == "identifier":
+            opportunities = outputs.get("opportunities", [])
+            summary["opportunities_count"] = len(opportunities)
+            previews = []
+            for o in opportunities[:3]:
+                if isinstance(o, dict):
+                    previews.append({
+                        "product_name": o.get("product_name", ""),
+                        "confidence_score": round(float(o.get("confidence_score", 0.5)), 2),
+                    })
+                elif hasattr(o, "product_name"):
+                    previews.append({
+                        "product_name": o.product_name,
+                        "confidence_score": round(float(o.confidence_score), 2),
+                    })
+            summary["opportunity_previews"] = previews
+
+        elif node == "validator":
+            validated = outputs.get("validated_opportunities", [])
+            risks = outputs.get("competitive_risks", [])
+            summary["validated_count"] = len(validated)
+            summary["risks_count"] = len(risks)
+            summary["tech_stack"] = outputs.get("tech_stack", [])[:10]
+            summary["risk_previews"] = [str(r) for r in risks[:3]]
+
+        elif node == "coordinator_exit":
+            report = outputs.get("current_report")
+            if report:
+                summary["report_length"] = len(report)
+                summary["report_preview"] = report[:300]
+            summary["workflow_iteration"] = outputs.get("workflow_iteration", 1)
+
+        return summary

@@ -200,6 +200,7 @@ class WorkflowService:
             started_at=state.get("started_at"),
             last_updated=state.get("last_updated"),
             error_messages=state.get("error_messages", []),
+            langsmith_url=state.get("langsmith_url"),
         )
 
     async def start_research(self, request: ResearchRequest) -> tuple[str, ResearchState]:
@@ -279,6 +280,9 @@ class WorkflowService:
                 workflow.run, state, thread_id, sse_callback, cancel_event
             )
             self._states[thread_id] = result
+            # Capture LangSmith run URL if tracing was enabled for this run
+            if workflow._langsmith_url:
+                self._states[thread_id]["langsmith_url"] = workflow._langsmith_url
             return result
         finally:
             self._running.discard(thread_id)
@@ -437,8 +441,22 @@ class WorkflowService:
         # Clean up cancel event
         self._cancel_events.pop(thread_id, None)
 
+        # Clear node traces to free memory
+        from src.graph.sse_callbacks import clear_node_traces
+        clear_node_traces(thread_id)
+
         logger.info("research_discarded", thread_id=thread_id)
         return True
+
+    def get_node_traces(self, thread_id: str) -> dict:
+        """
+        Get per-node execution traces (timing + state summaries) for observability panel.
+
+        Returns:
+            Dict of node_id → trace data, empty dict if none captured yet.
+        """
+        from src.graph.sse_callbacks import get_node_traces
+        return get_node_traces(thread_id)
 
 
 # Singleton instance for dependency injection

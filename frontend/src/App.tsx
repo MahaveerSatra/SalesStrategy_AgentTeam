@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Users, Clock, ChevronDown, ChevronRight, Github, Heart, StopCircle, Play, Pause, Network, ArrowLeft } from 'lucide-react';
 
 import {
@@ -10,9 +11,11 @@ import {
   WorkflowGraph,
   ReportView,
   HumanFeedback,
+  NodeTracePanel,
 } from '@/components';
 import { useResearchWorkflow } from '@/hooks/useResearchWorkflow';
 import { useSSEStream } from '@/hooks/useSSEStream';
+import { getNodeTraces } from '@/lib/api';
 import type { ResearchRequest, ThreadSummary } from '@/types/research';
 
 // View state type for managing which view is shown
@@ -146,6 +149,8 @@ function PreviousSessions({
 function App() {
   const [viewState, setViewState] = useState<ViewState>('form');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [selectedTraceNode, setSelectedTraceNode] = useState<string | null>(null);
+  const [fitViewTrigger, setFitViewTrigger] = useState(0);
 
   const {
     threadId,
@@ -167,6 +172,15 @@ function App() {
   const { activeNode, nodeStatuses, nodeActivities, reconnect, resetStatuses } = useSSEStream({
     threadId,
     autoConnect: true,
+  });
+
+  // Fetch node traces when trace panel is open (polls during active research)
+  const { data: nodeTraces = {} } = useQuery({
+    queryKey: ['node-traces', threadId],
+    queryFn: () => getNodeTraces(threadId!),
+    enabled: !!threadId && selectedTraceNode !== null,
+    staleTime: 5_000,
+    refetchInterval: selectedTraceNode !== null && isRunning ? 3_000 : false,
   });
 
   // Auto-transition to report view when research completes with a full report
@@ -471,19 +485,39 @@ function App() {
               </div>
             </div>
 
-            {/* Workflow Graph - 100% width, clickable report node */}
-            <div className="w-full form-card overflow-hidden">
-              <div className="h-[320px]">
-                <WorkflowGraph
-                  state={state}
-                  activeNode={activeNode}
-                  nodeStatuses={nodeStatuses}
-                  onReportClick={() => {
-                    if (state?.current_report) {
-                      setViewState('report');
-                    }
-                  }}
-                />
+            {/* Workflow Graph + Trace Panel — split when node is selected */}
+            <div className="form-card overflow-hidden">
+              <div className="flex gap-3 items-stretch overflow-hidden">
+                <div className="flex-1 min-w-0 h-[320px]">
+                  <WorkflowGraph
+                    state={state}
+                    activeNode={activeNode}
+                    nodeStatuses={nodeStatuses}
+                    fitViewTrigger={fitViewTrigger}
+                    onReportClick={() => {
+                      if (state?.current_report) {
+                        setViewState('report');
+                      }
+                    }}
+                    onAgentNodeClick={(nodeId) => {
+                      setSelectedTraceNode(nodeId);
+                      setTimeout(() => setFitViewTrigger(t => t + 1), 350);
+                    }}
+                  />
+                </div>
+                {selectedTraceNode && (
+                  <div className="w-[280px] flex-shrink-0 h-[320px]">
+                    <NodeTracePanel
+                      nodeId={selectedTraceNode}
+                      traces={nodeTraces}
+                      onClose={() => {
+                        setSelectedTraceNode(null);
+                        setTimeout(() => setFitViewTrigger(t => t + 1), 350);
+                      }}
+                      langsmithUrl={state?.langsmith_url}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
