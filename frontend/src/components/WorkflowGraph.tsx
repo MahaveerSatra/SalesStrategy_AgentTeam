@@ -262,10 +262,12 @@ export function WorkflowGraph({
 }: WorkflowGraphProps) {
   const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
 
-  // Re-fit the graph after the panel open/close CSS transition completes (300ms)
   useEffect(() => {
-    if (rfInstanceRef.current && fitViewTrigger !== undefined && fitViewTrigger > 0) {
-      rfInstanceRef.current.fitView({ padding: 0.15, duration: 300 });
+    if (rfInstanceRef.current && fitViewTrigger && fitViewTrigger > 0) {
+      // 50ms gives the browser time to finish layout + fire ResizeObserver
+      setTimeout(() => {
+        rfInstanceRef.current?.fitView({ padding: 0.15, duration: 300 });
+      }, 50);
     }
   }, [fitViewTrigger]);
 

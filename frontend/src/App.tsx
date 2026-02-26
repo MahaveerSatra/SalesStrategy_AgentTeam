@@ -501,7 +501,7 @@ function App() {
                     }}
                     onAgentNodeClick={(nodeId) => {
                       setSelectedTraceNode(nodeId);
-                      setTimeout(() => setFitViewTrigger(t => t + 1), 350);
+                      setFitViewTrigger(t => t + 1);
                     }}
                   />
                 </div>
@@ -512,7 +512,7 @@ function App() {
                       traces={nodeTraces}
                       onClose={() => {
                         setSelectedTraceNode(null);
-                        setTimeout(() => setFitViewTrigger(t => t + 1), 350);
+                        setFitViewTrigger(t => t + 1);
                       }}
                       langsmithUrl={state?.langsmith_url}
                     />
