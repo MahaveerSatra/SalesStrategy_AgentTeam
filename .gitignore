@@ -10,6 +10,7 @@ env/
 dist/
 build/
 .claude/
+.archive/
 
 
 # Environment
@@ -44,4 +45,3 @@ frontend/node_modules
 
 # Context
 Status_Plan/
-CONTEXT_PHASE7_UI.md
