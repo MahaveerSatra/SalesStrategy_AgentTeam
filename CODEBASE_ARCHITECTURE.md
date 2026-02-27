@@ -1,7 +1,7 @@
 # Enterprise Account Research System - Codebase Architecture
 
-**Last Updated**: 2026-02-20
-**Status**: Phase 6 COMPLETE - System Verified with Multiple Customer Demos
+**Last Updated**: 2026-02-26
+**Status**: Phase 11 COMPLETE - Full Web UI + Observability Shipped
 **Test Status**: ✅ 454 tests passing | 0 skipped
 
 ---
@@ -3300,3 +3300,432 @@ Focus: Polyspace, DO Qualification Kit
 2. Read "Document Status Summary" for current state
 3. Read this session summary for latest changes
 4. System is VERIFIED WORKING - run demos with confidence
+
+
+---
+
+---
+
+## Phase 7-11: Full Web UI + API Layer (2026-02-20 to 2026-02-23)
+
+**Status**: COMPLETE
+**Last Updated**: 2026-02-26
+
+The system evolved from a CLI tool into a full-stack web application with real-time streaming, human-in-the-loop interaction, and a live agent workflow visualisation.
+
+---
+
+### Architecture Overview (Three-Tier)
+
+The project now has three distinct layers stacked vertically:
+
+```
+React Frontend    (frontend/)  --  TypeScript, ReactFlow, TanStack Query, Tailwind CSS
+                                   http://localhost:5173
+        |
+        | HTTP REST + SSE
+        v
+FastAPI API Layer  (api/)      --  REST endpoints, SSE emitter, WorkflowService wrapper
+                                   http://localhost:8000
+        |
+        | Python function calls
+        v
+LangGraph Agents   (src/)      --  Coordinator, Gatherer, Identifier, Validator
+                                   SQLite checkpoints, ChromaDB, DuckDuckGo MCP
+```
+
+---
+
+### New Directory Structure
+
+```
+api/
+|-- main.py                    # FastAPI app: CORS, lifespan, router registration
+|-- routers/
+|   |-- health.py              # GET /api/health
+|   +-- research.py            # All /api/research/* endpoints
+|-- services/
+|   +-- workflow_service.py    # Wrapper: start/stop/discard/feedback/state/list
+|-- schemas/
+|   +-- api_models.py          # Pydantic request/response models
++-- sse/
+    +-- event_stream.py        # SSE emitter + per-thread asyncio.Queue subscribers
+
+src/graph/
+|-- workflow.py                # (existing) LangGraph workflow
++-- sse_callbacks.py           # NEW: SSECallbackHandler + node trace store
+
+frontend/src/
+|-- App.tsx                    # Root: ViewState machine, SSE hook wiring, layout
+|-- types/research.ts          # TypeScript interfaces (Signal, Opportunity, etc.)
+|-- lib/api.ts                 # fetch() wrappers for all API calls
+|-- hooks/
+|   |-- useSSEStream.ts        # EventSource hook with reconnect on disconnect
+|   +-- useResearchWorkflow.ts # TanStack Query mutations + polling
++-- components/
+    |-- AgentNode.tsx           # Custom ReactFlow node (idle/running/complete/error)
+    |-- WorkflowGraph.tsx       # ReactFlow canvas with auto-fitView
+    |-- NodeTracePanel.tsx      # Right-side trace detail panel (per-node)
+    |-- ReportView.tsx          # Full-page report with quick-action buttons
+    |-- ResearchForm.tsx        # Landing page input form
+    +-- HumanFeedback.tsx       # Coordinator clarifying-question modal
+```
+
+---
+
+### API Endpoints (Complete List)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check |
+| `/api/research/start` | POST | Start new research; returns `thread_id` |
+| `/api/research/list` | GET | List all saved sessions |
+| `/api/research/{id}/stream` | GET | SSE stream of workflow progress events |
+| `/api/research/{id}/state` | GET | Full ResearchState snapshot |
+| `/api/research/{id}/feedback` | POST | Submit human feedback (or `'continue'` to resume) |
+| `/api/research/{id}/stop` | POST | Pause -- preserves checkpoint, visible in Previous Sessions |
+| `/api/research/{id}/discard` | POST | Stop permanently -- deletes in-memory state, NOT saved |
+| `/api/research/{id}/traces` | GET | Node trace data for observability panel |
+
+---
+
+### SSE Event Types
+
+All events are JSON objects delivered via `text/event-stream`:
+
+| Event type | Payload | Triggered when |
+|------------|---------|----------------|
+| `node_started` | `{node, description}` | Agent node begins executing |
+| `node_completed` | `{node, metrics}` | Agent node finishes |
+| `waiting_for_human` | `{question}` | Coordinator needs user input |
+| `workflow_completed` | `{thread_id}` | Full workflow done |
+| `heartbeat` | (none) | Keepalive every 15 seconds |
+
+---
+
+### ViewState Machine (App.tsx)
+
+```
+'form'   --[Start research]--> 'research' --[Report ready]--> 'report'
+  |                                ^                               |
+  |<--[Logo / handleReset]---------+<---------[Agent Graph btn]---+
+  |
+  +--[View Workflow btn]--> 'graph' --[Back btn]--> 'form'
+```
+
+**Button states in research view:**
+
+| Workflow status | Buttons shown |
+|-----------------|---------------|
+| Running | Pause (amber) + Stop (red) |
+| Paused (status='stopped') | Resume (teal) + Stop (red) |
+
+- **Pause** -> `POST /stop` -- saves checkpoint; appears in Previous Sessions; resumable
+- **Stop** -> `POST /discard` -- deletes state permanently; not saved; cannot be resumed
+
+---
+
+### Phase-by-Phase Deliverables
+
+| Phase | Status | Key Deliverable |
+|-------|--------|-----------------|
+| Phase 7 (FastAPI backend) | COMPLETE | REST + SSE endpoints, WorkflowService, SSE emitter |
+| Phase 8 (Bug Fixes) | COMPLETE | Fallback search, CSV export, report generation fixes |
+| Phase 9 (Landing Page) | COMPLETE | Teal-branded design, form field reorder, dopamine UX |
+| Phase 10 (Progress Redesign) | COMPLETE | Full-page ReportView (not modal), graph-only research view, AgentProgress removed |
+| Phase 11 (UX Polish) | COMPLETE | Pause/Stop split, graph<->report navigation, node widths for straight connector lines |
+
+**Phase 11 detail -- AgentNode fixed width:**
+- Problem: connector lines between Gatherer/Identifier/Validator were slightly slanted
+- Root cause: `min-w-[140px]` gave different rendered widths per label -- different handle centres -- slanted SVG lines
+- Fix: `w-[180px]` fixed width on all nodes -- identical handle centres -- perfectly vertical lines
+- File: `frontend/src/components/AgentNode.tsx`
+
+---
+
+### Startup Commands (Full Stack)
+
+```powershell
+# Terminal 1 -- Backend
+cd d:\Projects\SalesStrategy_AgentTeam
+.\venv\Scripts\Activate.ps1
+uvicorn api.main:app --reload --port 8000
+
+# Terminal 2 -- Frontend
+cd d:\Projects\SalesStrategy_AgentTeam\frontend
+npm run dev
+# -> http://localhost:5173
+
+# Optional: Enable LangSmith tracing
+$env:LANGCHAIN_TRACING_V2 = "true"
+$env:LANGCHAIN_API_KEY = "<your-langsmith-key>"
+```
+
+Quick test run (Remora Carbon -- web search works reliably for this company):
+- Account: Remora Carbon
+- Industry: carbon capture
+- Seller: MathWorks
+- Context: Sales Objective: Grow usage from 1 license. Website: https://remoracarbon.com/
+
+---
+
+---
+
+## Observability and Tracing Layer (2026-02-24 to 2026-02-25)
+
+**Status**: COMPLETE
+
+---
+
+### In-App Node Trace Panel
+
+Clicking any completed agent node in the workflow graph opens a slide-in `NodeTracePanel` on the right. The panel shows:
+- Run time in milliseconds
+- Node-specific summary (see table below)
+- LangSmith deep-link (if tracing is enabled)
+
+**Node summary data by agent:**
+
+| Node | Summary fields |
+|------|----------------|
+| Coordinator Entry | account_name, industry, company_domain, user_context preview |
+| Gatherer | signals_count, job_postings_count, news_items_count, signal_previews (content + URL + confidence) |
+| Identifier | opportunities_count, opportunity_previews (product_name + confidence_score) |
+| Validator | validated_count, risks_count, tech_stack list, risk_previews |
+| Report Coordinator | report_length, report_preview (first 300 chars), workflow_iteration |
+
+---
+
+### SSECallbackHandler (src/graph/sse_callbacks.py)
+
+The callback handler bridges LangGraph node events to the SSE stream.
+
+**Key components:**
+- `NODE_MAP (dict)` -- maps LangGraph internal node names (e.g. `_gatherer_node`) to frontend IDs (`gatherer`)
+- `NODE_LABELS (dict)` -- human-readable labels for the trace panel header
+- `_node_traces (dict)` -- module-level in-memory store: `thread_id -> {node_id -> trace dict}`
+- `get_node_traces(thread_id)` -- called by the `/traces` endpoint
+- `clear_node_traces(thread_id)` -- called on discard to free memory
+
+**Lifecycle:**
+
+```python
+# on_node_start() -- called by workflow before each node
+handler.on_node_start(node_name, inputs)
+# -> records start_time, emits node_started SSE event
+
+# on_node_end() -- called by workflow after each node
+handler.on_node_end(node_name, outputs)
+# -> computes duration_ms, calls _extract_summary(), emits node_completed SSE event
+# -> if outputs["waiting_for_human"] is True: emits waiting_for_human SSE event instead
+```
+
+**Signal data fields used in trace panel (Gatherer node):**
+
+```python
+# CORRECT fields to display:
+Signal.content[:100]                          # first 100 chars of intelligence text
+Signal.metadata.get("url") or Signal.metadata.get("source_url")  # source webpage URL
+Signal.confidence                             # confidence score (0.0-1.0)
+
+# WRONG fields (internal tool metadata -- do NOT display to users):
+Signal.source        # -> "duckduckgo" (tool name, meaningless to users)
+Signal.signal_type   # -> "web_search" (internal category tag, not the webpage URL)
+```
+
+---
+
+### LangSmith Integration
+
+Environment variables to enable tracing (set before starting backend):
+
+```powershell
+$env:LANGCHAIN_TRACING_V2 = "true"
+$env:LANGCHAIN_PROJECT = "SalesStrategyAgentTeam"
+$env:LANGCHAIN_API_KEY = "<key>"
+```
+
+When enabled, every LLM call across all agents is automatically traced in LangSmith. The `langsmith_url` field in ResearchState is populated and returned to the frontend, which renders it as a clickable deep-link in the trace panel footer.
+
+---
+
+---
+
+## UI Bug Fixes (2026-02-26 Session)
+
+Four bugs reported after the observability panel shipped, all fixed in the same session.
+
+---
+
+### Bug 1 -- Trace Panel Overlapping Graph
+
+**Symptom:** Opening the trace panel by clicking a node causes it to overlap the graph instead of splitting the space.
+
+**Root cause:** The flex container had `w-[65%]` + `w-[35%]` children plus a `gap-3` gap. The gap adds extra width on top of the 100% total, causing overflow -- panel renders on top of the graph instead of beside it.
+
+**Fix applied (frontend/src/App.tsx):**
+
+```tsx
+// Before (overflows):
+<div className="flex gap-3 items-stretch">
+  <div className={`h-[320px] ${selectedTraceNode ? 'w-[65%]' : 'w-full'}`}>
+  ...
+  <div className="w-[35%] h-[320px]">
+
+// After (correct):
+<div className="flex gap-3 items-stretch overflow-hidden">
+  <div className="flex-1 min-w-0 h-[320px]">          {/* fills remaining space */}
+  ...
+  <div className="w-[280px] flex-shrink-0 h-[320px]"> {/* fixed 280px panel */}
+```
+
+`flex-1 min-w-0` means the graph grows to fill whatever space remains after the fixed-width panel.
+
+---
+
+### Bug 2 -- Collapse Arrow Facing Wrong Direction
+
+**Symptom:** The close button on the trace panel shows a left-pointing chevron but the panel is on the right side -- it should point right to mean "collapse this right panel".
+
+**Fix applied (frontend/src/components/NodeTracePanel.tsx):**
+- Changed import: `ChevronLeft` -> `ChevronRight`
+- Changed JSX: `<ChevronLeft>` -> `<ChevronRight>`
+
+---
+
+### Bug 3 -- Gatherer Signals Showing Tool Name Instead of Content
+
+**Symptom:** Signal cards in the trace panel show "duckduckgo" as the source name and "web_search" as the type -- both are internal metadata, not useful to display.
+
+**Backend fix (src/graph/sse_callbacks.py -- _extract_summary()):**
+
+```python
+# Before:
+previews.append({
+    "source": s.get("source", ""),           # -> "duckduckgo"
+    "signal_type": s.get("signal_type", ""), # -> "web_search"
+})
+
+# After:
+meta = s.get("metadata", {}) or {}
+url = meta.get("url", "") or meta.get("source_url", "")
+content = (s.get("content", "") or "")[:100]
+previews.append({
+    "source": content,    # -> first 100 chars of actual intelligence text
+    "signal_type": url,   # -> actual webpage URL (or empty string)
+})
+```
+
+**Frontend fix (frontend/src/components/NodeTracePanel.tsx -- GathererSummary):**
+
+```tsx
+// Before (showed internal tool tags):
+<span className="font-medium truncate">{s.source}</span>
+<span className="bg-slate-200 rounded px-1">{s.signal_type}</span>
+
+// After (shows content paragraph + domain label):
+<p className="text-slate-700 text-[11px] leading-snug line-clamp-2">{s.source}</p>
+{s.signal_type && (
+  <span className="text-[10px] text-slate-400 truncate block">
+    {(function() { try { return new URL(s.signal_type).hostname; } catch(e) { return s.signal_type; } })()}
+  </span>
+)}
+```
+
+---
+
+### Bug 4 -- Report Feedback Banner Showing Raw Markdown Blob
+
+**Symptom:** The top of the report page shows a paragraph of raw markdown text (with literal `**bold**`, bullet characters) from the coordinator's `human_question` field.
+
+**Root cause:** `human_question` is a multi-paragraph markdown string. It was rendered inside a plain `<p>` tag, which shows markdown syntax as literal characters instead of formatting.
+
+**Fix applied (frontend/src/components/ReportView.tsx):**
+Replaced the raw text paragraph with a 2x2 grid of quick-action buttons:
+- **Approve report** -- calls `handleSubmit('approved')`
+- **Dig deeper** -- pre-fills custom feedback input with "dig deeper on "
+- **Different products** -- calls `handleSubmit('different products')`
+- **Custom feedback** -- clears custom feedback input for user to type freely
+
+The `question` prop is now only used as a boolean trigger (if question exists, show the action guide). The raw markdown text is never rendered.
+
+New lucide icons imported: `CheckCircle`, `Search`, `RefreshCw`, `MessageSquare`
+
+---
+
+---
+
+## Auto Fit-to-View for WorkflowGraph (2026-02-26)
+
+**Problem:** When the trace panel opens or closes, the ReactFlow graph container changes width. ReactFlow does not automatically re-fit the graph to its new container size, so the graph appears cropped or has excess whitespace until the user manually clicks the fit-view button.
+
+**Solution: `fitViewTrigger` counter pattern**
+
+**App.tsx changes:**
+
+```tsx
+const [fitViewTrigger, setFitViewTrigger] = useState(0);
+
+// Panel opens (any agent node clicked):
+onAgentNodeClick={(nodeId) => {
+  setSelectedTraceNode(nodeId);
+  setFitViewTrigger(t => t + 1);   // immediate, no delay needed
+}}
+
+// Panel closes (X button):
+onClose={() => {
+  setSelectedTraceNode(null);
+  setFitViewTrigger(t => t + 1);   // immediate, no delay needed
+}}
+
+<WorkflowGraph fitViewTrigger={fitViewTrigger} ... />
+```
+
+**WorkflowGraph.tsx changes:**
+
+```tsx
+const rfInstanceRef = useRef<ReactFlowInstance | null>(null);
+
+// Capture instance when ReactFlow mounts:
+<ReactFlow onInit={(instance) => { rfInstanceRef.current = instance; }} ...>
+
+// Watch trigger, call fitView with 50ms delay:
+useEffect(() => {
+  if (rfInstanceRef.current && fitViewTrigger > 0) {
+    setTimeout(() => {
+      rfInstanceRef.current?.fitView({ padding: 0.15, duration: 300 });
+    }, 50);
+  }
+}, [fitViewTrigger]);
+```
+
+**Why `setTimeout(50)`?**
+
+ReactFlow v11 uses a `ResizeObserver` internally to measure the container and update its viewport. The ResizeObserver callback fires asynchronously after DOM layout. Calling `fitView()` synchronously (or after one `requestAnimationFrame`) uses stale container dimensions because the ResizeObserver has not fired yet.
+
+Timing analysis:
+- `setTimeout(0)` -- too fast, ResizeObserver often not yet called -> graph does not fit correctly
+- `setTimeout(50)` -- reliable minimum: DOM paint -> layout -> ResizeObserver fires -> ReactFlow internal update -> `fitView` uses correct new dimensions
+- `setTimeout(350)` -- works but visually slow and awkward; user sees graph briefly misaligned
+
+**Why not `useReactFlow()` hook?**
+
+Attempted but failed with ReactFlow v11. A `FitViewOnTrigger` inner component was rendered inside `<ReactFlow>` using `useReactFlow()` + `requestAnimationFrame`. This approach also fires before the ResizeObserver completes, resulting in `fitView` using the old (pre-resize) container size -- the graph does not fit at all. The `rfInstanceRef` + `onInit` + `setTimeout(50)` pattern is the correct and only reliable approach for ReactFlow v11 when `fitView` must be triggered from outside the ReactFlow context.
+
+---
+
+### All Files Modified in Latest Sessions (2026-02-23 to 2026-02-26)
+
+| File | Change |
+|------|--------|
+| `CODEBASE_ARCHITECTURE.md` | Updated Last Updated date + status header |
+| `frontend/src/App.tsx` | Layout fix (flex-1/flex-shrink-0), fitViewTrigger state, Pause/Stop/Resume buttons, ViewState machine including 'graph' preview state |
+| `frontend/src/components/WorkflowGraph.tsx` | rfInstanceRef + onInit, fitView useEffect with setTimeout(50), fitViewTrigger prop |
+| `frontend/src/components/NodeTracePanel.tsx` | ChevronLeft->ChevronRight; signal card shows content paragraph + URL domain label |
+| `frontend/src/components/ReportView.tsx` | Quick-action buttons (Approve/Dig deeper/Different products/Custom) replacing raw question text |
+| `frontend/src/components/AgentNode.tsx` | min-w-[140px] -> w-[180px] for straight vertical connector lines |
+| `src/graph/sse_callbacks.py` | Signal previews: content[:100] + metadata URL instead of source/signal_type fields |
+| `api/services/workflow_service.py` | Added discard_research() method (permanent delete, no checkpoint save) |
+| `api/routers/research.py` | Added POST /{id}/discard endpoint + GET /{id}/traces endpoint |
+| `frontend/src/lib/api.ts` | Added discardResearch() and getNodeTraces() functions |
+| `frontend/src/hooks/useResearchWorkflow.ts` | Added discard mutation + callback; discard() removes React Query cache + threadId |
