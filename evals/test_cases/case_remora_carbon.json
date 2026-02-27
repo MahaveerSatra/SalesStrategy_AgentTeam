@@ -1,0 +1,23 @@
+{
+  "id": "TC-04",
+  "input": {
+    "account_name": "Remora Carbon",
+    "industry": "carbon capture",
+    "seller_name": "MathWorks"
+  },
+  "eval_criteria": {
+    "gatherer": {
+      "min_signals": 2,
+      "max_signals": 10,
+      "note": "Small startup — graceful low-data handling expected"
+    },
+    "identifier": {
+      "min_opportunities": 1,
+      "confidence_calibration": "scores should reflect limited evidence (not inflated)"
+    },
+    "validator": {
+      "all_risks_grounded": true,
+      "no_hallucinated_products": true
+    }
+  }
+}

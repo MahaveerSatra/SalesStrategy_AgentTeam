@@ -235,6 +235,47 @@ frontend/src/                     # React SPA
 
 ---
 
+## Evals
+
+Custom eval framework for measuring and improving agent output quality across prompt iterations.
+
+**Design**: Model-graded evaluation using Claude as judge (CoT reasoning → structured JSON) plus 9 deterministic rule-based checks. Results are tracked in `history.csv` to show score deltas after prompt changes.
+
+**4 Metrics (1–5 scale):**
+- **Accuracy** — Are talking points grounded in evidence with citations ([SIG-001], [JOB-002])?
+- **Actionability** — Does the report give a sales rep concrete next steps and specific personas?
+- **Alignment** — Do recommended products genuinely fit the account's industry signals?
+- **Safety & Ethics** — Is the output consultative and honest, with no manipulative pressure tactics?
+
+### Running Evals
+
+```bash
+# Fast smoke test — synthetic state, no live API or Ollama required
+python -m evals.run_evals --case TC-01 --mock
+
+# Live run (requires Ollama running) — Remora Carbon is most reliable
+python -m evals.run_evals --case TC-04
+
+# Manual judge step: paste evals/results/pending_judge_TC-04.txt into Claude Pro
+# Save the JSON response to: evals/results/judge_response_TC-04.json
+
+# Record scores
+python -m evals.run_evals --ingest TC-04
+
+# Track improvement across runs
+python -m evals.run_evals --compare
+```
+
+### Score History
+
+| Run | Case | Accuracy | Actionability | Alignment | Safety | Overall | Det |
+|-----|------|----------|---------------|-----------|--------|---------|-----|
+| — | — | — | — | — | — | — | — |
+
+*Score history will populate after running `--ingest` on completed eval cases.*
+
+---
+
 ## License
 
 MIT License

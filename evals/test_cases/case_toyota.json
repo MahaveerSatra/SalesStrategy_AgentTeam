@@ -1,0 +1,29 @@
+{
+  "id": "TC-05",
+  "input": {
+    "account_name": "Toyota",
+    "industry": "automotive manufacturing",
+    "seller_name": "MathWorks",
+    "region": "Japan"
+  },
+  "eval_criteria": {
+    "gatherer": {
+      "min_signals": 8,
+      "expected_signal_types": ["hiring", "tech_stack", "news"],
+      "expected_keywords_in_signals": ["electric vehicle", "autonomous", "simulation", "embedded"],
+      "min_job_postings": 3
+    },
+    "identifier": {
+      "expected_products_mentioned": ["MATLAB", "Simulink", "Embedded Coder"],
+      "min_opportunities": 2,
+      "expected_personas": ["Vehicle Systems Engineer", "R&D Director"],
+      "talking_points_must_cite_sources": true
+    },
+    "validator": {
+      "min_confidence_score": 0.65
+    },
+    "report": {
+      "must_include": ["Toyota", "EV", "simulation"]
+    }
+  }
+}

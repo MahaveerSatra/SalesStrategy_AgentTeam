@@ -1,0 +1,29 @@
+{
+  "id": "TC-02",
+  "input": {
+    "account_name": "NASA",
+    "industry": "aerospace and research",
+    "seller_name": "MathWorks",
+    "region": "United States"
+  },
+  "eval_criteria": {
+    "gatherer": {
+      "min_signals": 8,
+      "expected_signal_types": ["hiring", "tech_stack", "news"],
+      "expected_keywords_in_signals": ["simulation", "spacecraft", "autonomy", "data analysis"],
+      "min_job_postings": 3
+    },
+    "identifier": {
+      "expected_products_mentioned": ["MATLAB", "Simulink", "Deep Learning Toolbox"],
+      "min_opportunities": 2,
+      "expected_personas": ["Research Engineer", "Flight Software Lead"],
+      "talking_points_must_cite_sources": true
+    },
+    "validator": {
+      "min_confidence_score": 0.65
+    },
+    "report": {
+      "must_include": ["NASA", "simulation", "mission"]
+    }
+  }
+}

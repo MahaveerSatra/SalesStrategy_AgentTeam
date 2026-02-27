@@ -1,0 +1,29 @@
+{
+  "id": "TC-03",
+  "input": {
+    "account_name": "Mayo Clinic",
+    "industry": "healthcare and medical research",
+    "seller_name": "MathWorks",
+    "region": "United States"
+  },
+  "eval_criteria": {
+    "gatherer": {
+      "min_signals": 5,
+      "expected_signal_types": ["hiring", "news"],
+      "expected_keywords_in_signals": ["research", "data", "clinical", "imaging"],
+      "min_job_postings": 2
+    },
+    "identifier": {
+      "expected_products_mentioned": ["MATLAB", "Statistics and Machine Learning Toolbox"],
+      "min_opportunities": 1,
+      "expected_personas": ["Research Scientist", "Director of Biomedical Engineering"],
+      "talking_points_must_cite_sources": true
+    },
+    "validator": {
+      "min_confidence_score": 0.60
+    },
+    "report": {
+      "must_include": ["Mayo Clinic", "research", "data"]
+    }
+  }
+}

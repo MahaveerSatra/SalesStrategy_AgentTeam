@@ -12,6 +12,7 @@ build/
 .claude/
 .archive/
 evals/EVAL_PLAN.md
+web_search_plan.md
 
 
 # Environment
@@ -46,3 +47,8 @@ frontend/node_modules
 
 # Context
 Status_Plan/
+
+# Eval results (local only — scores, judge prompts, and responses are not committed)
+evals/results/*.json
+evals/results/*.txt
+evals/results/history.csv
