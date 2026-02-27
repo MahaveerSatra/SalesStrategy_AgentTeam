@@ -127,21 +127,42 @@ return []  # Workflow continues with partial data rather than crashing
 
 ### Response Caching — Cost-Conscious by Design
 
-Sales research agents frequently re-analyze the same companies and context windows. Identical LLM prompts return cached results (~0ms, $0 cost). Search results are cached separately with a shorter TTL:
+**Application-level caching** (all providers): Identical LLM prompts return cached results — ~0ms, $0 cost.
+Search results are cached separately with a shorter TTL:
 
 ```python
 # src/core/model_router.py — 24-hour TTL for LLM responses
 cached = self.cache.get(model, prompt, temperature=temperature)
 if cached:
     return cached  # Cache hit: instant response, zero API cost
-
-response = await self._call_external_model(model, prompt)
-self.cache.set(model, prompt, response)  # Stored for 24 hours
+self.cache.set(model, prompt, response)
 
 # src/data_sources/mcp_ddg_client.py — 1-hour TTL for search results
 cached = self.cache.get("search", query=query, max_results=max_results)
 if cached is not None:
     return cached
+```
+
+**Anthropic prompt caching** (`cache_control`): Sales agents reuse the same system prompts
+(product catalog, analysis playbook) across dozens of calls per session. Marking them with
+`cache_control` caches them on Anthropic's servers — ~90% cost reduction on those tokens:
+
+```python
+# src/core/model_router.py — _call_anthropic_model()
+# The system prompt (product catalog + instructions) is identical across many calls.
+# Only the user prompt (account-specific query) changes each time.
+messages = [
+    {
+        "role": "system",
+        "content": [{
+            "type": "text",
+            "text": system_prompt,            # product catalog + analysis instructions
+            "cache_control": {"type": "ephemeral"}   # cached on Anthropic's servers
+        }]
+    },
+    {"role": "user", "content": prompt}       # account-specific query (not cached)
+]
+response = await litellm.acompletion(model="anthropic/claude-haiku-4-5-20251001", messages=messages)
 ```
 
 ---

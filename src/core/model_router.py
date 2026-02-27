@@ -356,7 +356,11 @@ class ModelRouter:
         
         # Route to appropriate backend
         try:
-            if model.startswith("groq/") or model.startswith("together/"):
+            if model.startswith("anthropic/"):
+                response = await self._call_anthropic_model(
+                    model, prompt, system_prompt, temperature, max_tokens, **kwargs
+                )
+            elif model.startswith("groq/") or model.startswith("together/"):
                 response = await self._call_external_model(
                     model, prompt, system_prompt, temperature, max_tokens, **kwargs
                 )
@@ -604,7 +608,81 @@ class ModelRouter:
                 raise ModelRateLimitError(f"Rate limit exceeded for {provider}: {e}")
             else:
                 raise ModelError(f"External model error: {e}")
-    
+
+    async def _call_anthropic_model(
+        self,
+        model: str,
+        prompt: str,
+        system_prompt: str | None,
+        temperature: float,
+        max_tokens: int,
+        **kwargs
+    ) -> ModelResponse:
+        """
+        Call Anthropic Claude with prompt caching on the system prompt.
+
+        Sales research agents reuse the same system prompts (product catalog,
+        analysis instructions) across many calls per session. Marking the system
+        prompt with cache_control caches it on Anthropic's servers, reducing
+        input token costs by ~90% on cache hits.
+
+        Requires ANTHROPIC_API_KEY in environment. The cached block must be
+        at least 1024 tokens — sales agent system prompts (product catalog +
+        playbook instructions) comfortably exceed this threshold.
+        """
+        if not self._litellm_available:
+            raise ModelError("litellm not available for Anthropic models")
+
+        messages = []
+        if system_prompt:
+            # cache_control marks the system prompt for server-side caching.
+            # This is the content that stays constant across calls — product
+            # catalog descriptions, analysis instructions, playbook rules.
+            # Only the user prompt (account-specific query) changes each time.
+            messages.append({
+                "role": "system",
+                "content": [{
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"}
+                }]
+            })
+        messages.append({"role": "user", "content": prompt})
+
+        start_time = time.time()
+        try:
+            import litellm
+
+            response = await litellm.acompletion(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                timeout=settings.request_timeout,
+                **kwargs
+            )
+
+            latency_ms = (time.time() - start_time) * 1000
+            content = response.choices[0].message.content or ""
+            tokens = response.usage.total_tokens if hasattr(response, "usage") and response.usage else None
+
+            return ModelResponse(
+                content=content,
+                model=model,
+                tokens_used=tokens,
+                latency_ms=latency_ms,
+                cached=False,
+            )
+
+        except Exception as e:
+            error_str = str(e).lower()
+            if "timeout" in error_str:
+                raise ModelTimeoutError(f"Anthropic request timed out: {e}")
+            elif self._is_rate_limit_error(e):
+                raise ModelRateLimitError(f"Anthropic rate limit exceeded: {e}")
+            else:
+                raise ModelError(f"Anthropic model error: {e}")
+
     def get_metrics(self) -> dict[str, Any]:
         """Return routing metrics including rate limit statistics."""
         total_requests = sum(self.request_counts.values())

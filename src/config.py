@@ -20,16 +20,21 @@ class Settings(BaseSettings):
     # API Keys
     groq_api_key: str | None = Field(default=None, description="Groq API key")
     together_api_key: str | None = Field(default=None, description="Together.ai API key")
-    
+    anthropic_api_key: str | None = Field(default=None, description="Anthropic API key for Claude models with prompt caching")
+
     # Model Configuration
     local_model: str = Field(default="llama3.2:3b", description="Local Ollama model")
     smart_model: str = Field(
-        default="groq/llama-3.1-8b-instant", 
+        default="groq/llama-3.1-8b-instant",
         description="External model for complex reasoning"
     )
     advanced_model: str = Field(
         default="groq/llama-3.1-70b",
         description="External model for advanced reasoning"
+    )
+    claude_model: str = Field(
+        default="anthropic/claude-haiku-4-5-20251001",
+        description="Claude model used for Anthropic prompt caching (opt-in via model_override)"
     )
     
     # Ollama Settings
