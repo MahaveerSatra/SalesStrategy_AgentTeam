@@ -11,6 +11,7 @@ dist/
 build/
 .claude/
 .archive/
+evals/EVAL_PLAN.md
 
 
 # Environment
