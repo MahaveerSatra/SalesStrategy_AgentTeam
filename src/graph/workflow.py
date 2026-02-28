@@ -27,7 +27,7 @@ from ..agents.coordinator import CoordinatorAgent, WorkflowRoute
 from ..agents.gatherer import GathererAgent
 from ..agents.identifier import IdentifierAgent
 from ..agents.validator import ValidatorAgent
-from ..data_sources.mcp_ddg_client import DuckDuckGoMCPClient
+from ..data_sources.search_client import SearchClient
 from ..data_sources.job_boards import JobBoardScraper
 from ..data_sources.product_catalog import ProductMatcher
 
@@ -92,7 +92,7 @@ class ResearchWorkflow:
         self,
         seller_name: str = "MathWorks",
         model_router: ModelRouter | None = None,
-        mcp_client: DuckDuckGoMCPClient | None = None,
+        mcp_client: SearchClient | None = None,
         job_scraper: JobBoardScraper | None = None
     ):
         """
@@ -111,7 +111,7 @@ class ResearchWorkflow:
 
         # Initialize dependencies
         self.model_router = model_router or ModelRouter()
-        self.mcp_client = mcp_client or DuckDuckGoMCPClient()
+        self.mcp_client = mcp_client or SearchClient()
         self.job_scraper = job_scraper or JobBoardScraper()
 
         # Initialize agents (Identifier created lazily with company name)

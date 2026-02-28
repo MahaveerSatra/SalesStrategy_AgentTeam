@@ -653,11 +653,11 @@ Example when we can proceed:
 
         # Present to human with simple feedback prompt (not the full report)
         state["human_question"] = (
-            "Please review the research report above. You can:\n"
-            "• Say **'approved'** to finalize the report\n"
-            "• Ask to **'dig deeper on [topic]'** for more research\n"
-            "• Request **'different products'** to explore other opportunities\n"
-            "• Provide **specific feedback** to refine the analysis"
+            "Please review the research report above. You can:\n\n"
+            "- Say **'approved'** to finalize the report\n"
+            "- Ask to **'dig deeper on [topic]'** for more research\n"
+            "- Request **'different products'** to explore other opportunities\n"
+            "- Provide **specific feedback** to refine the analysis"
         )
         state["waiting_for_human"] = True
 

@@ -1,6 +1,6 @@
 # Enterprise Account Research System — Codebase Architecture
 
-**Last Updated**: 2026-02-26
+**Last Updated**: 2026-02-27
 **Purpose**: Developer reference for context retrieval. For project description and README, see `readme.md`.
 **History**: Full session logs archived at `.archive/session_logs_pre_evals.md`
 
@@ -32,7 +32,7 @@ it gathers intelligence in real time, identifies sales opportunities, and genera
 | **API Layer** (FastAPI + SSE) | COMPLETE |
 | **Frontend** (React + ReactFlow) | COMPLETE |
 | **Observability** (LangSmith + node trace panel) | COMPLETE |
-| **Web search** | ⚠️ DuckDuckGo intermittent bot detection (see Known Issues) |
+| **Web search** | 2-tier fallback: DDG MCP → Tavily (see Known Issues) |
 
 ---
 
@@ -120,6 +120,7 @@ LangGraph Agents   (src/)      --  Coordinator, Gatherer, Identifier, Validator
 - **Entry Points**: `process_entry()`, `process_exit()`, `process_feedback()`
 - **Role**: Orchestrates workflow, handles human-in-loop interrupts, routes feedback
 - **Schemas**: `InputValidation`, `ClarificationCheck`, `FeedbackIntent`
+- **`human_question`**: markdown string (uses `-` list syntax); rendered via `ReactMarkdown` in `HumanFeedback.tsx`. `current_report` = full report; `human_question` = short feedback prompt — intentionally separate fields.
 
 ### GathererAgent
 - **File**: `src/agents/gatherer.py` (~540 lines) | **Tests**: 16
@@ -162,7 +163,9 @@ LangGraph Agents   (src/)      --  Coordinator, Gatherer, Identifier, Validator
 | `src/models/state.py` | ~180 | ResearchState TypedDict, Signal, Opportunity |
 | `src/models/domain.py` | ~180 | JobPosting, CompanyInfo, Product, AgentResult |
 | `src/data_sources/base.py` | ~150 | Abstract DataSource, CachedDataSource |
-| `src/data_sources/mcp_ddg_client.py` | ~400 | DuckDuckGo MCP client with rate limiting + semaphore |
+| `src/data_sources/mcp_ddg_client.py` | ~400 | DuckDuckGo MCP client — Tier 1 (rate limiting + jitter) |
+| `src/data_sources/tavily_client.py` | ~80 | Tavily REST client — Tier 2 fallback (httpx, no new package) |
+| `src/data_sources/search_client.py` | ~60 | 2-tier search facade — drop-in for DuckDuckGoMCPClient |
 | `src/data_sources/scraper.py` | ~250 | Web scraping (BeautifulSoup, httpx) |
 | `src/data_sources/job_boards.py` | ~300 | Job board scraping, career page detection |
 | `src/data_sources/product_catalog.py` | ~350 | ChromaDB indexing, semantic product matching |
@@ -424,7 +427,7 @@ ollama pull llama3.2:3b              # pull if missing
 
 | Issue | Status | Details |
 |-------|--------|---------|
-| DuckDuckGo bot detection | ⚠️ Intermittent | Large companies (Tesla, Boeing) often blocked (0 results). Niche companies (Remora Carbon) work reliably. System generates opportunities from industry knowledge even with 0 signals. |
+| DuckDuckGo bot detection | Mitigated | 2-tier fallback: DDG MCP (primary) → Tavily REST API (when DDG blocked). Rate limiting improved (3.5 s + jitter). |
 
 ---
 

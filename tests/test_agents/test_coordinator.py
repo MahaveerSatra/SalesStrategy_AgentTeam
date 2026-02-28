@@ -532,7 +532,9 @@ Please review the analysis above. You can:
 
         # Verify human-in-loop flags
         assert state_with_opportunities["waiting_for_human"] is True
-        assert state_with_opportunities["human_question"] == state_with_opportunities["current_report"]
+        assert state_with_opportunities["human_question"] is not None
+        assert "approved" in state_with_opportunities["human_question"].lower()
+        assert state_with_opportunities["human_question"] != state_with_opportunities["current_report"]
 
     @pytest.mark.asyncio
     async def test_fallback_report_on_llm_failure(

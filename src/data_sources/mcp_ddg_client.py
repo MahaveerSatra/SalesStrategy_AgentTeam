@@ -4,6 +4,7 @@ MCP-only implementation - no Python package fallback.
 """
 import asyncio
 import hashlib
+import random
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -78,8 +79,8 @@ class DuckDuckGoMCPClient:
     def __init__(
         self,
         cache_ttl_hours: int = 1,
-        min_request_interval: float = 2.0,
-        max_concurrent_requests: int = 2
+        min_request_interval: float = 3.5,
+        max_concurrent_requests: int = 1
     ):
         """
         Initialize MCP client.
@@ -168,11 +169,11 @@ class DuckDuckGoMCPClient:
                     wait_time=f"{wait_time:.2f}s"
                 )
                 await asyncio.sleep(wait_time)
+                # Add jitter to avoid predictable request patterns
+                await asyncio.sleep(random.uniform(0.5, 2.0))
 
             # Update last request time after waiting
             self._last_request_time = datetime.now()
-
-        self._last_request_time = datetime.now()
 
     @retry(
         stop=stop_after_attempt(3),

@@ -37,9 +37,9 @@ function FormattedQuestion({ question }: { question: string }) {
 
   return (
     <div className="mb-6 p-5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
-      <p className="text-blue-900 font-medium text-base leading-relaxed">
-        {mainQuestion}
-      </p>
+      <div className="text-blue-900 font-medium text-base leading-relaxed prose prose-blue prose-sm max-w-none">
+        <ReactMarkdown>{mainQuestion}</ReactMarkdown>
+      </div>
       {options.length > 0 && (
         <>
           <ul className="mt-4 space-y-2">
