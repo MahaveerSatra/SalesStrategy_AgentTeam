@@ -25,6 +25,14 @@ export type WorkflowEventType =
   | 'error'
   | 'heartbeat';
 
+export interface ChartOpportunity {
+  product_name: string;
+  customer_priority_score: number; // 0.0–1.0
+  seller_value_score: number;      // 0.0–1.0
+  estimated_value: string;
+  confidence: 'low' | 'medium' | 'high';
+}
+
 export interface Signal {
   source: string;
   signal_type: string;
@@ -95,6 +103,7 @@ export interface ResearchState {
   waiting_for_human: boolean;
   human_question?: string;
   current_report?: string;
+  opportunity_chart_data?: ChartOpportunity[] | null;
 
   // Metadata
   workflow_iteration: number;

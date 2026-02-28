@@ -15,6 +15,7 @@ evals/EVAL_PLAN.md
 web_search_plan.md
 
 
+
 # Environment
 .env
 .env.local
@@ -52,3 +53,4 @@ Status_Plan/
 evals/results/*.json
 evals/results/*.txt
 evals/results/history.csv
+opportunity_matrix_plan.md

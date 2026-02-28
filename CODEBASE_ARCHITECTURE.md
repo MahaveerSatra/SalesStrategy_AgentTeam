@@ -97,7 +97,7 @@ flowchart LR
 ### Three-Tier Stack
 
 ```
-React Frontend    (frontend/)  --  TypeScript, ReactFlow, TanStack Query, Tailwind CSS
+React Frontend    (frontend/)  --  TypeScript, ReactFlow, TanStack Query, Tailwind CSS, recharts
                                    http://localhost:5173
         |
         | HTTP REST + SSE
@@ -258,6 +258,7 @@ class ResearchState(TypedDict):
     waiting_for_human: bool        # Workflow paused for user input
     human_question: str | None     # Question / report shown to user
     current_report: str | None     # Formatted markdown report
+    opportunity_chart_data: list[dict] | None  # 2D scatter data — set by _compute_chart_data() in process_exit()
     feedback_context: str | None   # Parsed guidance for retry
     next_route: str | None         # Routing decision after feedback
 
@@ -446,3 +447,4 @@ ollama pull llama3.2:3b              # pull if missing
 | Understand CLI flow | `src/cli/commands.py` |
 | Add product catalog | `src/data_sources/product_catalog.py` |
 | Write eval fixtures | `tests/fixtures/` + `tests/test_integration/test_e2e_ollama.py` |
+| Change opportunity matrix chart | `frontend/src/components/OpportunityMatrix.tsx` (recharts ScatterChart; scores computed in `coordinator._compute_chart_data()`) |

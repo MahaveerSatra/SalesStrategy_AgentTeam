@@ -196,6 +196,7 @@ class WorkflowService:
             waiting_for_human=state.get("waiting_for_human", False),
             human_question=state.get("human_question"),
             current_report=state.get("current_report"),
+            opportunity_chart_data=state.get("opportunity_chart_data"),
             workflow_iteration=state.get("workflow_iteration", 1),
             started_at=state.get("started_at"),
             last_updated=state.get("last_updated"),

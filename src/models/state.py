@@ -129,6 +129,7 @@ class ResearchState(TypedDict):
 
     # CoordinatorAgent fields (for workflow routing and feedback loops)
     current_report: str | None           # Formatted report from process_exit()
+    opportunity_chart_data: list[dict] | None  # [{product_name, customer_priority_score, seller_value_score, estimated_value, confidence}]
     workflow_iteration: int              # Track feedback loop count (default: 1)
     feedback_context: str | None         # Parsed guidance for retry
     next_route: str | None               # Routing decision: "gatherer"|"identifier"|"validator"|"complete"
@@ -183,6 +184,7 @@ def create_initial_state(
 
         # CoordinatorAgent fields
         current_report=None,
+        opportunity_chart_data=None,
         workflow_iteration=1,
         feedback_context=None,
         next_route=None

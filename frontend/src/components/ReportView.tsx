@@ -7,12 +7,14 @@ import { useState } from 'react';
 import { Download, Send, Github, Users, X, ExternalLink, ChevronDown, ChevronRight, ArrowLeft, CheckCircle, Search, RefreshCw, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { Signal } from '@/types/research';
+import { OpportunityMatrix, type ChartOpportunity } from './OpportunityMatrix';
 
 interface ReportViewProps {
   report: string;
   signals?: Signal[];
   question?: string;
   accountName?: string;
+  opportunityChartData?: ChartOpportunity[];
   onFeedback: (feedback: string) => void;
   onHome: () => void;
   onAgentGraph: () => void;
@@ -188,6 +190,7 @@ export function ReportView({
   signals = [],
   question,
   accountName,
+  opportunityChartData,
   onFeedback,
   onHome,
   onAgentGraph,
@@ -312,6 +315,11 @@ export function ReportView({
                   </button>
                 </div>
               </div>
+            )}
+
+            {/* Opportunity Priority Matrix — appears between action guide and report body */}
+            {opportunityChartData && opportunityChartData.length >= 2 && (
+              <OpportunityMatrix opportunities={opportunityChartData} />
             )}
 
             {/* Report Markdown */}

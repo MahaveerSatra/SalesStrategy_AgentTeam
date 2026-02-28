@@ -305,6 +305,7 @@ function App() {
         signals={state.signals}
         question={state.human_question}
         accountName={state.account_name}
+        opportunityChartData={state.opportunity_chart_data ?? undefined}
         onFeedback={handleFeedback}
         onHome={handleReset}
         onAgentGraph={() => setViewState('research')}

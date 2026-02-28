@@ -650,6 +650,7 @@ Example when we can proceed:
 
         # Store report in state for later reference
         state["current_report"] = report  # type: ignore
+        state["opportunity_chart_data"] = self._compute_chart_data(state)  # type: ignore
 
         # Present to human with simple feedback prompt (not the full report)
         state["human_question"] = (
@@ -670,6 +671,32 @@ Example when we can proceed:
             report_length=len(report),
             iteration=current_iteration
         )
+
+    def _compute_chart_data(self, state: ResearchState) -> list[dict]:
+        """
+        Compute real-signal-grounded 2D chart scores per opportunity.
+        Only includes opportunities with actual evidence signals.
+        customer_priority_score = mean signal confidence (real market data).
+        seller_value_score = Validator confidence_score.
+        """
+        chart_data = []
+        for opp in state.get("validated_opportunities", []):
+            if isinstance(opp, Opportunity):
+                signals = opp.evidence or []
+                if not signals:
+                    continue  # exclude — no real signal data for X axis
+                customer_priority = sum(s.confidence for s in signals) / len(signals)
+                chart_data.append({
+                    "product_name": opp.product_name,
+                    "customer_priority_score": round(customer_priority, 3),
+                    "seller_value_score": round(opp.confidence_score, 3),
+                    "estimated_value": opp.estimated_value or "",
+                    "confidence": opp.confidence.value,
+                })
+            elif isinstance(opp, dict):
+                # dict-serialized opportunity: no raw signals available → skip
+                pass
+        return chart_data
 
     def _estimate_tokens(self, text: str) -> int:
         """Rough token estimate: ~4 chars per token for English text."""

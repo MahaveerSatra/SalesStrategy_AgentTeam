@@ -135,6 +135,7 @@ class ResearchStateResponse(BaseModel):
     waiting_for_human: bool = False
     human_question: str | None = None
     current_report: str | None = None
+    opportunity_chart_data: list[dict] | None = None
 
     # Metadata
     workflow_iteration: int = 1

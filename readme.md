@@ -200,7 +200,7 @@ python -m src.cli research "Remora Carbon" --industry "carbon capture" --seller 
 |-------|-------------|
 | **Orchestration** | LangGraph, SQLite checkpointing, `interrupt()` for human-in-the-loop |
 | **API Layer** | FastAPI, Server-Sent Events, asyncio |
-| **Frontend** | React 18, TypeScript, ReactFlow, TanStack Query, Tailwind CSS |
+| **Frontend** | React 18, TypeScript, ReactFlow, TanStack Query, Tailwind CSS, recharts |
 | **LLMs** | Ollama (local), Groq API, LiteLLM routing |
 | **Vector Search** | ChromaDB, sentence-transformers |
 | **Data Sources** | DuckDuckGo MCP, BeautifulSoup, httpx |
