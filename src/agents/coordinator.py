@@ -752,17 +752,19 @@ Example when we can proceed:
                     "evidence": []
                 })
 
-        # Build compact signals
+        # Build compact signals with 1-based index for inline citations
         signals_data = []
-        for sig in signals[:max_signals]:
+        for i, sig in enumerate(signals[:max_signals]):
             if hasattr(sig, 'signal_type'):
                 signals_data.append({
+                    "idx": i + 1,
                     "type": sig.signal_type,
                     "src": sig.source[:50] if sig.source else "",
                     "content": sig.content[:content_limit] if sig.content else ""
                 })
             elif isinstance(sig, dict):
                 signals_data.append({
+                    "idx": i + 1,
                     "type": sig.get("signal_type", "unknown"),
                     "src": sig.get("source", "")[:50],
                     "content": sig.get("content", "")[:content_limit]
@@ -888,7 +890,7 @@ INTELLIGENCE GATHERED:
 - {len(job_postings)} job postings scanned
 - {len(opportunities)} opportunities identified
 
-RAW SIGNALS (use as evidence):
+RAW SIGNALS (cite inline using [N] where N is the idx, e.g. "expanding ADAS platform [1]"):
 {signals_json}
 
 JOB POSTINGS (hiring = pain points):
@@ -917,6 +919,11 @@ CRITICAL REQUIREMENTS
 4. WHY NOW - Every opportunity needs a timing trigger. What changed?
 
 5. TALKING POINTS = ACTUAL STATEMENTS the rep can say in a meeting. Not summaries.
+
+6. INLINE CITATIONS — After any claim drawn from a signal, add [N] immediately after the
+   relevant phrase, where N matches the signal's idx. Example:
+   "Rivian is expanding its ADAS platform [1] by hiring embedded engineers [2]."
+   Only cite signals that are in the list above. Do not invent citation numbers.
 
 ═══════════════════════════════════════════════════════════════════════════════
 REPORT FORMAT

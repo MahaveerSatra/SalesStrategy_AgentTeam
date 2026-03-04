@@ -275,17 +275,23 @@ class WorkflowService:
         # Create SSE callback handler for real-time frontend updates
         sse_callback = SSECallbackHandler(thread_id)
 
+        # Start background task to capture LangSmith URL mid-run (not just after completion)
+        url_task = asyncio.ensure_future(
+            self._capture_langsmith_url_background(thread_id, workflow)
+        )
+
         try:
             # Run workflow in thread pool with SSE callback and cancel event
             result = await asyncio.to_thread(
                 workflow.run, state, thread_id, sse_callback, cancel_event
             )
             self._states[thread_id] = result
-            # Capture LangSmith run URL if tracing was enabled for this run
+            # Capture LangSmith run URL if tracing was enabled for this run (fallback)
             if workflow._langsmith_url:
                 self._states[thread_id]["langsmith_url"] = workflow._langsmith_url
             return result
         finally:
+            url_task.cancel()
             self._running.discard(thread_id)
             self._cancel_events.pop(thread_id, None)  # Clean up cancel event
 
@@ -363,6 +369,37 @@ class WorkflowService:
         finally:
             self._running.discard(thread_id)
             self._cancel_events.pop(thread_id, None)  # Clean up cancel event
+
+    async def _capture_langsmith_url_background(
+        self, thread_id: str, workflow: "ResearchWorkflow"
+    ) -> None:
+        """
+        Try to share the LangSmith run URL shortly after the workflow starts.
+        Runs as a background task so the URL is available during research, not just after.
+        Falls back gracefully if LangSmith is not configured or sharing fails.
+        """
+        import os
+        await asyncio.sleep(12)  # Wait for coordinator_entry node to complete (~10s)
+        if not (os.getenv("LANGCHAIN_TRACING_V2") == "true" and os.getenv("LANGSMITH_API_KEY")):
+            return
+        run_id = getattr(workflow, "_run_id", None)
+        if not run_id:
+            return
+        for attempt in range(4):
+            try:
+                from langsmith import Client as LangSmithClient
+                shared_url = str(LangSmithClient().share_run(run_id))
+                if thread_id in self._states:
+                    self._states[thread_id]["langsmith_url"] = shared_url
+                workflow._langsmith_url = shared_url  # Prevent double-sharing after run
+                logger.info("langsmith_url_captured_mid_run", url=shared_url, thread_id=thread_id)
+                return
+            except Exception as e:
+                logger.debug(
+                    "langsmith_mid_run_share_attempt_failed",
+                    attempt=attempt, error=str(e), thread_id=thread_id
+                )
+                await asyncio.sleep(20)
 
     async def list_threads(self) -> list[tuple[str, ResearchState]]:
         """

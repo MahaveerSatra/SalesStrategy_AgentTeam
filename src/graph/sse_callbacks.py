@@ -288,7 +288,14 @@ class SSECallbackHandler:
         elif node == "gatherer":
             signals = outputs.get("signals", [])
             summary["signals_count"] = len(signals)
-            summary["job_postings_count"] = len(outputs.get("job_postings", []))
+            # Count hiring-type signals (from web search, LinkedIn, job boards — any source)
+            # Raw job_postings list is often empty when scrapers are blocked, so count signals instead
+            hiring_count = sum(
+                1 for s in signals
+                if (isinstance(s, dict) and s.get("signal_type") == "hiring") or
+                   (hasattr(s, "signal_type") and s.signal_type == "hiring")
+            )
+            summary["job_postings_count"] = hiring_count
             summary["news_items_count"] = len(outputs.get("news_items", []))
             previews = []
             for s in signals[:3]:

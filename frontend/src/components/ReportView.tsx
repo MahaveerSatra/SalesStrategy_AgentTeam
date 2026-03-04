@@ -3,7 +3,7 @@
  * Replaces the entire app view when research is complete.
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Download, Send, Github, Users, X, ExternalLink, ChevronDown, ChevronRight, ArrowLeft, CheckCircle, Search, RefreshCw, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import type { Signal } from '@/types/research';
@@ -21,14 +21,66 @@ interface ReportViewProps {
   isLoading?: boolean;
 }
 
-function SignalPanel({ signal, onClose }: { signal: Signal; onClose: () => void }) {
+function CitationBadge({
+  num,
+  signal,
+  onClick,
+}: {
+  num: number;
+  signal: Signal;
+  onClick: (signal: Signal, e: React.MouseEvent) => void;
+}) {
+  return (
+    <button
+      onClick={(e) => onClick(signal, e)}
+      title={signal.content.slice(0, 100)}
+      className="inline-flex items-center justify-center w-[18px] h-[18px] text-[10px] font-bold rounded-full bg-teal-100 text-teal-700 hover:bg-teal-600 hover:text-white transition-colors cursor-pointer align-middle mx-0.5 flex-shrink-0"
+    >
+      {num}
+    </button>
+  );
+}
+
+function processInlineCitations(
+  children: React.ReactNode,
+  signals: Signal[],
+  onClick: (signal: Signal, e: React.MouseEvent) => void
+): React.ReactNode {
+  return React.Children.map(children, (child) => {
+    if (typeof child === 'string') {
+      const parts = child.split(/(\[\d+\])/g);
+      if (parts.length === 1) return child;
+      return parts.map((part, i) => {
+        const match = part.match(/^\[(\d+)\]$/);
+        if (match) {
+          const n = parseInt(match[1]);
+          const signal = signals[n - 1];
+          if (signal) return <CitationBadge key={i} num={n} signal={signal} onClick={onClick} />;
+        }
+        return part;
+      });
+    }
+    if (React.isValidElement(child)) {
+      const el = child as React.ReactElement<{ children?: React.ReactNode }>;
+      return React.cloneElement(el, {
+        children: processInlineCitations(el.props.children, signals, onClick),
+      });
+    }
+    return child;
+  });
+}
+
+function SignalPanel({ signal, onClose, topOffset }: { signal: Signal; onClose: () => void; topOffset: number }) {
   const [showMetadata, setShowMetadata] = useState(false);
 
   // Extract URL from metadata if available
   const sourceUrl = signal.metadata?.url || signal.metadata?.source_url || null;
 
   return (
-    <aside className="w-[350px] border-l border-zinc-200 bg-zinc-50 flex flex-col">
+    <aside
+      className="fixed right-0 w-[350px] border-l border-zinc-200 bg-zinc-50 flex flex-col z-30 shadow-xl"
+      style={{ top: topOffset, height: `calc(100vh - ${topOffset}px)` }}
+    >
       <div className="p-4 border-b border-zinc-200 bg-white flex items-center justify-between">
         <h3 className="font-semibold text-zinc-900">Evidence Details</h3>
         <button
@@ -198,6 +250,13 @@ export function ReportView({
 }: ReportViewProps) {
   const [customFeedback, setCustomFeedback] = useState('');
   const [selectedSignal, setSelectedSignal] = useState<Signal | null>(null);
+  const [panelTop, setPanelTop] = useState<number>(72);
+
+  const openSignal = (signal: Signal, e: React.MouseEvent) => {
+    setSelectedSignal(signal);
+    const clamped = Math.max(72, Math.min(e.clientY - 20, window.innerHeight - 300));
+    setPanelTop(clamped);
+  };
 
   const handleSubmit = (feedback: string) => {
     if (feedback.trim()) {
@@ -272,7 +331,7 @@ export function ReportView({
       {/* Main Content */}
       <div className="flex-1 flex">
         {/* Report Content */}
-        <main className={`flex-1 ${selectedSignal ? 'max-w-[calc(100%-350px)]' : ''}`}>
+        <main className={`flex-1 transition-all ${selectedSignal ? 'mr-[350px]' : ''}`}>
           <div className="max-w-4xl mx-auto px-8 py-8">
             {/* Action Guide — shown when coordinator is waiting for feedback */}
             {question && (
@@ -326,7 +385,6 @@ export function ReportView({
             <div className="prose-report">
               <ReactMarkdown
                 components={{
-                  // Make links open in new tab
                   a: ({ href, children }) => (
                     <a
                       href={href}
@@ -338,6 +396,11 @@ export function ReportView({
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   ),
+                  p: ({ children }) => <p>{processInlineCitations(children, signals, openSignal)}</p>,
+                  li: ({ children }) => <li>{processInlineCitations(children, signals, openSignal)}</li>,
+                  h1: ({ children }) => <h1>{processInlineCitations(children, signals, openSignal)}</h1>,
+                  h2: ({ children }) => <h2>{processInlineCitations(children, signals, openSignal)}</h2>,
+                  h3: ({ children }) => <h3>{processInlineCitations(children, signals, openSignal)}</h3>,
                 }}
               >
                 {report}
@@ -355,12 +418,14 @@ export function ReportView({
                     const sourceUrl = signal.metadata?.url || signal.metadata?.source_url || null;
                     return (
                       <li key={index} className="flex items-start gap-2 text-sm text-zinc-700">
-                        <span className="text-teal-500 mt-1">•</span>
+                        <span className="text-xs font-bold text-teal-600 mt-0.5 w-5 text-right flex-shrink-0">
+                          {index + 1}
+                        </span>
                         <span className="flex-1 leading-relaxed">
                           {signal.content}
                           {sourceUrl ? (
                             <button
-                              onClick={() => setSelectedSignal(signal)}
+                              onClick={(e) => openSignal(signal, e)}
                               className="ml-2 inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 hover:underline"
                             >
                               <ExternalLink className="w-3 h-3" />
@@ -368,7 +433,7 @@ export function ReportView({
                             </button>
                           ) : (
                             <button
-                              onClick={() => setSelectedSignal(signal)}
+                              onClick={(e) => openSignal(signal, e)}
                               className="ml-2 text-teal-600 hover:text-teal-700 hover:underline text-xs"
                             >
                               View details
@@ -424,11 +489,12 @@ export function ReportView({
           </div>
         </main>
 
-        {/* Signal Side Panel */}
+        {/* Signal Side Panel — fixed position, opens at click Y */}
         {selectedSignal && (
           <SignalPanel
             signal={selectedSignal}
             onClose={() => setSelectedSignal(null)}
+            topOffset={panelTop}
           />
         )}
       </div>

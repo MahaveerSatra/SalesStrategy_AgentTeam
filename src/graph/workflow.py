@@ -699,6 +699,7 @@ class ResearchWorkflow:
 
         # Generate a unique run ID for LangSmith tracing
         run_id = str(uuid4())
+        self._run_id = run_id        # Store early so service can share mid-run
         self._langsmith_url = None  # Reset from any previous run
 
         # Create config for checkpointing + LangSmith run ID

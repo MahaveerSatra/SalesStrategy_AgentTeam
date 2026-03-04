@@ -81,46 +81,65 @@ function MiniBar({ value }: { value: number }) {
 }
 
 // ─── Custom Tooltip ────────────────────────────────────────────────────────────
-function CustomTooltip({ active, payload }: TooltipProps<number, string>) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload as ChartPoint;
+// OVERLAP_THRESHOLD: ~21px on a 420px chart — catches visually stacked dots
+const OVERLAP_THRESHOLD = 0.05;
 
-  const confColor = CONFIDENCE_COLORS[d.confidence];
-  const confLabel = d.confidence.charAt(0).toUpperCase() + d.confidence.slice(1);
+function CustomTooltip({
+  active,
+  payload,
+  allPoints = [],
+}: TooltipProps<number, string> & { allPoints?: ChartPoint[] }) {
+  if (!active || !payload?.length) return null;
+  const hovered = payload[0].payload as ChartPoint;
+
+  // Find all points visually overlapping with the hovered dot
+  const nearby = allPoints.filter(p => {
+    const dx = p.x - hovered.x;
+    const dy = p.y - hovered.y;
+    return Math.sqrt(dx * dx + dy * dy) < OVERLAP_THRESHOLD;
+  });
+  const pointsToShow = nearby.length > 0 ? nearby : [hovered];
 
   return (
     <div
       className="bg-white border border-zinc-200 rounded-lg shadow-lg p-3 text-xs"
       style={{ minWidth: 220 }}
     >
-      <p className="font-semibold text-zinc-900 mb-2 leading-snug">{d.name}</p>
-
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-zinc-500 whitespace-nowrap">Customer Priority</span>
-          <MiniBar value={d.x} />
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-zinc-500 whitespace-nowrap">MathWorks Value</span>
-          <MiniBar value={d.y} />
-        </div>
-        {d.value && (
-          <div className="flex items-center justify-between gap-4 pt-1 border-t border-zinc-100">
-            <span className="text-zinc-500">Est. Value</span>
-            <span className="font-medium text-zinc-700">{d.value}</span>
+      {pointsToShow.map((d, i) => {
+        const confColor = CONFIDENCE_COLORS[d.confidence];
+        const confLabel = d.confidence.charAt(0).toUpperCase() + d.confidence.slice(1);
+        return (
+          <div key={i} className={i > 0 ? 'mt-3 pt-3 border-t border-zinc-100' : ''}>
+            <p className="font-semibold text-zinc-900 mb-2 leading-snug">{d.name}</p>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-zinc-500 whitespace-nowrap">Customer Priority</span>
+                <MiniBar value={d.x} />
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-zinc-500 whitespace-nowrap">MathWorks Value</span>
+                <MiniBar value={d.y} />
+              </div>
+              {d.value && (
+                <div className="flex items-center justify-between gap-4 pt-1 border-t border-zinc-100">
+                  <span className="text-zinc-500">Est. Value</span>
+                  <span className="font-medium text-zinc-700">{d.value}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-zinc-500">Confidence</span>
+                <span className="flex items-center gap-1 font-medium" style={{ color: confColor }}>
+                  <span
+                    className="inline-block w-2 h-2 rounded-full"
+                    style={{ backgroundColor: confColor }}
+                  />
+                  {confLabel}
+                </span>
+              </div>
+            </div>
           </div>
-        )}
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-zinc-500">Confidence</span>
-          <span className="flex items-center gap-1 font-medium" style={{ color: confColor }}>
-            <span
-              className="inline-block w-2 h-2 rounded-full"
-              style={{ backgroundColor: confColor }}
-            />
-            {confLabel}
-          </span>
-        </div>
-      </div>
+        );
+      })}
     </div>
   );
 }
@@ -284,7 +303,7 @@ export function OpportunityMatrix({ opportunities }: OpportunityMatrixProps) {
           <ReferenceLine x={0.5} stroke="#a1a1aa" strokeDasharray="4 4" strokeWidth={1.5} />
           <ReferenceLine y={0.5} stroke="#a1a1aa" strokeDasharray="4 4" strokeWidth={1.5} />
 
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={(props) => <CustomTooltip {...props} allPoints={points} />} />
 
           {/* Quadrant corner labels rendered as custom SVG overlay */}
           {/* @ts-expect-error recharts Customized accepts any component */}
