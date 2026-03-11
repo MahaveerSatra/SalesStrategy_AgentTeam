@@ -81,7 +81,7 @@ python -m src.cli research "Boeing" --industry aerospace --seller "YourCompany"
 | **Real-Time Streaming** | Server-Sent Events stream node state (started / completed / waiting) to the frontend live |
 | **Human-in-the-Loop** | LangGraph `interrupt()` pauses the workflow; resumes from SQLite checkpoint on feedback |
 | **Agent Observability** | Click any node to inspect run time, extracted data, and LangSmith trace link |
-| **Semantic Product Matching** | ChromaDB + sentence-transformers for embedding-based opportunity identification |
+| **Hybrid RAG Product Matching** | 3-stage pipeline: BM25 keyword + ChromaDB vector → Reciprocal Rank Fusion → cross-encoder re-ranking before LLM sees candidates. Corpus enriched with ~76 scraped solution pages for broader recall. |
 | **Intelligent LLM Routing** | 3-tier routing (local Ollama → Groq API) based on task complexity |
 | **Session Persistence** | Pause, stop, and resume research sessions across browser reloads via SQLite |
 | **Production-Ready** | 454 tests passing, structured logging (structlog), Pydantic v2 validation |
@@ -165,6 +165,34 @@ messages = [
 response = await litellm.acompletion(model="anthropic/claude-haiku-4-5-20251001", messages=messages)
 ```
 
+### Advanced RAG Pipeline — Precision Before the LLM
+
+Passing all ChromaDB results directly to the LLM introduces noise. Products that are semantically close but irrelevant dilute reasoning. A 3-stage pipeline filters candidates before the LLM sees them:
+
+```
+Requirements → BM25 + Vector → RRF wide pool → Cross-Encoder → top-k → LLM
+```
+
+**Stage 1 — Hybrid Retrieval**: BM25 preserves exact-match precision (product names, acronyms); ChromaDB vector search handles paraphrases and domain language. Reciprocal Rank Fusion (k=60) merges both ranked lists:
+
+```python
+# src/data_sources/product_catalog.py
+rrf_score = sum(1.0 / (60 + rank) for rank in [bm25_rank, vector_rank])
+```
+
+The retrieval corpus is enriched with ~76 MathWorks solution pages (scraped via Tavily Extract API, which bypasses Cloudflare WAF). A query like "EV battery management" now matches the Electric Vehicle solution page, which shares BM25 term overlap with Simscape Battery — boosting recall for industry-specific language.
+
+**Stage 2 — Cross-Encoder Re-ranking**: A cross-encoder scores every `(requirement, product_doc)` pair jointly — unlike bi-encoders, it attends to both sides simultaneously, capturing token-level relevance signals:
+
+```python
+# Lazy-loaded once per process, ~20-40ms for 20 pairs on CPU
+ce_scores = self._get_cross_encoder().predict([[req, doc] for req in requirements for doc in candidates])
+```
+
+**Hardware-aware model selection**: Running on a 4GB laptop with Ollama already consuming ~2GB, the RAM budget for the re-ranker is ~220MB. `mxbai-rerank-xsmall-v1` (56M params, ~220MB) fits safely; BGE-v2-m3 (1.4GB) would OOM. The choice is a single config string — upgrade is trivial if hardware improves.
+
+**Result**: The LLM receives a short, high-precision candidate list — reducing hallucinations and tightening the context window used for opportunity generation.
+
 ---
 
 ## Quick Start
@@ -202,8 +230,8 @@ python -m src.cli research "Remora Carbon" --industry "carbon capture" --seller 
 | **API Layer** | FastAPI, Server-Sent Events, asyncio |
 | **Frontend** | React 18, TypeScript, ReactFlow, TanStack Query, Tailwind CSS, recharts |
 | **LLMs** | Ollama (local), Groq API, LiteLLM routing |
-| **Vector Search** | ChromaDB, sentence-transformers |
-| **Data Sources** | DuckDuckGo MCP, BeautifulSoup, httpx |
+| **Hybrid RAG** | ChromaDB (vector), rank-bm25 (BM25), sentence-transformers CrossEncoder (re-ranking) |
+| **Data Sources** | DuckDuckGo MCP, Tavily (search + Extract API), BeautifulSoup, httpx |
 | **Observability** | LangSmith tracing, in-app SSE callback handler, per-node trace store |
 | **Resilience** | tenacity retry, TTL caching (24h LLM / 1h search), graceful degradation |
 | **Validation** | Pydantic v2, structured LLM outputs |

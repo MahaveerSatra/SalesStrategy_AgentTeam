@@ -1,29 +1,42 @@
 {
   "id": "TC-03",
+  "description": "Non-tech healthcare buyer — tests the system's ability to reason about a different buyer persona and surface the right toolboxes (imaging, bioinformatics) rather than defaulting to MATLAB alone",
+  "test_focus": "Identifier persona and product reasoning for a non-engineering buyer. Does the system avoid defaulting to generic and instead identify Medical Imaging toolbox, Signal processing and Wavelet Toolbox and Deep learning and statistic and Machine Learing Toolboxes from medical research signals?",
   "input": {
     "account_name": "Mayo Clinic",
     "industry": "healthcare and medical research",
     "seller_name": "MathWorks",
-    "region": "United States"
+    "region": "United States",
+    "user_context": "Mayo Clinic is investing heavily in AI-driven diagnostics and precision medicine research. Target their AI, medical imaging and biomedical engineering research groups — NOT clinical operations or hospital IT. The buying persona is a research scientist or principal investigator, not an IT director.",
+    "research_depth": "STANDARD"
   },
   "eval_criteria": {
     "gatherer": {
-      "min_signals": 5,
+      "min_signals": 10,
       "expected_signal_types": ["hiring", "news"],
-      "expected_keywords_in_signals": ["research", "data", "clinical", "imaging"],
-      "min_job_postings": 2
+      "expected_keywords_in_signals": ["medical imaging", "machine learning", "AI diagnostics", "biomedical", "clinical research", "Computer Vision"],
+      "min_job_postings": 5,
+      "eval_focus": "Healthcare companies have fewer public tech signals than engineering firms — lower threshold is intentional. The test is signal RELEVANCE: are signals about research/AI/imaging or generic hospital operations news? A Gatherer that surfaces 'Mayo Clinic opens new hospital wing' is failing to generate targeted queries. Missing 'imaging' or 'genomics' keywords is the primary Gatherer failure mode here.",
+      "note": "tech_stack signal type is NOT expected here (healthcare orgs don't publish engineering stacks). Absence of tech_stack signals is CORRECT behavior, not a failure."
     },
     "identifier": {
-      "expected_products_mentioned": ["MATLAB", "Statistics and Machine Learning Toolbox"],
-      "min_opportunities": 1,
-      "expected_personas": ["Research Scientist", "Director of Biomedical Engineering"],
-      "talking_points_must_cite_sources": true
+      "expected_products_mentioned": ["Statistics and Machine Learning Toolbox", "Image Processing Toolbox", "Medical Imaging Toolbox", "Deep Learning Toolbox","Statistics and Machine Learning Toolbox", "GPU Coder"],
+      "unexpected_products": ["Embedded Coder", "Automated Driving Toolbox", "Aerospace Toolbox"],
+      "min_opportunities": 3,
+      "expected_personas": ["Research Scientist", "Director of Biomedical Engineering", "Clinical Data Scientist", "Principal Investigator","AI Research Engineer"],
+      "talking_points_must_cite_sources": true,
+      "eval_focus": "The CRITICAL Identifier test: does it recommend Simulink (wrong — model-based design for embedded systems is irrelevant to medical research) or Image Processing + Bioinformatics Toolbox (correct)? Recommending Embedded Coder or Automated Driving Toolbox is a hallucination failure. Only recommending MATLAB without domain-specific toolboxes is a shallow match failure. Persona test: 'Research Scientist' or 'Principal Investigator' (correct) vs generic 'Director of Engineering' (wrong for healthcare).",
+      "note": "This is the most important test for Identifier domain reasoning — unexpected_products appearing is the clearest signal of hallucination or weak evidence matching"
     },
     "validator": {
-      "min_confidence_score": 0.60
+      "min_confidence_score": 0.65,
+      "eval_focus": "Lower confidence floor is intentional — healthcare signals are less explicitly engineering-focused than aerospace. Confidence can be above 0.75 for image based workflows, the Validator should be realistic though. Watch for the Validator appropriately flagging 'limited direct tech-stack evidence' in risk notes for healthcare opportunities.",
+      "note": "Expected: 2-3 validated opportunities (domain toolbox). If 6+ opportunities are validated, confidence calibration is likely inflated."
     },
     "report": {
-      "must_include": ["Mayo Clinic", "research", "data"]
+      "must_include": ["Mayo Clinic", "medical imaging", "research", "data analysis", "next step","medical image","image processing"],
+      "must_not_include": ["act now", "limited time", "Simulink", "model-based design"],
+      "eval_focus": "Report must_not_include Simulink/model-based design — these appearing in a Mayo Clinic report means the Coordinator is either not reading validated_opportunities correctly or copying generic MathWorks language. 'Medical imaging' must appear for the report to be account-specific. Missing 'next step' is a Coordinator actionability failure."
     }
   }
 }

@@ -1,0 +1,86 @@
+{
+  "id": "TC-05",
+  "description": "Indian electric two-wheeler scaleup — tests embedded control systems product fit (Motor Control Blockset, Embedded Coder) for a company that builds all vehicle firmware in-house, and exercises the India region for non-Western market handling",
+  "test_focus": "Identifier must surface Motor Control Blockset and Embedded Coder (not just MATLAB/Simulink generically) from firmware/motor-control hiring signals. Does the Gatherer handle a mid-sized Indian company with moderate web presence? Does region=India influence query targeting?",
+  "input": {
+    "account_name": "Ather Energy",
+    "industry": "electric two-wheeler manufacturing",
+    "seller_name": "MathWorks",
+    "region": "India",
+    "user_context": "Ather Energy is a fast-growing Indian EV scooter company that develops all their own embedded software and firmware in-house: motor controllers, BMS, VCU, and connected vehicle platform. They are rapidly scaling their engineering team. Target their strong growth teams, including but not limited to motor control and battery management software engineers.",
+    "research_depth": "STANDARD"
+  },
+  "eval_criteria": {
+    "gatherer": {
+      "min_signals": 8,
+      "expected_signal_types": [
+        "hiring",
+        "tech_stack",
+        "news"
+      ],
+      "expected_keywords_in_signals": [
+        "embedded software",
+        "firmware",
+        "motor control",
+        "battery management",
+        "BMS",
+        "electric scooter",
+        "EV",
+        "vehicle control unit",
+        "power electronics"
+      ],
+      "min_job_postings": 5,
+      "eval_focus": "Ather Energy is a mid-sized Indian company with moderate web presence. The test is query relevance: does the Gatherer find engineering-specific signals (firmware jobs, motor control tech) or just generic EV news? The India region should shape queries - failure to surface Bengaluru/India-specific job signals means the Gatherer is ignoring the region field. If all signals are US-based EV news instead of Ather-specific content, the Gatherer query generation is failing.",
+      "note": "Ather publishes job listings actively on LinkedIn and their own careers page - hiring signals should be discoverable. Absence of hiring signals is a Gatherer query failure."
+    },
+    "identifier": {
+      "expected_products_mentioned": [
+        "Stateflow",
+        "Embedded Coder",
+        "Motor Control Blockset",
+        "Simscape",
+        "Simscape Battery",
+        "Simscape Electrical"
+      ],
+      "unexpected_products": [
+        "Aerospace Toolbox",
+        "Bioinformatics Toolbox",
+        "Financial Toolbox",
+        "Deep Learning Toolbox"
+      ],
+      "min_opportunities": 3,
+      "expected_personas": [
+        "Firmware Lead",
+        "Vehicle Control Software Engineer",
+        "Embedded Systems Engineer",
+        "Battery Systems Engineer",
+        "CTO"
+      ],
+      "talking_points_must_cite_sources": true,
+      "eval_focus": "The key Identifier test: does Motor Control Blockset appear? It is the most differentiated product for Ather - they develop their own PMSM/BLDC motor controllers entirely in-house. Seeing only generic MATLAB/Simulink without Motor Control Blockset means the Identifier is not reasoning from motor-control-specific hiring signals. Automated Driving Toolbox appearing is a hallucination failure (Ather makes scooters, not autonomous vehicles). Persona test: Firmware Lead or Embedded Systems Engineer (correct) vs generic VP of Engineering (wrong for this company).",
+      "note": "Motor Control Blockset absence is the primary Identifier failure signal for this case. Simscape (for modeling battery/thermal systems) is the second expected product."
+    },
+    "validator": {
+      "min_confidence_score": 0.7,
+      "eval_focus": "Mid-size company with moderate signals - confidence floor of 0.7 is appropriate. If Motor Control Blockset opportunity is scored with very high confidence (0.85+) but the only evidence is generic EV hiring news (not explicit motor control firmware signals), the Validator is not calibrating evidence quality. Watch for whether the Validator surfaces realistic risks: cost sensitivity of an Indian startup vs mature MathWorks pricing is a relevant risk that generic validators miss.",
+      "note": "Expected: 2-3 validated opportunities. If 5+ are validated for a mid-sized Indian startup, confidence calibration is likely inflated."
+    },
+    "report": {
+      "must_include": [
+        "Ather Energy",
+        "embedded software",
+        "motor control",
+        "firmware",
+        "next step"
+      ],
+      "must_not_include": [
+        "act now",
+        "limited time",
+        "last chance",
+        "autonomous driving",
+        "ADAS"
+      ],
+      "eval_focus": "Report must reference Ather-specific context (EV scooter firmware, in-house motor control development) - not just generic Indian EV market commentary. ADAS or autonomous driving appearing in the report is a hallucination failure (Ather does not build autonomous vehicles). Missing firmware or motor control language means the Coordinator is producing a generic MathWorks pitch rather than an account-specific brief. Region (India) should ideally be acknowledged in context (market considerations, local talent pool)."
+    }
+  }
+}

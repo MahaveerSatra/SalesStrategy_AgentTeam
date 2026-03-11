@@ -130,7 +130,7 @@ LangGraph Agents   (src/)      --  Coordinator, Gatherer, Identifier, Validator
 
 ### IdentifierAgent
 - **File**: `src/agents/identifier.py` (~360 lines) | **Tests**: 31
-- **Role**: Extracts requirements from signals, matches to products via semantic search
+- **Role**: Extracts requirements from signals, matches to products via hybrid BM25+vector RRF retrieval + cross-encoder re-ranking
 - **Uses**: `ProductMatcher` (ChromaDB), `ModelRouter`
 - **Schemas**: `RequirementsExtraction`, `OpportunitiesGeneration`
 
@@ -164,11 +164,11 @@ LangGraph Agents   (src/)      --  Coordinator, Gatherer, Identifier, Validator
 | `src/models/domain.py` | ~180 | JobPosting, CompanyInfo, Product, AgentResult |
 | `src/data_sources/base.py` | ~150 | Abstract DataSource, CachedDataSource |
 | `src/data_sources/mcp_ddg_client.py` | ~400 | DuckDuckGo MCP client — Tier 1 (rate limiting + jitter) |
-| `src/data_sources/tavily_client.py` | ~80 | Tavily REST client — Tier 2 fallback (httpx, no new package) |
+| `src/data_sources/tavily_client.py` | ~180 | Tavily REST client — Tier 2 search fallback + Extract API for batch URL content fetching |
 | `src/data_sources/search_client.py` | ~60 | 2-tier search facade — drop-in for DuckDuckGoMCPClient |
 | `src/data_sources/scraper.py` | ~250 | Web scraping (BeautifulSoup, httpx) |
 | `src/data_sources/job_boards.py` | ~300 | Job board scraping, career page detection |
-| `src/data_sources/product_catalog.py` | ~350 | ChromaDB indexing, semantic product matching |
+| `src/data_sources/product_catalog.py` | ~450 | ChromaDB indexing, BM25 index, hybrid RRF retrieval, cross-encoder re-ranking, Tavily Extract solution scraper |
 | `src/graph/workflow.py` | ~520 | LangGraph workflow, SQLite checkpointing, HITL interrupt |
 | `src/graph/sse_callbacks.py` | — | SSECallbackHandler, node trace store |
 
@@ -224,6 +224,39 @@ python -m pytest tests/ -v               # all 454 tests
 ```
 
 **Fixtures**: `tests/fixtures/` — `llm_responses/*.json`, `search_results/*.json`, `job_postings/*.json`
+
+---
+
+## Product Matching Pipeline
+
+Three-stage retrieval inside `ProductMatcher.match_requirements_to_products()` (`src/data_sources/product_catalog.py`):
+
+```
+LLM-extracted requirements
+  → Stage 1: Hybrid Retrieval — BM25 + ChromaDB vector → RRF fusion (POOL = top_k × 4 = 40)
+    → truncate to RERANK_POOL=20 (settings.rerank_pool_size, default 20 — tunable in config)
+      → Stage 2: Cross-Encoder Re-ranking — (requirement, product_doc) pairs → top_k=10
+        → Stage 3: IdentifierAgent LLM → ValidatorAgent (confidence ≥ 0.6)
+```
+
+**Stage 1 — Hybrid BM25 + Vector with RRF**
+- `_bm25_search()`: exact keyword match (rank-bm25) — preserves precision on product names/acronyms (e.g. "HDL Coder")
+- ChromaDB vector search: semantic similarity across 147 products + ~76 MathWorks solution pages
+- Solution pages scraped via `ProductCatalogIndexer.scrape_and_index_solutions()` using Tavily Extract API (bypasses Cloudflare WAF); boosts recall for industry terms ("EV battery management" → Simscape Battery)
+- RRF fusion: `score(doc) = Σ 1/(k + rank)`, k=60; only BM25 hits with `score > 0` contribute
+
+**Stage 2 — Cross-Encoder Re-ranking (mxbai-rerank-xsmall-v1)**
+- Input: top `settings.rerank_pool_size` (default 20) from RRF — explicit cap, not full POOL
+- Scores every `(requirement, product_doc)` pair jointly — captures bidirectional token-level relevance
+- Aggregation: max cross-encoder logit across all requirements per product; sigmoid-normalized output
+- Hardware fit: 56M params, ~220MB RAM — runs alongside Ollama (llama3.2:3b, ~2GB) on 4GB machine
+- Lazy-loaded once per process; reduce `rerank_pool_size` to 10-15 in `.env` if too slow
+- Upgrade path: swap model string to `mxbai-rerank-base-v1` (single config change) if accuracy insufficient
+
+**Run-once setup:**
+```bash
+python scripts/index_mathworks_solutions.py  # fetch ~76 solution pages via Tavily Extract → ChromaDB
+```
 
 ---
 

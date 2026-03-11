@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     groq_api_key: str | None = Field(default=None, description="Groq API key")
     together_api_key: str | None = Field(default=None, description="Together.ai API key")
     anthropic_api_key: str | None = Field(default=None, description="Anthropic API key for Claude models with prompt caching")
+    tavily_api_key: str | None = Field(default=None, description="Tavily API key for search and content extraction")
 
     # Model Configuration
     local_model: str = Field(default="llama3.2:3b", description="Local Ollama model")
@@ -29,7 +30,7 @@ class Settings(BaseSettings):
         description="External model for complex reasoning"
     )
     advanced_model: str = Field(
-        default="groq/llama-3.1-70b",
+        default="groq/llama-3.3-70b",
         description="External model for advanced reasoning"
     )
     claude_model: str = Field(
@@ -92,10 +93,13 @@ class Settings(BaseSettings):
     # Report Context Limits (for rate limit prevention)
     report_max_opportunities: int = Field(default=5, description="Max opportunities in report context")
     report_max_signals: int = Field(default=8, description="Max signals in report context")
-    report_max_jobs: int = Field(default=4, description="Max job postings in report context")
+    report_max_jobs: int = Field(default=8, description="Max job postings in report context")
     report_max_risks: int = Field(default=5, description="Max risks in report context")
     report_signal_content_limit: int = Field(default=120, description="Char limit for signal content")
     report_target_tokens: int = Field(default=12000, description="Target token limit for report context")
+
+    # Product Matching
+    rerank_pool_size: int = Field(default=20, description="Max candidates fed to cross-encoder re-ranker (reduce to 10-15 if re-ranking is too slow)")
 
     # Checkpointing
     checkpoint_dir: str = Field(default="data/checkpoints", description="Checkpoint directory")

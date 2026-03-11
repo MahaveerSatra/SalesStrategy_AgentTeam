@@ -1,29 +1,41 @@
 {
   "id": "TC-05",
+  "description": "Global automotive OEM undergoing EV and ADAS transformation — tests whether the Identifier surfaces Automated Driving Toolbox and Embedded Coder for ADAS/electrification signals, and exercises the region field (Japan) for international account handling",
+  "test_focus": "Identifier should surface Automated Driving Toolbox (ADAS angle) and Embedded Coder with ISO 26262 context. Does the system use the Japan/region context to shape talking points? Does the Gatherer find EV transformation and ADAS hiring signals vs generic Toyota news?",
   "input": {
     "account_name": "Toyota",
     "industry": "automotive manufacturing",
     "seller_name": "MathWorks",
-    "region": "Japan"
+    "region": "Japan",
+    "user_context": "Toyota is undergoing a major EV and ADAS transformation. They are building new software-defined vehicle platforms and investing heavily in autonomous driving research. Target their electrification and new mobility engineering teams — specifically groups working on ISO 26262 compliance and ADAS algorithm development.",
+    "research_depth": "STANDARD"
   },
   "eval_criteria": {
     "gatherer": {
       "min_signals": 8,
       "expected_signal_types": ["hiring", "tech_stack", "news"],
-      "expected_keywords_in_signals": ["electric vehicle", "autonomous", "simulation", "embedded"],
-      "min_job_postings": 3
+      "expected_keywords_in_signals": ["electrification", "ADAS", "model-based design", "ISO 26262", "embedded software", "autonomous", "EV", "software-defined vehicle"],
+      "min_job_postings": 3,
+      "eval_focus": "Toyota's EV transformation is heavily covered in automotive press — strong signal count expected. The test is RELEVANCE: are signals about Toyota's technical EV/ADAS programs (not just 'Toyota sells cars')? Missing 'ISO 26262' or 'ADAS' keywords means the Gatherer's queries are too generic ('Toyota engineering' vs 'Toyota ADAS autonomous driving hiring'). The region=Japan field should be used in query generation — failure to surface Japanese market context is a Gatherer prompt gap.",
+      "note": "EV transformation news is the richest signal type for Toyota — expect news + hiring signals around electrification to dominate"
     },
     "identifier": {
-      "expected_products_mentioned": ["MATLAB", "Simulink", "Embedded Coder"],
+      "expected_products_mentioned": ["MATLAB", "Simulink", "Embedded Coder", "Automated Driving Toolbox"],
+      "unexpected_products": ["Bioinformatics Toolbox", "Financial Toolbox", "Image Processing Toolbox"],
       "min_opportunities": 2,
-      "expected_personas": ["Vehicle Systems Engineer", "R&D Director"],
-      "talking_points_must_cite_sources": true
+      "expected_personas": ["ADAS Software Lead", "Vehicle Systems Engineer", "Electrification R&D Director", "Embedded Software Engineer", "Autonomous Driving Researcher"],
+      "talking_points_must_cite_sources": true,
+      "eval_focus": "The key Identifier test: does Automated Driving Toolbox appear? It is the most differentiated product for Toyota's ADAS programs. Simulink alone is insufficient — the Identifier must reason from ADAS signals to Automated Driving Toolbox. Embedded Coder with ISO 26262 context is the second expected opportunity. Generic persona ('R&D Director') without ADAS/electrification specialization means the Identifier is not using the account's transformation context. If only MATLAB+Simulink appear, the Identifier is pattern-matching on 'automotive' instead of reading the specific ADAS/EV transformation signals.",
+      "note": "Automated Driving Toolbox absence is the clearest Identifier failure signal for this case — it maps directly to Toyota's ADAS programs"
     },
     "validator": {
-      "min_confidence_score": 0.65
+      "min_confidence_score": 0.65,
+      "eval_focus": "Toyota has strong and verifiable signals for ADAS/EV transformation — confidence should reach 0.70+ for well-matched products. If Automated Driving Toolbox opportunity has lower confidence than MATLAB/Simulink despite strong ADAS signals, the Validator's re-scoring logic may be penalizing toolbox specificity. Watch for whether competitive risks mention Ansys SCADE, dSPACE, or Vector (relevant automotive tool competitors) vs generic 'Python could replace MATLAB'."
     },
     "report": {
-      "must_include": ["Toyota", "EV", "simulation"]
+      "must_include": ["Toyota", "electrification", "model-based design", "ADAS", "next step"],
+      "must_not_include": ["act now", "limited time", "last chance", "don't delay"],
+      "eval_focus": "Report must reference both the EV transformation AND ADAS angle — a report that only covers one misses a significant opportunity. 'ISO 26262' appearing in the report (even though it's not in must_include) is a quality indicator. Missing 'next step' means the Coordinator is generating summaries, not sales action plans. The region (Japan) should ideally be acknowledged — Toyota reports that read as purely US-centric are a Coordinator context-gap."
     }
   }
 }

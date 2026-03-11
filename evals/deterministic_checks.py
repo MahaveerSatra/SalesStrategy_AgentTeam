@@ -223,12 +223,133 @@ def check_no_urgency_language(state: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Phase 2 checks — leverage eval_criteria fields that were previously unused
+# ---------------------------------------------------------------------------
+
+def check_expected_products_mentioned(state: dict, case: dict) -> dict:
+    """
+    Products listed in identifier.expected_products_mentioned appear in
+    validated_opportunities (or raw opportunities as fallback).
+
+    Detects Identifier failures: defaulting to MATLAB-only when the signals
+    clearly point to toolboxes like Embedded Coder or Automated Driving Toolbox.
+    """
+    expected = (
+        case.get("eval_criteria", {})
+        .get("identifier", {})
+        .get("expected_products_mentioned", [])
+    )
+    if not expected:
+        return {
+            "check": "expected_products_mentioned",
+            "passed": True,
+            "detail": "No expected products defined — skipped",
+        }
+
+    all_opps = state.get("validated_opportunities", []) or state.get("opportunities", [])
+    found_products = {opp.get("product_name", "") for opp in all_opps}
+
+    # Partial match: e.g. "Embedded Coder" matches "Embedded Coder for Production"
+    missing = [
+        p for p in expected
+        if not any(p.lower() in f.lower() for f in found_products)
+    ]
+    passed = len(missing) == 0
+    return {
+        "check": "expected_products_mentioned",
+        "passed": passed,
+        "detail": (
+            f"All expected products found: {', '.join(expected)}"
+            if passed
+            else f"Expected but not found: {', '.join(missing)} | Found: {', '.join(found_products) or 'none'}"
+        ),
+    }
+
+
+def check_min_opportunities(state: dict, case: dict) -> dict:
+    """
+    Count of validated_opportunities >= identifier.min_opportunities.
+
+    Detects Validator over-filtering (rejecting too many) or Identifier under-generating.
+    """
+    min_opps = (
+        case.get("eval_criteria", {})
+        .get("identifier", {})
+        .get("min_opportunities", 1)
+    )
+    count = len(state.get("validated_opportunities", []))
+    return {
+        "check": "min_opportunities",
+        "passed": count >= min_opps,
+        "detail": f"{count} validated opportunities (min {min_opps})",
+    }
+
+
+def check_report_keywords(state: dict, case: dict) -> dict:
+    """
+    All report.must_include keywords appear in current_report (case-insensitive).
+
+    Detects Coordinator failures: generating generic reports that don't
+    reference account-specific context (e.g. 'model-based design' for Boeing,
+    'medical imaging' for Mayo Clinic).
+    """
+    must_include = (
+        case.get("eval_criteria", {})
+        .get("report", {})
+        .get("must_include", [])
+    )
+    if not must_include:
+        return {
+            "check": "report_keywords",
+            "passed": True,
+            "detail": "No required keywords defined — skipped",
+        }
+
+    report = (state.get("current_report") or "").lower()
+    missing = [kw for kw in must_include if kw.lower() not in report]
+    passed = len(missing) == 0
+    return {
+        "check": "report_keywords",
+        "passed": passed,
+        "detail": (
+            f"All required keywords present: {', '.join(must_include)}"
+            if passed
+            else f"Missing from report: {', '.join(missing)}"
+        ),
+    }
+
+
+def check_report_has_next_steps(state: dict) -> dict:
+    """
+    Report body contains actionable next-steps language.
+
+    Detects Coordinator generating summaries instead of sales action plans.
+    A report without next steps is not useful to a sales rep walking into a meeting.
+    """
+    report = (state.get("current_report") or "").lower()
+    markers = ["next step", "recommend", "schedule", "follow up", "action item", "proposed action"]
+    found = [m for m in markers if m in report]
+    passed = len(found) >= 1
+    return {
+        "check": "report_has_next_steps",
+        "passed": passed,
+        "detail": (
+            f"Next-steps language found: {found[0]!r}"
+            if passed
+            else "Report has no actionable next-steps language ('next step', 'recommend', 'schedule', etc.)"
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Public runner
 # ---------------------------------------------------------------------------
 
 def run_all_checks(state: dict, case: dict) -> list[dict]:
     """
-    Run all 9 deterministic checks, applying per-case overrides from eval_criteria.
+    Run all 13 deterministic checks, applying per-case overrides from eval_criteria.
+
+    9 baseline checks (pipeline-wide) + 4 Phase 2 checks (use eval_criteria fields).
 
     Args:
         state: Final ResearchState dict from the workflow.
@@ -245,6 +366,7 @@ def run_all_checks(state: dict, case: dict) -> list[dict]:
     confidence_threshold = validator_criteria.get("min_confidence_score", 0.6)
 
     results = [
+        # Baseline pipeline checks (9)
         check_signal_count(state, min_signals=min_signals),
         check_citation_format(state),
         check_confidence_threshold(state, threshold=confidence_threshold),
@@ -254,5 +376,10 @@ def run_all_checks(state: dict, case: dict) -> list[dict]:
         check_url_in_signals(state),
         check_report_generated(state),
         check_no_urgency_language(state),
+        # Phase 2: eval_criteria-driven checks (4)
+        check_expected_products_mentioned(state, case),
+        check_min_opportunities(state, case),
+        check_report_keywords(state, case),
+        check_report_has_next_steps(state),
     ]
     return results

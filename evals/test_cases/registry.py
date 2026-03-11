@@ -12,7 +12,7 @@ _CASE_FILES = [
     "case_nasa.json",
     "case_mayo_clinic.json",
     "case_remora_carbon.json",
-    "case_toyota.json",
+    "case_ather_energy.json",
 ]
 
 # Load all cases at module import time

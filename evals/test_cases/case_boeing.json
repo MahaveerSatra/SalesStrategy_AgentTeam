@@ -1,30 +1,81 @@
 {
   "id": "TC-01",
+  "description": "Large prime contractor in a rich-signal environment - tests whether the Identifier surfaces deeper products and workflows like Embedded Coder and System composer (not just MATLAB) given avionics signals, persona specificity, and citation grounding",
+  "test_focus": "Identifier product depth: does it go beyond the obvious (MATLAB) and match Embedded Coder to the DO-178C/avionics signals? Gatherer signal type diversity. Validator confidence calibration with strong evidence.",
   "input": {
     "account_name": "Boeing",
     "industry": "aerospace and defense",
     "seller_name": "MathWorks",
-    "region": "United States"
+    "region": "United States",
+    "user_context": "Boeing has an existing MathWorks licenses and working with us for years. Our goal is to expand usage of our AI tools, Verification and Validation and systems engineering tools. Goals is to help accelerate development and help their teams who are under pressure to achieve DO-178C compliance and accelerate model-based design adoption.",
+    "research_depth": "STANDARD"
   },
   "eval_criteria": {
     "gatherer": {
-      "min_signals": 8,
-      "expected_signal_types": ["hiring", "tech_stack", "news"],
-      "expected_keywords_in_signals": ["simulation", "engineering", "defense", "aviation"],
-      "min_job_postings": 3
+      "min_signals": 10,
+      "expected_signal_types": [
+        "hiring",
+        "tech_stack",
+        "news"
+      ],
+      "expected_keywords_in_signals": [
+        "Simulink",
+        "Systems engineering",
+        "DO-178",
+        "Enterprise simulation",
+        "Model Based Engineering",
+        "Photo-driven AI"
+      ],
+      "min_job_postings": 5,
+      "eval_focus": "Gatherer quality check: are signals engineering-specific (e.g. Avionics Software Engineer job titles, Model Based Design tech mentions) or just generic company news? Signal type diversity (hiring + tech_stack + news) indicates healthy query breadth. Failure here means the Gatherer _build_queries() is generating queries that are too broad.",
+      "note": "Boeing is a rich-signal environment - signal count below 10 or missing tech_stack signals indicates Gatherer is underperforming on query generation"
     },
     "identifier": {
-      "expected_products_mentioned": ["MATLAB", "Simulink"],
-      "min_opportunities": 2,
-      "expected_personas": ["Systems Engineer", "Director of Engineering"],
-      "talking_points_must_cite_sources": true
+      "expected_products_mentioned": [
+        "Simulink",
+        "DO Qualification Kit",
+        "System Composer",
+        "Polyspace",
+        "Simulink Fault Analyzer"
+      ],
+      "unexpected_products": [
+        "Bioinformatics Toolbox",
+        "Financial Toolbox",
+        "Automated Driving toolbox"
+      ],
+      "min_opportunities": 5,
+      "expected_personas": [
+        "Software Verification Team Lead",
+        "Systems Engineering Lead",
+        "Flight Systems Engineer",
+        "DO-178C Compliance Lead"
+      ],
+      "talking_points_must_cite_sources": true,
+      "eval_focus": "If only MATLAB appears (not Simulink/Embedded Coder), the Identifier is defaulting to brand recognition rather than reasoning from avionics signals. Unexpected products appearing (e.g. Bioinformatics) is a hallucination red flag. Generic personas (Engineer) instead of role-specific ones (Systems Engineering Lead) indicate the Identifier is not using account context.",
+      "note": "Verification and Validation tools, DO-178C compliant code generation is the PRIMARY differentiator for Boeing - its absence from opportunities is a clear Identifier prompt gap"
     },
     "validator": {
       "min_confidence_score": 0.65,
-      "all_talking_points_grounded": true
+      "all_talking_points_grounded": true,
+      "eval_focus": "With Boeing's strong signal base, validated confidence should reach 0.70+. Scores stuck at 0.60-0.65 suggest the Validator _score_opportunities() is being overly conservative OR the Identifier passed weak evidence. Check: did re-scoring actually adjust scores or just pass through Identifier values?"
     },
     "report": {
-      "must_include": ["Boeing", "simulation", "opportunity"]
+      "must_include": [
+        "Strategy",
+        "model-based design",
+        "verification",
+        "systems engineering",
+        "next step",
+        "DO Qualification",
+        "Testing"
+      ],
+      "must_not_include": [
+        "act now",
+        "limited time",
+        "last chance",
+        "don't delay"
+      ],
+      "eval_focus": "Report should name Boeing-specific context (defense division, avionics, commercial programs) not just the company name. A report that passes only because Boeing appears in a sentence is not useful to a sales rep. Missing next step indicates the Coordinator process_exit() is generating summaries, not action plans."
     }
   }
 }

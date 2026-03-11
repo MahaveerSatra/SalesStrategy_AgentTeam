@@ -1,29 +1,41 @@
 {
   "id": "TC-02",
+  "description": "Federal research agency — MathWorks' one of the most prominent real-world customer. Tests whether the system avoids treating 'existing customer' as trivial and instead surfaces new expansion opportunities in GNC/autonomy",
+  "test_focus": "Identifier should surface Deep Learning Toolbox for autonomy/AI angles, not just MATLAB+Simulink. Gatherer query quality: does it search for NASA's CURRENT programs (Artemis, lunar autonomy) vs generic 'NASA MATLAB'?",
   "input": {
     "account_name": "NASA",
     "industry": "aerospace and research",
     "seller_name": "MathWorks",
-    "region": "United States"
+    "region": "United States",
+    "user_context": "NASA is MathWorks' one of the largest reference customers. We need to expand beyond the existing base — specifically target their growing autonomous systems and Artemis mission teams who need GNC toolboxes and AI/ML capabilities for in-situ decision making.",
+    "research_depth": "STANDARD"
   },
   "eval_criteria": {
     "gatherer": {
-      "min_signals": 8,
+      "min_signals": 10,
       "expected_signal_types": ["hiring", "tech_stack", "news"],
-      "expected_keywords_in_signals": ["simulation", "spacecraft", "autonomy", "data analysis"],
-      "min_job_postings": 3
+      "expected_keywords_in_signals": ["guidance navigation control", "autonomous planning and driving", "fault management", "Artemis", "mission", "sensor fusion", "deep learning", "GNC"],
+      "min_job_postings": 5,
+      "eval_focus": "NASA publishes job listings and mission announcements publicly — this should be a high-signal case. Failure to surface GNC or autonomy signals means the Gatherer is querying too generically ('NASA engineering' vs 'NASA autonomous systems hiring'). Missing Artemis/lunar program signals is a Gatherer prompt gap.",
+      "note": "Expected to return current program signals with strong hints (Artemis, CLPS, Moon to Mars), not just generic 'NASA uses MATLAB' news"
     },
     "identifier": {
-      "expected_products_mentioned": ["MATLAB", "Simulink", "Deep Learning Toolbox"],
-      "min_opportunities": 2,
-      "expected_personas": ["Research Engineer", "Flight Software Lead"],
-      "talking_points_must_cite_sources": true
+      "expected_products_mentioned": ["Simulink", "Deep Learning Toolbox", "Automted Driving Toolbox","Simulink Fault Analyzer","Sensor fusion and Tracking Toolbox","System Composer"],
+      "unexpected_products": ["Bioinformatics Toolbox", "Financial Toolbox", "Embedded Coder"],
+      "min_opportunities": 5,
+      "expected_personas": ["GNC Engineer", "Flight Software Lead", "Research Engineer", "Mission Operations Director", "Autonomy Systems Lead"],
+      "talking_points_must_cite_sources": true,
+      "eval_focus": "If MATLAB is the only opportunity (no Deep Learning Toolbox, no Systems engineering Toolbox), the Identifier is defaulting to the most obvious brand match instead of reading GNC/autonomy signals. The key test: does it differentiate expansion opportunities (AI toolboxes) from the existing baseline (MATLAB licenses)?",
+      "note": "Deep Learning Toolbox and Aerospace Toolbox should appear given NASA's autonomy + GNC focus. Seeing only MATLAB is the primary failure mode to watch for."
     },
     "validator": {
-      "min_confidence_score": 0.65
+      "min_confidence_score": 0.65,
+      "eval_focus": "NASA's research context can introduce ambiguity (is this a new need or existing capability?). The Validator should penalize opportunities that aren't clearly tied to new initiatives. Watch for over-inflated confidence on generic 'NASA uses simulation' opportunities vs well-evidenced GNC/autonomy ones."
     },
     "report": {
-      "must_include": ["NASA", "simulation", "mission"]
+      "must_include": ["NASA", "simulation", "mission", "guidance", "autonomous","sensor","next step"],
+      "must_not_include": ["act now", "limited time", "last chance"],
+      "eval_focus": "The report must go beyond 'NASA uses MATLAB' and articulate why NOW is the right time (Artemis urgency, autonomous lander development). A report that reads as 'NASA is a great MATLAB customer' without expansion context tells us the Coordinator is generating generic reports, not sales-actionable briefs."
     }
   }
 }

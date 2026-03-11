@@ -12,6 +12,7 @@ HISTORY_CSV = RESULTS_DIR / "history.csv"
 CSV_COLUMNS = [
     "run_id",
     "case_id",
+    "agent",  # "all" for end-to-end runs; agent name for per-agent runs
     "timestamp",
     "accuracy",
     "actionability",
@@ -43,6 +44,7 @@ def append_to_history(
     judge_data: dict,
     det_results: list[dict],
     notes: str = "",
+    agent: str = "all",
 ) -> None:
     """Append one row to history.csv."""
     _ensure_csv_exists()
@@ -52,6 +54,7 @@ def append_to_history(
     row = {
         "run_id": run_id,
         "case_id": case_id,
+        "agent": agent,
         "timestamp": datetime.now().isoformat(timespec="seconds"),
         "accuracy": judge_data.get("accuracy_score", ""),
         "actionability": judge_data.get("actionability_score", ""),
@@ -74,7 +77,11 @@ def load_history() -> list[dict]:
         return []
     with open(HISTORY_CSV, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        return list(reader)
+        rows = list(reader)
+    # Backward compat: old rows won't have the "agent" column
+    for row in rows:
+        row.setdefault("agent", "all")
+    return rows
 
 
 # ---------------------------------------------------------------------------
@@ -128,13 +135,15 @@ def print_delta_table(case_id: str | None = None) -> None:
         print("No history found. Run --ingest first.")
         return
 
-    # Group by case_id
+    # Group by (case_id, agent)
     by_case: dict[str, list[dict]] = {}
     for row in rows:
         cid = row["case_id"]
+        agent = row.get("agent", "all")
         if case_id and cid != case_id:
             continue
-        by_case.setdefault(cid, []).append(row)
+        key = f"{cid} [{agent}]" if agent != "all" else cid
+        by_case.setdefault(key, []).append(row)
 
     if not by_case:
         print(f"No history found for case '{case_id}'.")
@@ -142,11 +151,11 @@ def print_delta_table(case_id: str | None = None) -> None:
 
     metrics = ["accuracy", "actionability", "alignment", "safety", "overall"]
     print()
-    print(f"{'CASE':<10} {'METRIC':<16} {'BEFORE':>7} {'AFTER':>7} {'DELTA':>8}")
-    print("-" * 55)
+    print(f"{'CASE':<18} {'METRIC':<16} {'BEFORE':>7} {'AFTER':>7} {'DELTA':>8}")
+    print("-" * 63)
     for cid, case_rows in sorted(by_case.items()):
         if len(case_rows) < 2:
-            print(f"{cid:<10} (only 1 run - need >= 2 runs to compare)")
+            print(f"{cid:<18} (only 1 run - need >= 2 runs to compare)")
             continue
         first = case_rows[0]
         latest = case_rows[-1]
@@ -159,8 +168,8 @@ def print_delta_table(case_id: str | None = None) -> None:
                 delta_str = f"{sign}{delta:.1f}"
                 indicator = " (up)" if delta > 0 else (" (dn)" if delta < 0 else "")
                 print(
-                    f"{cid:<10} {metric:<16} {before:>7.1f} {after:>7.1f} {delta_str:>8}{indicator}"
+                    f"{cid:<18} {metric:<16} {before:>7.1f} {after:>7.1f} {delta_str:>8}{indicator}"
                 )
             except (ValueError, KeyError):
-                print(f"{cid:<10} {metric:<16} (no data)")
+                print(f"{cid:<18} {metric:<16} (no data)")
         print()

@@ -3,17 +3,23 @@ Generic product catalog scraping and semantic matching.
 Builds searchable product index with ChromaDB for requirement matching.
 Supports any company's product catalog via JSON configuration or dynamic scraping.
 """
+import asyncio
 import json
+import math
 from pathlib import Path
 from typing import Any, Optional
 
 import chromadb
+from bs4 import BeautifulSoup
 from chromadb.config import Settings
 from chromadb.utils import embedding_functions
+from rank_bm25 import BM25Okapi
+from sentence_transformers import CrossEncoder
 
+from src.config import settings
 from src.core.exceptions import DataSourceError
 from src.data_sources.mcp_ddg_client import DuckDuckGoMCPClient
-from src.data_sources.scraper import fetch_url, extract_text, extract_metadata
+from src.data_sources.scraper import fetch_url, extract_text, extract_metadata, RateLimiter
 from src.models.domain import Product
 from src.utils.logging import get_logger
 
@@ -595,6 +601,181 @@ JSON Array:"""
 
         logger.info("products_indexed", count=len(products), collection=self.collection_name)
 
+    async def scrape_and_index_solutions(
+        self,
+        base_url: str = "https://www.mathworks.com",
+    ) -> int | None:
+        """Fetch MathWorks solution pages via Tavily Extract and index into ChromaDB.
+
+        Each solution page is stored with metadata type='solution' so it can be
+        distinguished from product docs. Solution docs enrich hybrid search recall
+        but are filtered out of final product match output.
+
+        Returns:
+            None  — idempotency check passed (already ≥50 solution docs exist)
+            int   — count of newly indexed docs from this run (may be 0 if all failed)
+
+        Idempotent — safe to re-run. To force re-index, delete solution docs first.
+        """
+        from src.data_sources.tavily_client import TavilyClient
+
+        # Idempotency check — skip if already indexed
+        try:
+            existing = self.collection.get(where={"type": {"$eq": "solution"}})
+            if len(existing.get("ids", [])) >= 50:
+                logger.info(
+                    "solutions_already_indexed",
+                    count=len(existing["ids"]),
+                    message="Skipping — delete solution docs to re-index",
+                )
+                return None
+        except Exception:
+            pass  # collection may not support where-filter yet; proceed
+
+        tavily = TavilyClient()
+        documents, metadatas, ids = [], [], []
+        indexed = 0
+
+        # Build full URL list
+        all_entries = [
+            (i, entry, base_url + entry["url"])
+            for i, entry in enumerate(MATHWORKS_SOLUTION_URLS)
+        ]
+
+        # Batch fetch — Tavily Extract supports max 20 URLs per call
+        BATCH_SIZE = 20
+        for batch_start in range(0, len(all_entries), BATCH_SIZE):
+            batch = all_entries[batch_start : batch_start + BATCH_SIZE]
+            batch_urls = [url for _, _, url in batch]
+
+            content_by_url = await tavily.fetch_content_batch(batch_urls)
+
+            for i, entry, url in batch:
+                content = content_by_url.get(url, "")
+                if not content:
+                    logger.warning("solution_page_no_content", url=url)
+                    continue
+
+                category = entry["category"]
+                # Derive title from URL slug (Tavily Extract doesn't return titles)
+                slug = entry["url"].rstrip("/").split("/")[-1].replace(".html", "")
+                title = slug.replace("-", " ").title()
+
+                doc = (
+                    f"Solution: {title}\n"
+                    f"Category: {category}\n"
+                    f"URL: {url}\n"
+                    f"Content: {content[:3000]}"
+                )
+
+                documents.append(doc)
+                metadatas.append({
+                    "type": "solution",
+                    "name": title,
+                    "category": category,
+                    "url": url,
+                })
+                ids.append(f"solution_{i}")
+                indexed += 1
+                logger.info("solution_page_fetched", title=title, url=url)
+
+        if documents:
+            self.collection.upsert(documents=documents, metadatas=metadatas, ids=ids)
+            logger.info(
+                "solutions_indexed",
+                count=indexed,
+                collection=self.collection_name,
+            )
+
+        return indexed
+
+
+# ---------------------------------------------------------------------------
+# Solution URLs to scrape from mathworks.com/solutions.html
+# ---------------------------------------------------------------------------
+
+MATHWORKS_SOLUTION_URLS: list[dict] = [
+    # Applications
+    {"url": "/solutions/artificial-intelligence.html", "category": "Applications"},
+    {"url": "/solutions/automated-driving.html", "category": "Applications"},
+    {"url": "/solutions/computational-biology.html", "category": "Applications"},
+    {"url": "/solutions/control-systems.html", "category": "Applications"},
+    {"url": "/solutions/electrification.html", "category": "Applications"},
+    {"url": "/solutions/embedded-ai.html", "category": "Applications"},
+    {"url": "/solutions/embedded-systems.html", "category": "Applications"},
+    {"url": "/solutions/enterprise-it-systems.html", "category": "Applications"},
+    {"url": "/solutions/fpga-asic-soc-development.html", "category": "Applications"},
+    {"url": "/solutions/image-processing-computer-vision.html", "category": "Applications"},
+    {"url": "/solutions/internet-of-things.html", "category": "Applications"},
+    {"url": "/solutions/mechatronics.html", "category": "Applications"},
+    {"url": "/solutions/mixed-signal-systems.html", "category": "Applications"},
+    {"url": "/solutions/predictive-maintenance.html", "category": "Applications"},
+    {"url": "/solutions/aerospace-defense/radar-systems.html", "category": "Applications"},
+    {"url": "/solutions/robotics.html", "category": "Applications"},
+    {"url": "/solutions/signal-processing.html", "category": "Applications"},
+    {"url": "/solutions/test-measurement.html", "category": "Applications"},
+    {"url": "/solutions/wireless-communications.html", "category": "Applications"},
+    # Industries
+    {"url": "/solutions/aerospace-defense.html", "category": "Industries"},
+    {"url": "/solutions/aerospace-defense/space-systems.html", "category": "Industries"},
+    {"url": "/solutions/aerospace-defense/rf-systems.html", "category": "Industries"},
+    {"url": "/solutions/aerospace-defense/maritime-systems.html", "category": "Industries"},
+    {"url": "/solutions/aerospace-defense/digital-transformation.html", "category": "Industries"},
+    {"url": "/solutions/agriculture.html", "category": "Industries"},
+    {"url": "/solutions/automotive.html", "category": "Industries"},
+    {"url": "/solutions/automotive/virtual-vehicle.html", "category": "Industries"},
+    {"url": "/solutions/automotive/electric-vehicle.html", "category": "Industries"},
+    {"url": "/solutions/automotive/software-defined-vehicle.html", "category": "Industries"},
+    {"url": "/solutions/biotech-pharmaceutical.html", "category": "Industries"},
+    {"url": "/solutions/communications.html", "category": "Industries"},
+    {"url": "/solutions/electronics.html", "category": "Industries"},
+    {"url": "/solutions/energy-production.html", "category": "Industries"},
+    {"url": "/solutions/energy-production/utilities-energy.html", "category": "Industries"},
+    {"url": "/solutions/energy-production/utilities-energy/power-system-studies.html", "category": "Industries"},
+    {"url": "/solutions/energy-production/utilities-energy/grid-analytics.html", "category": "Industries"},
+    {"url": "/solutions/industrial-automation-machinery.html", "category": "Industries"},
+    {"url": "/solutions/industrial-automation-machinery/machine-builders.html", "category": "Industries"},
+    {"url": "/solutions/industrial-automation-machinery/automation-components.html", "category": "Industries"},
+    {"url": "/solutions/medical-devices.html", "category": "Industries"},
+    {"url": "/solutions/medical-devices/therapeutic-devices.html", "category": "Industries"},
+    {"url": "/solutions/medical-devices/medical-imaging.html", "category": "Industries"},
+    {"url": "/solutions/medical-devices/fda-software-validation.html", "category": "Industries"},
+    {"url": "/solutions/mining.html", "category": "Industries"},
+    {"url": "/solutions/finance-and-risk-management.html", "category": "Industries"},
+    {"url": "/solutions/finance-and-risk-management/machine-learning.html", "category": "Industries"},
+    {"url": "/solutions/railway-systems.html", "category": "Industries"},
+    {"url": "/solutions/semiconductors.html", "category": "Industries"},
+    {"url": "/solutions/software-internet.html", "category": "Industries"},
+    # Disciplines
+    {"url": "/solutions/biological-sciences.html", "category": "Disciplines"},
+    {"url": "/solutions/chemical-engineering.html", "category": "Disciplines"},
+    {"url": "/solutions/chemistry.html", "category": "Disciplines"},
+    {"url": "/solutions/electrical-computer-engineering.html", "category": "Disciplines"},
+    {"url": "/solutions/geoscience.html", "category": "Disciplines"},
+    {"url": "/solutions/mathematics.html", "category": "Disciplines"},
+    {"url": "/solutions/mechanical-engineering.html", "category": "Disciplines"},
+    {"url": "/solutions/neuroscience.html", "category": "Disciplines"},
+    {"url": "/solutions/physics.html", "category": "Disciplines"},
+    # Capabilities
+    {"url": "/solutions/cloud.html", "category": "Capabilities"},
+    {"url": "/solutions/deployment.html", "category": "Capabilities"},
+    {"url": "/solutions/discrete-event-simulation.html", "category": "Capabilities"},
+    {"url": "/solutions/embedded-code-generation.html", "category": "Capabilities"},
+    {"url": "/solutions/embedded-security.html", "category": "Capabilities"},
+    {"url": "/solutions/functional-safety.html", "category": "Capabilities"},
+    {"url": "/solutions/gpu-computing.html", "category": "Capabilities"},
+    {"url": "/solutions/model-based-design.html", "category": "Capabilities"},
+    {"url": "/solutions/model-deployment.html", "category": "Capabilities"},
+    {"url": "/solutions/parallel-computing.html", "category": "Capabilities"},
+    {"url": "/solutions/parallel-simulation.html", "category": "Capabilities"},
+    {"url": "/solutions/physical-modeling.html", "category": "Capabilities"},
+    {"url": "/solutions/real-time-simulation-and-testing.html", "category": "Capabilities"},
+    {"url": "/solutions/report-generation.html", "category": "Capabilities"},
+    {"url": "/solutions/software-architectures.html", "category": "Capabilities"},
+    {"url": "/solutions/model-based-systems-engineering.html", "category": "Capabilities"},
+    {"url": "/solutions/verification-validation.html", "category": "Capabilities"},
+]
+
 
 class ProductMatcher:
     """Matches requirements to products using semantic search."""
@@ -645,66 +826,186 @@ class ProductMatcher:
                 f"Run ProductCatalogIndexer.build_catalog() and index_products() first."
             )
 
+        # Build BM25 index from all ChromaDB documents (products + solution enrichments)
+        all_data = self.collection.get(include=["documents", "metadatas"])
+        self._bm25_docs: list[str] = all_data.get("documents") or []
+        self._bm25_names: list[str] = [
+            m.get("name", "") for m in (all_data.get("metadatas") or [])
+        ]
+        self._bm25_index = BM25Okapi(
+            [doc.lower().split() for doc in self._bm25_docs]
+        ) if self._bm25_docs else None
+
+        # Track product names only (exclude solution enrichment docs from output)
+        self._product_names: set[str] = {
+            m.get("name", "")
+            for m in (all_data.get("metadatas") or [])
+            if m.get("type", "product") != "solution"
+        }
+
+        logger.info(
+            "bm25_index_built",
+            total_docs=len(self._bm25_docs),
+            product_count=len(self._product_names),
+        )
+
+        # Lazy cross-encoder slot — loaded on first call to _get_cross_encoder()
+        self._cross_encoder: CrossEncoder | None = None
+        self._cross_encoder_model = "mixedbread-ai/mxbai-rerank-xsmall-v1"
+
+    def _bm25_search(self, query: str, top_k: int) -> list[tuple[str, float]]:
+        """BM25 keyword search over all indexed documents."""
+        if not self._bm25_index:
+            return []
+        tokens = query.lower().split()
+        scores = self._bm25_index.get_scores(tokens)
+        indexed = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)
+        return [(self._bm25_names[i], score) for i, score in indexed[:top_k]]
+
+    def _get_cross_encoder(self) -> CrossEncoder:
+        """Lazy-load cross-encoder model on first call. Cached for process lifetime.
+        Raises on failure — re-ranking is required, not optional."""
+        if self._cross_encoder is None:
+            self._cross_encoder = CrossEncoder(self._cross_encoder_model)
+            logger.info("cross_encoder_loaded", model=self._cross_encoder_model)
+        return self._cross_encoder
+
+    def _rerank_candidates(
+        self,
+        requirements: list[str],
+        candidates: list[tuple[str, float]],
+        top_k: int,
+    ) -> list[tuple[str, float]]:
+        """Re-rank RRF candidates using cross-encoder for precision.
+
+        Fetches full product documents from ChromaDB, scores all (requirement, document)
+        pairs, aggregates by max score per product, and returns top_k re-sorted results.
+
+        mxbai-rerank-xsmall-v1 outputs raw logits — sigmoid converts to [0, 1].
+        Raises if cross-encoder fails — re-ranking is required, not optional.
+        """
+        if not candidates:
+            return []
+        ce = self._get_cross_encoder()
+
+        candidate_names = [name for name, _ in candidates]
+        stored = self.collection.get(
+            where={"name": {"$in": candidate_names}},
+            include=["documents", "metadatas"],
+        )
+        doc_by_name: dict[str, str] = {}
+        for doc, meta in zip(stored["documents"], stored["metadatas"]):
+            doc_by_name[meta.get("name", "")] = doc
+
+        # Build (requirement, product_doc) pairs — one per (candidate, requirement) combo
+        pairs: list[list[str]] = []
+        pair_names: list[str] = []
+        for name in candidate_names:
+            doc = doc_by_name.get(name, name)
+            for req in requirements:
+                pairs.append([req, doc])
+                pair_names.append(name)
+
+        ce_scores_raw = ce.predict(pairs)
+
+        # Aggregate per product: take max score across all requirements
+        product_max_score: dict[str, float] = {}
+        for name, score in zip(pair_names, ce_scores_raw):
+            product_max_score[name] = max(
+                product_max_score.get(name, float("-inf")), float(score)
+            )
+
+        reranked = sorted(product_max_score.items(), key=lambda x: x[1], reverse=True)
+
+        def sigmoid(x: float) -> float:
+            return 1.0 / (1.0 + math.exp(-max(-50.0, min(50.0, x))))
+
+        result = [(name, round(sigmoid(score), 4)) for name, score in reranked[:top_k]]
+        # Release ~220MB after each research run so subsequent Ollama calls have full RAM budget
+        self._cross_encoder = None
+        return result
+
     async def match_requirements_to_products(
         self,
         requirements: list[str],
         top_k: int = 5
     ) -> list[tuple[str, float]]:
         """
-        Match requirements to products with confidence scores.
+        Match requirements to products using hybrid BM25 + vector search with
+        Reciprocal Rank Fusion (RRF).
+
+        BM25 handles exact/keyword matches (e.g. "HDL Coder", "AUTOSAR").
+        Vector search handles semantic similarity (e.g. "battery management" → Simscape Battery).
+        RRF fuses both ranked lists without needing score normalization.
+
+        Solution enrichment docs participate in retrieval to boost recall but are
+        filtered from the final output — only product names are returned.
 
         Args:
             requirements: List of requirement strings
-            top_k: Number of top matches to return per requirement
+            top_k: Number of top product matches to return
 
         Returns:
-            List of (product_name, confidence_score) tuples
+            List of (product_name, confidence_score) tuples, confidence in [0, 1]
         """
-        all_matches = []
+        if not requirements:
+            return []
+
+        K = 60          # Standard RRF constant (robust to outliers)
+        POOL = max(top_k * 4, 20)  # Wide retrieval pool — BM25 + vector recall breadth
+        RERANK_POOL = settings.rerank_pool_size  # Cross-encoder input cap (tunable in config)
+
+        rrf_scores: dict[str, float] = {}
 
         for req in requirements:
+            # --- Vector retrieval (ChromaDB) ---
             try:
-                results = self.collection.query(
+                vector_results = self.collection.query(
                     query_texts=[req],
-                    n_results=top_k
+                    n_results=POOL,
                 )
-
-                if results and results["metadatas"]:
-                    for i, metadata in enumerate(results["metadatas"][0]):
-                        product_name = metadata.get("name", "Unknown")
-                        # ChromaDB returns distances, convert to similarity (1 - distance)
-                        distance = results["distances"][0][i] if results["distances"] else 1.0
-                        confidence = max(0.0, 1.0 - distance)
-
-                        all_matches.append((product_name, confidence))
-
+                vector_ranked: list[str] = []
+                if vector_results and vector_results["metadatas"]:
+                    for meta in vector_results["metadatas"][0]:
+                        vector_ranked.append(meta.get("name", ""))
             except Exception as e:
-                logger.warning("match_failed", requirement=req, error=str(e))
-                continue
+                logger.warning("vector_match_failed", requirement=req[:80], error=str(e))
+                vector_ranked = []
 
-        # Aggregate and deduplicate
-        product_scores: dict[str, float] = {}
-        for product, score in all_matches:
-            if product not in product_scores:
-                product_scores[product] = score
-            else:
-                # Take max score for duplicate products
-                product_scores[product] = max(product_scores[product], score)
+            # --- BM25 retrieval (only include docs with score > 0) ---
+            bm25_ranked = [
+                name for name, score in self._bm25_search(req, POOL) if score > 0
+            ]
 
-        # Sort by confidence descending
-        sorted_matches = sorted(
-            product_scores.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )
+            # --- RRF fusion ---
+            for rank, name in enumerate(vector_ranked):
+                rrf_scores[name] = rrf_scores.get(name, 0.0) + 1.0 / (K + rank + 1)
+            for rank, name in enumerate(bm25_ranked):
+                rrf_scores[name] = rrf_scores.get(name, 0.0) + 1.0 / (K + rank + 1)
+
+        # Sort by RRF score, keep product docs only, normalize to [0, 1]
+        # Use theoretical max (both retrievers return rank-0 for every requirement)
+        # so that unrelated queries yield low confidence instead of always 1.0
+        sorted_all = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
+        theoretical_max = len(requirements) * 2.0 / (K + 1)
+        norm_denom = max(theoretical_max, sorted_all[0][1] if sorted_all else 1.0)
+
+        results = [
+            (name, round(score / norm_denom, 4))
+            for name, score in sorted_all
+            if name in self._product_names
+        ]
 
         logger.info(
-            "requirements_matched",
+            "requirements_matched_hybrid",
             requirement_count=len(requirements),
-            match_count=len(sorted_matches)
+            candidates=len(sorted_all),
+            product_matches=len(results),
         )
 
-        return sorted_matches[:top_k]
+        # Stage 2: cross-encoder re-ranking over top RERANK_POOL candidates
+        # 2:1 ratio (default 20→10) preserves re-ranking value while halving pairs vs full POOL
+        return self._rerank_candidates(requirements, results[:RERANK_POOL], top_k)
 
     async def explain_match(
         self,

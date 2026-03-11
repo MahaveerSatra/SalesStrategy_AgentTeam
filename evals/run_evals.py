@@ -2,11 +2,13 @@
 Eval framework entry point.
 
 Usage:
-    python -m evals.run_evals --case TC-01           # run workflow + det checks + write judge prompt
-    python -m evals.run_evals --case TC-01 --mock    # fast: synthetic state, no live API
-    python -m evals.run_evals --ingest TC-01         # read judge JSON response, record scores
-    python -m evals.run_evals --compare              # delta table for all cases
-    python -m evals.run_evals --compare TC-01        # delta table for one case
+    python -m evals.run_evals --case TC-01              # run workflow + det checks + write judge prompt
+    python -m evals.run_evals --case TC-01 --mock       # fast: synthetic state, no live API
+    python -m evals.run_evals --case TC-01 --agent gatherer   # per-agent prompt (loads saved state)
+    python -m evals.run_evals --ingest TC-01            # read judge JSON response, record scores
+    python -m evals.run_evals --ingest TC-01 --agent gatherer # ingest per-agent judge response
+    python -m evals.run_evals --compare                 # delta table for all cases
+    python -m evals.run_evals --compare TC-01           # delta table for one case
 """
 import argparse
 import json
@@ -16,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from evals.deterministic_checks import run_all_checks
-from evals.judge import format_judge_prompt, validate_judge_response
+from evals.judge import format_agent_judge_prompt, format_judge_prompt, validate_judge_response
 from evals.metrics import (
     RESULTS_DIR,
     append_to_history,
@@ -213,10 +215,12 @@ def _run_live_workflow(case: dict) -> dict:
 # --case command
 # ---------------------------------------------------------------------------
 
-def cmd_case(case_id: str, mock: bool = False) -> None:
+def cmd_case(case_id: str, mock: bool = False, agent: str | None = None) -> None:
     """Run workflow for a test case, execute det checks, write judge prompt."""
+    agent_tag = f"  [agent={agent}]" if agent else ""
+    mock_tag = "  [MOCK MODE]" if mock else ""
     print(f"\n{'='*60}")
-    print(f"  EVAL RUN - {case_id}{'  [MOCK MODE]' if mock else ''}")
+    print(f"  EVAL RUN - {case_id}{mock_tag}{agent_tag}")
     print(f"{'='*60}")
 
     case = get_case(case_id)
@@ -227,12 +231,34 @@ def cmd_case(case_id: str, mock: bool = False) -> None:
     if inp.get("region"):
         print(f"  Region   : {inp['region']}")
 
-    print()
-    if mock:
-        print("  Building synthetic mock state...")
-        state = _build_mock_state(case)
+    state_path = RESULTS_DIR / f"state_{case_id}.json"
+
+    if agent:
+        # Per-agent mode: load saved state rather than re-running workflow
+        if state_path.exists():
+            print(f"\n  Loading saved state from {state_path} ...")
+            with open(state_path, "r", encoding="utf-8") as f:
+                state = json.load(f)
+        else:
+            print("\n  No saved state found — running workflow first ...")
+            if mock:
+                state = _build_mock_state(case)
+            else:
+                state = _run_live_workflow(case)
+            with open(state_path, "w", encoding="utf-8") as f:
+                json.dump(state, f, default=str, indent=2)
     else:
-        state = _run_live_workflow(case)
+        print()
+        if mock:
+            print("  Building synthetic mock state...")
+            state = _build_mock_state(case)
+        else:
+            state = _run_live_workflow(case)
+
+        # Always save state so per-agent runs can reuse it
+        with open(state_path, "w", encoding="utf-8") as f:
+            json.dump(state, f, default=str, indent=2)
+        print(f"  State saved to: {state_path}")
 
     # Run deterministic checks
     print("\n  Running deterministic checks...")
@@ -250,11 +276,19 @@ def cmd_case(case_id: str, mock: bool = False) -> None:
     with open(det_path, "w", encoding="utf-8") as f:
         json.dump(det_results, f, indent=2)
 
-    # Format and write judge prompt
+    # Format and write judge prompt (per-agent or full)
     print("\n  Formatting judge prompt...")
-    prompt = format_judge_prompt(case, state, det_results)
+    if agent:
+        prompt = format_agent_judge_prompt(agent, case, state, det_results)
+        pending_path = RESULTS_DIR / f"pending_judge_{case_id}_{agent}.txt"
+        response_path = f"evals/results/judge_response_{case_id}_{agent}.json"
+        ingest_cmd = f"python -m evals.run_evals --ingest {case_id} --agent {agent}"
+    else:
+        prompt = format_judge_prompt(case, state, det_results)
+        pending_path = RESULTS_DIR / f"pending_judge_{case_id}.txt"
+        response_path = f"evals/results/judge_response_{case_id}.json"
+        ingest_cmd = f"python -m evals.run_evals --ingest {case_id}"
 
-    pending_path = RESULTS_DIR / f"pending_judge_{case_id}.txt"
     with open(pending_path, "w", encoding="utf-8") as f:
         f.write(prompt)
 
@@ -264,8 +298,8 @@ def cmd_case(case_id: str, mock: bool = False) -> None:
     print(f"  1. Open:  {pending_path}")
     print("  2. Copy the full content and paste into Claude Pro (browser)")
     print("  3. Copy the JSON response Claude returns")
-    print(f"  4. Save it to: evals/results/judge_response_{case_id}.json")
-    print(f"  5. Run:  python -m evals.run_evals --ingest {case_id}")
+    print(f"  4. Save it to: {response_path}")
+    print(f"  5. Run:  {ingest_cmd}")
     print("  ---------------------------------------------------------")
 
 
@@ -273,16 +307,21 @@ def cmd_case(case_id: str, mock: bool = False) -> None:
 # --ingest command
 # ---------------------------------------------------------------------------
 
-def cmd_ingest(case_id: str) -> None:
+def cmd_ingest(case_id: str, agent: str | None = None) -> None:
     """Read judge JSON response, validate, record scores."""
+    agent_tag = f"  [agent={agent}]" if agent else ""
     print(f"\n{'='*60}")
-    print(f"  INGEST - {case_id}")
+    print(f"  INGEST - {case_id}{agent_tag}")
     print(f"{'='*60}")
 
-    response_path = RESULTS_DIR / f"judge_response_{case_id}.json"
+    if agent:
+        response_path = RESULTS_DIR / f"judge_response_{case_id}_{agent}.json"
+    else:
+        response_path = RESULTS_DIR / f"judge_response_{case_id}.json"
+
     if not response_path.exists():
         print(f"  Error: judge response file not found: {response_path}")
-        print(f"  Run --case {case_id} first, then paste judge output into that file.")
+        print(f"  Run --case {case_id}{' --agent ' + agent if agent else ''} first, then paste judge output into that file.")
         sys.exit(1)
 
     with open(response_path, "r", encoding="utf-8") as f:
@@ -310,7 +349,7 @@ def cmd_ingest(case_id: str) -> None:
         det_results = []
 
     run_id = str(uuid.uuid4())[:8]
-    append_to_history(run_id, case_id, judge_data, det_results)
+    append_to_history(run_id, case_id, judge_data, det_results, agent=agent or "all")
 
     print(f"  Scores recorded (run_id={run_id})")
     print_score_summary(case_id, judge_data, det_results)
@@ -360,6 +399,12 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use synthetic fixture state instead of live workflow (fast, no API required)",
     )
+    parser.add_argument(
+        "--agent",
+        choices=["gatherer", "identifier", "validator", "coordinator"],
+        default=None,
+        help="Generate/ingest per-agent judge prompt (requires --case or --ingest)",
+    )
     return parser
 
 
@@ -368,9 +413,9 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.case:
-        cmd_case(args.case, mock=args.mock)
+        cmd_case(args.case, mock=args.mock, agent=args.agent)
     elif args.ingest:
-        cmd_ingest(args.ingest)
+        cmd_ingest(args.ingest, agent=args.agent)
     elif args.compare is not None:
         target = None if args.compare == "__all__" else args.compare
         cmd_compare(target)

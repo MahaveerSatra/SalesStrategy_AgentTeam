@@ -1,23 +1,44 @@
 {
   "id": "TC-04",
+  "description": "Tiny climate-tech startup with sparse public data — the primary stress test for graceful low-data handling, hallucination avoidance, and confidence calibration under evidence scarcity",
+  "test_focus": "Hallucination prevention: does the Identifier avoid inventing opportunities when evidence is sparse? Does the Validator correctly assign low-to-medium confidence (not inflate to 0.8+)? Does the Coordinator generate a report that honestly acknowledges limited data rather than fabricating authority?",
   "input": {
     "account_name": "Remora Carbon",
     "industry": "carbon capture",
-    "seller_name": "MathWorks"
+    "seller_name": "MathWorks",
+    "user_context": "Remora Carbon is a climate engineering startup building a carbon capture device for semi-trucks. They have an engineering team. Focus on process simulation and optimization tooling that supports a team building novel thermodynamic and fluid systems — not enterprise-scale solutions.",
+    "research_depth": "STANDARD"
   },
   "eval_criteria": {
     "gatherer": {
-      "min_signals": 2,
-      "max_signals": 10,
-      "note": "Small startup — graceful low-data handling expected"
+      "min_signals": 8,
+      "max_signals": 12,
+      "expected_signal_types": ["hiring", "news","tech_stack"],
+      "expected_keywords_in_signals": ["carbon capture", "engineering", "simulation", "process", "climate", "emissions", "startup","controls"],
+      "min_job_postings": 3,
+      "eval_focus": "The Gatherer is expected to find LIMITED signals here — that is the correct outcome, not a failure. The test is: (1) does it find the signals that DO exist (startup news, job listings if any)? (2) does it avoid hallucinating signals for a company with minimal web presence? Returning 0 signals when at least 2 should exist means the Gatherer's query generation failed. Returning 15+ signals for a seed startup likely means it is mixing in unrelated companies.",
+      "note": "tech_stack signals are possible for a startup — absence is also okay. max_signals cap: if more than 12 signals are returned for Remora Carbon, the Gatherer is likely polluting results with irrelevant companies or over-broad queries."
     },
     "identifier": {
-      "min_opportunities": 1,
-      "confidence_calibration": "scores should reflect limited evidence (not inflated)"
+      "expected_products_mentioned": ["Simulink","Simscape","Simscape Fluids","Optimization Toolbox","Statistics and Machine Learning Toolbox"],
+      "unexpected_products": ["Deep Learning Toolbox", "Automated Driving Toolbox", "Bioinformatics Toolbox", "Embedded Coder", "Aerospace Toolbox"],
+      "min_opportunities": 2,
+      "expected_personas": ["Lead Engineer", "CTO", "Co-Founder", "Process Engineer","Simulation Engineer"],
+      "talking_points_must_cite_sources": true,
+      "eval_focus": "The HARDEST Identifier test: with only 2-5 signals, can it still identify 3 credible opportunity without hallucinating 5+? Seeing unexpected_products (Embedded Coder) for a carbon capture startup with no AI/embedded signals is a clear hallucination failure. The startup persona (CTO, Co-Founder) vs enterprise persona (VP of Engineering) distinction tests whether the Identifier uses account context. Confidence on opportunities should be LOW (0.60-0.70) — if it's 0.85+, the Identifier is not reflecting evidence quality.",
+      "note": "Expected: Two opportunities is acceptable with good evidence. Four or more is very likely overconfident."
     },
     "validator": {
+      "min_confidence_score": 0.6,
       "all_risks_grounded": true,
-      "no_hallucinated_products": true
+      "no_hallucinated_products": true,
+      "eval_focus": "The Validator MUST downgrade inflated confidence here. If the Identifier assigned 0.80 confidence on sparse evidence, the Validator should reduce it to 0.70. If validated_opportunities has the same confidence as raw opportunities, the Validator's _score_opportunities() is not calibrating. Risk assessment is the secondary test: are risks grounded (e.g. 'limited evidence base') or generic boilerplate ('competitive landscape may be challenging')?",
+      "note": "This case deliberately tests whether the Validator can identify and handle low-evidence scenarios, not just pass through Identifier output"
+    },
+    "report": {
+      "must_include": ["Remora Carbon", "carbon capture", "engineering", "next step"],
+      "must_not_include": ["act now", "limited time", "last chance", "extensive evidence", "strongly indicates"],
+      "eval_focus": "The report must NOT use language that overstates the evidence (e.g. 'extensive signals indicate...', 'strongly suggests...'). For a sparse-evidence case, the Coordinator should produce a brief report that honestly characterizes limited findings and recommends exploratory next steps — not a full 5-opportunity brief. A long report with many strong claims for Remora Carbon without strong evidence or signals is a Coordinator hallucination/overconfidence failure."
     }
   }
 }

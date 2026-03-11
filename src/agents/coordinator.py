@@ -996,7 +996,7 @@ Based on your research, ask these:
             # the sales rep sees, so quality here matters most
             response = await self.model_router.generate(
                 prompt=prompt,
-                complexity=7,  # Use more capable model for critical output
+                complexity=8,  # Advanced model (Groq 70b) — report quality is the primary user-facing output
                 use_cache=False,  # Don't cache reports - each should be fresh
                 max_tokens=5000  # Crisp report - user can ask for more detail
             )
