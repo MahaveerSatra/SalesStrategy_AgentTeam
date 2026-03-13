@@ -30,8 +30,8 @@ class Settings(BaseSettings):
         description="External model for complex reasoning"
     )
     advanced_model: str = Field(
-        default="groq/llama-3.3-70b",
-        description="External model for advanced reasoning"
+        default="groq/openai/gpt-oss-20b",
+        description="External model for advanced reasoning. Override via ADVANCED_MODEL in .env"
     )
     claude_model: str = Field(
         default="anthropic/claude-haiku-4-5-20251001",

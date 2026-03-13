@@ -3,6 +3,10 @@ Deterministic (rule-based) checks on final ResearchState.
 No LLM required — fully automated.
 
 Each check returns: {"check": str, "passed": bool, "detail": str}
+
+All checks expect Opportunity and Signal objects (Pydantic models), matching
+the type contract of the live workflow. The mock builder produces the same
+types, so a check that passes on mock is guaranteed to work on live state.
 """
 import re
 from typing import Any
@@ -39,12 +43,10 @@ def check_citation_format(state: dict) -> dict:
 
     cited_count = 0
     for opp in opps:
-        talking_points = opp.get("talking_points", [])
-        if isinstance(talking_points, list):
-            for tp in talking_points:
-                if citation_re.search(str(tp)):
-                    cited_count += 1
-                    break  # one cited point per opp is enough
+        for tp in opp.talking_points:
+            if citation_re.search(str(tp)):
+                cited_count += 1
+                break  # one cited point per opp is enough
 
     passed = cited_count > 0
     return {
@@ -59,7 +61,7 @@ def check_citation_format(state: dict) -> dict:
 
 
 def check_confidence_threshold(state: dict, threshold: float = 0.6) -> dict:
-    """All validated_opportunities have confidence >= threshold."""
+    """All validated_opportunities have confidence_score >= threshold."""
     opps = state.get("validated_opportunities", [])
     if not opps:
         return {
@@ -69,9 +71,9 @@ def check_confidence_threshold(state: dict, threshold: float = 0.6) -> dict:
         }
 
     below = [
-        f"{opp.get('product_name', 'unknown')}={opp.get('confidence', 0):.2f}"
+        f"{opp.product_name}={opp.confidence_score:.2f}"
         for opp in opps
-        if opp.get("confidence", 0) < threshold
+        if opp.confidence_score < threshold
     ]
     passed = len(below) == 0
     return {
@@ -99,7 +101,7 @@ def check_tech_stack_non_empty(state: dict) -> dict:
 def check_no_duplicate_signals(state: dict) -> dict:
     """No two signals share identical content."""
     signals = state.get("signals", [])
-    contents = [s.get("content", "") for s in signals]
+    contents = [sig.content for sig in signals]
     seen: set[str] = set()
     duplicates: list[str] = []
     for c in contents:
@@ -129,12 +131,7 @@ def check_opportunity_has_evidence(state: dict) -> dict:
             "detail": "No validated opportunities",
         }
 
-    without_evidence = []
-    for opp in opps:
-        evidence = opp.get("evidence", []) or opp.get("supporting_signals", [])
-        if not evidence:
-            without_evidence.append(opp.get("product_name", "unknown"))
-
+    without_evidence = [opp.product_name for opp in opps if not opp.evidence]
     passed = len(without_evidence) == 0
     return {
         "check": "opportunity_has_evidence",
@@ -152,7 +149,8 @@ def check_url_in_signals(state: dict, min_urls: int = 3) -> dict:
     signals = state.get("signals", [])
     url_count = 0
     for sig in signals:
-        meta = sig.get("metadata", {}) or {}
+        # Signal.metadata is dict[str, Any] — always a dict, safe to call .get()
+        meta = sig.metadata or {}
         if meta.get("url") or meta.get("source_url"):
             url_count += 1
 
@@ -198,7 +196,7 @@ def check_no_urgency_language(state: dict) -> dict:
         texts_to_scan.append(state["current_report"])
 
     for opp in state.get("validated_opportunities", []):
-        for tp in opp.get("talking_points", []) or []:
+        for tp in opp.talking_points:
             texts_to_scan.append(str(tp))
 
     for risk in state.get("competitive_risks", []) or []:
@@ -247,7 +245,7 @@ def check_expected_products_mentioned(state: dict, case: dict) -> dict:
         }
 
     all_opps = state.get("validated_opportunities", []) or state.get("opportunities", [])
-    found_products = {opp.get("product_name", "") for opp in all_opps}
+    found_products = {opp.product_name for opp in all_opps}
 
     # Partial match: e.g. "Embedded Coder" matches "Embedded Coder for Production"
     missing = [
@@ -352,7 +350,8 @@ def run_all_checks(state: dict, case: dict) -> list[dict]:
     9 baseline checks (pipeline-wide) + 4 Phase 2 checks (use eval_criteria fields).
 
     Args:
-        state: Final ResearchState dict from the workflow.
+        state: Final ResearchState dict from the workflow. opportunities and signals
+               are Pydantic Opportunity/Signal objects — not plain dicts.
         case: Golden test case dict (with eval_criteria).
 
     Returns:

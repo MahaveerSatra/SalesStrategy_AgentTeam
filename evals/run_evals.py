@@ -30,6 +30,81 @@ from evals.test_cases.registry import get_case
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _parse_research_depth(value: str | None):
+    """Convert test case JSON string (e.g. 'STANDARD') to ResearchDepth enum."""
+    from src.models.state import ResearchDepth
+    if value is None:
+        return ResearchDepth.STANDARD
+    return ResearchDepth(value.lower())
+
+
+def _serialize_state(state: dict) -> dict:
+    """
+    Serialize state to a JSON-safe dict.
+
+    Calls model_dump(mode="json") on known Pydantic fields so the output is
+    proper nested dicts with enum values as strings, datetimes as ISO strings.
+    Never uses default=str (which produces repr strings, not data).
+    """
+    result = dict(state)
+    for key in ("opportunities", "validated_opportunities"):
+        result[key] = [
+            item.model_dump(mode="json") if hasattr(item, "model_dump") else item
+            for item in (result.get(key) or [])
+        ]
+    result["signals"] = [
+        sig.model_dump(mode="json") if hasattr(sig, "model_dump") else sig
+        for sig in (result.get("signals") or [])
+    ]
+    if hasattr(result.get("progress"), "model_dump"):
+        result["progress"] = result["progress"].model_dump(mode="json")
+    # Handle top-level datetime fields (started_at, last_updated)
+    for key, val in list(result.items()):
+        if isinstance(val, datetime):
+            result[key] = val.isoformat()
+    return result
+
+
+def _deserialize_state(data: dict) -> dict:
+    """
+    Reconstruct Pydantic objects from a JSON-loaded state dict.
+
+    Inverse of _serialize_state — ensures loaded state has the same Pydantic
+    type contract as live workflow state, so deterministic checks and judge
+    formatters always receive typed objects.
+    """
+    from src.models.state import Opportunity, ResearchProgress, Signal
+    result = dict(data)
+
+    raw_signals = result.get("signals") or []
+    result["signals"] = [
+        Signal.model_validate(s) if isinstance(s, dict) else s
+        for s in raw_signals
+    ]
+
+    for key in ("opportunities", "validated_opportunities"):
+        opps = []
+        for item in (result.get(key) or []):
+            if isinstance(item, dict):
+                if "evidence" in item and isinstance(item.get("evidence"), list):
+                    item = {
+                        **item,
+                        "evidence": [
+                            Signal.model_validate(e) if isinstance(e, dict) else e
+                            for e in item["evidence"]
+                        ],
+                    }
+                opps.append(Opportunity.model_validate(item))
+            else:
+                opps.append(item)
+        result[key] = opps
+
+    if isinstance(result.get("progress"), dict):
+        result["progress"] = ResearchProgress.model_validate(result["progress"])
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Mock state builder (--mock fast path)
 # ---------------------------------------------------------------------------
@@ -37,97 +112,131 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 def _build_mock_state(case: dict) -> dict:
     """
     Build a synthetic ResearchState-like dict for fast --mock runs.
-    Uses realistic-looking but entirely synthetic data.
-    No live API calls or Ollama required.
+
+    Uses proper Pydantic Signal and Opportunity objects — structurally identical
+    to live workflow state. This means det checks and judge formatters work the
+    same way on mock and live state, ensuring mock passes are meaningful.
     """
+    from src.models.state import (
+        Opportunity,
+        OpportunityConfidence,
+        ResearchDepth,
+        ResearchProgress,
+        Signal,
+    )
+
     inp = case["input"]
     account = inp["account_name"]
     industry = inp["industry"]
     seller = inp["seller_name"]
+    slug = account.lower().replace(" ", "")
 
-    # Build synthetic signals with metadata URLs and citation-style content
-    signals = []
-    mock_signal_data = [
-        {
-            "content": f"{account} is actively hiring simulation engineers and data scientists, "
-                       f"indicating investment in technical R&D. [SIG-001]",
-            "confidence": 0.85,
-            "signal_type": "hiring",
-            "metadata": {"url": f"https://careers.{account.lower().replace(' ', '')}.com/jobs"},
-        },
-        {
-            "content": f"{account} announced expanded use of model-based design in their "
-                       f"{industry} division. This aligns with MATLAB/Simulink workflows. [SIG-002]",
-            "confidence": 0.80,
-            "signal_type": "news",
-            "metadata": {"url": f"https://news.example.com/{account.lower().replace(' ', '-')}-mbd"},
-        },
-        {
-            "content": f"Job posting at {account}: 'Experience with MATLAB and Simulink required "
-                       f"for systems modeling role.' [JOB-001]",
-            "confidence": 0.90,
-            "signal_type": "hiring",
-            "metadata": {"url": f"https://careers.{account.lower().replace(' ', '')}.com/job/001"},
-        },
-        {
-            "content": f"{account} tech stack includes Python, MATLAB, and C++ for embedded "
-                       f"systems development. [SIG-003]",
-            "confidence": 0.75,
-            "signal_type": "tech_stack",
-            "metadata": {"url": f"https://stackshare.io/{account.lower().replace(' ', '-')}"},
-        },
-        {
-            "content": f"{account} Q3 earnings mention increased engineering headcount and "
-                       f"investment in simulation tooling. [SIG-004]",
-            "confidence": 0.70,
-            "signal_type": "news",
-            "metadata": {"url": f"https://ir.{account.lower().replace(' ', '')}.com/q3-2025"},
-        },
-        {
-            "content": f"LinkedIn: {account} Director of Engineering posted about MBD adoption "
-                       f"challenges in {industry} workflows. [SIG-005]",
-            "confidence": 0.65,
-            "signal_type": "hiring",
-            "metadata": {"url": "https://linkedin.com/posts/sample"},
-        },
+    # Build typed Signal objects — Pydantic validates on construction
+    signals = [
+        Signal(
+            source=f"https://careers.{slug}.com/jobs",
+            signal_type="hiring",
+            content=(
+                f"{account} is actively hiring simulation engineers and data scientists, "
+                f"indicating investment in technical R&D. [SIG-001]"
+            ),
+            confidence=0.85,
+            metadata={"url": f"https://careers.{slug}.com/jobs"},
+        ),
+        Signal(
+            source=f"https://news.example.com/{account.lower().replace(' ', '-')}-mbd",
+            signal_type="news",
+            content=(
+                f"{account} announced expanded use of model-based design in their "
+                f"{industry} division. This aligns with MATLAB/Simulink workflows. [SIG-002]"
+            ),
+            confidence=0.80,
+            metadata={"url": f"https://news.example.com/{account.lower().replace(' ', '-')}-mbd"},
+        ),
+        Signal(
+            source=f"https://careers.{slug}.com/job/001",
+            signal_type="hiring",
+            content=(
+                f"Job posting at {account}: 'Experience with MATLAB and Simulink required "
+                f"for systems modeling role.' [JOB-001]"
+            ),
+            confidence=0.90,
+            metadata={"url": f"https://careers.{slug}.com/job/001"},
+        ),
+        Signal(
+            source=f"https://stackshare.io/{account.lower().replace(' ', '-')}",
+            signal_type="tech_stack",
+            content=(
+                f"{account} tech stack includes Python, MATLAB, and C++ for embedded "
+                f"systems development. [SIG-003]"
+            ),
+            confidence=0.75,
+            metadata={"url": f"https://stackshare.io/{account.lower().replace(' ', '-')}"},
+        ),
+        Signal(
+            source=f"https://ir.{slug}.com/q3-2025",
+            signal_type="news",
+            content=(
+                f"{account} Q3 earnings mention increased engineering headcount and "
+                f"investment in simulation tooling. [SIG-004]"
+            ),
+            confidence=0.70,
+            metadata={"url": f"https://ir.{slug}.com/q3-2025"},
+        ),
+        Signal(
+            source="https://linkedin.com/posts/sample",
+            signal_type="hiring",
+            content=(
+                f"LinkedIn: {account} Director of Engineering posted about MBD adoption "
+                f"challenges in {industry} workflows. [SIG-005]"
+            ),
+            confidence=0.65,
+            metadata={"url": "https://linkedin.com/posts/sample"},
+        ),
     ]
-    for item in mock_signal_data:
-        signals.append(item)
 
-    # Validated opportunities with citation-style talking points
+    # Build typed Opportunity objects — evidence references the Signal objects above
     validated_opportunities = [
-        {
-            "product_name": "MATLAB",
-            "confidence": 0.82,
-            "target_persona": "Director of Engineering",
-            "talking_points": [
+        Opportunity(
+            product_name="MATLAB",
+            rationale=f"Active MATLAB hiring and confirmed tech stack usage at {account}.",
+            confidence_score=0.82,
+            confidence=OpportunityConfidence.HIGH,
+            target_persona="Director of Engineering",
+            talking_points=[
                 f"Based on {account}'s job postings requiring MATLAB [JOB-001], "
                 "MathWorks can directly support their existing workflows.",
                 f"Their tech stack already includes MATLAB [SIG-003], "
                 "making expansion of licenses a low-friction sale.",
                 "MATLAB's data analytics capabilities align with their R&D investment [SIG-004].",
             ],
-            "evidence": ["SIG-001", "SIG-003", "JOB-001"],
-            "supporting_signals": ["SIG-001", "SIG-003"],
-        },
-        {
-            "product_name": "Simulink",
-            "confidence": 0.78,
-            "target_persona": "Systems Engineer",
-            "talking_points": [
+            evidence=[signals[0], signals[2], signals[3]],  # SIG-001, JOB-001, SIG-003
+            risks=["Python-based tooling could reduce MATLAB license adoption."],
+        ),
+        Opportunity(
+            product_name="Simulink",
+            rationale=f"{account} is investing in model-based design across {industry} workflows.",
+            confidence_score=0.78,
+            confidence=OpportunityConfidence.MEDIUM,
+            target_persona="Systems Engineer",
+            talking_points=[
                 f"{account} is investing in model-based design [SIG-002] — "
-                "Simulink is the industry standard for MBD in {industry}.",
+                f"Simulink is the industry standard for MBD in {industry}.",
                 "Their engineering job listings [JOB-001] explicitly call for Simulink experience.",
             ],
-            "evidence": ["SIG-002", "JOB-001"],
-            "supporting_signals": ["SIG-002"],
-        },
+            evidence=[signals[1], signals[2]],  # SIG-002, JOB-001
+            risks=["Open-source alternatives (OpenModelica) gaining traction."],
+        ),
     ]
+
+    research_depth = _parse_research_depth(inp.get("research_depth"))
 
     return {
         "account_name": account,
         "industry": industry,
         "seller_name": seller,
+        "user_context": inp.get("user_context"),
+        "research_depth": research_depth,
         "region": inp.get("region"),
         "signals": signals,
         "job_postings": [
@@ -148,6 +257,12 @@ def _build_mock_state(case: dict) -> dict:
         ],
         "human_feedback": [],
         "waiting_for_human": False,
+        "progress": ResearchProgress(
+            coordinator_complete=True,
+            gatherer_complete=True,
+            identifier_complete=True,
+            validator_complete=True,
+        ),
         "current_report": (
             f"# Sales Intelligence Report: {account}\n\n"
             f"**Seller**: {seller} | **Industry**: {industry}\n\n"
@@ -189,7 +304,8 @@ def _run_live_workflow(case: dict) -> dict:
         industry=inp["industry"],
         seller_name=inp["seller_name"],
         region=inp.get("region"),
-        research_depth=ResearchDepth.QUICK,
+        user_context=inp.get("user_context"),
+        research_depth=_parse_research_depth(inp.get("research_depth")),
     )
 
     print(f"  Initializing workflow (seller={inp['seller_name']})...")
@@ -203,7 +319,7 @@ def _run_live_workflow(case: dict) -> dict:
     while state.get("waiting_for_human") and iterations < 5:
         iterations += 1
         print(f"  Workflow paused (iteration {iterations}) — auto-approving report...")
-        state = workflow.resume(thread_id, human_input="continue")
+        state = workflow.resume(thread_id, human_input="Looks good, the report is approved.")
 
     if state.get("waiting_for_human"):
         print("  Warning: workflow still waiting after 5 auto-approvals.")
@@ -238,7 +354,7 @@ def cmd_case(case_id: str, mock: bool = False, agent: str | None = None) -> None
         if state_path.exists():
             print(f"\n  Loading saved state from {state_path} ...")
             with open(state_path, "r", encoding="utf-8") as f:
-                state = json.load(f)
+                state = _deserialize_state(json.load(f))
         else:
             print("\n  No saved state found — running workflow first ...")
             if mock:
@@ -246,7 +362,7 @@ def cmd_case(case_id: str, mock: bool = False, agent: str | None = None) -> None
             else:
                 state = _run_live_workflow(case)
             with open(state_path, "w", encoding="utf-8") as f:
-                json.dump(state, f, default=str, indent=2)
+                json.dump(_serialize_state(state), f, indent=2)
     else:
         print()
         if mock:
@@ -257,7 +373,7 @@ def cmd_case(case_id: str, mock: bool = False, agent: str | None = None) -> None
 
         # Always save state so per-agent runs can reuse it
         with open(state_path, "w", encoding="utf-8") as f:
-            json.dump(state, f, default=str, indent=2)
+            json.dump(_serialize_state(state), f, indent=2)
         print(f"  State saved to: {state_path}")
 
     # Run deterministic checks

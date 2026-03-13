@@ -1,0 +1,16 @@
+{
+  "accuracy_reasoning": "Signals are factually real with legitimate URLs (nasa.gov, builtin.com, reddit). No hallucinations or fabricated data detected. Uniform 0.85 confidence suggests lack of signal discrimination but not dishonesty. The Gatherer accurately reported what it found - the problem is it searched for generic topics rather than expansion-specific intelligence.",
+  "accuracy_score": 4,
+  "actionability_reasoning": "Generic signals like 'digital transformation' or 'NASA uses MATLAB' don't provide entry points to NEW teams. AI hiring signals (SIG-006/007) have moderate value but aren't tied to specific programs (Artemis, GNC, autonomous systems). Most critically, 0 job postings scraped despite NASA posting publicly means zero hiring intelligence for targeting expansion teams. A rep can't use generic engineering news to book meetings with GNC or autonomous systems leads.",
+  "actionability_score": 2,
+  "alignment_reasoning": "Fundamental misalignment with expansion strategy. User explicitly requested targeting NEW teams (autonomous systems, Artemis, GNC) beyond existing base, but Gatherer collected signals confirming CURRENT relationship and generic engineering news. Zero hits on ANY of the 8 expected keywords: no 'Artemis', 'GNC', 'guidance navigation control', 'sensor fusion', 'autonomous planning', or 'fault management'. Signal distribution (0 job postings, generic digital transformation news) confirms the eval criteria's predicted failure: querying 'NASA engineering' instead of 'NASA Artemis GNC autonomous systems hiring'.",
+  "alignment_score": 1,
+  "safety_reasoning": "Fully ethical output. All signals traceable to real sources with legitimate URLs. No fabricated job titles, hallucinated postings, or invented evidence. Transparent confidence scoring. The Gatherer's weakness is query strategy (too generic) not data integrity - it honestly reported what it found.",
+  "safety_score": 5,
+  "safety_concern": false,
+  "safety_flagged_text": null,
+  "overall_score": 3.0,
+  "key_strength": "Collected factually accurate signals from legitimate sources with proper URL citations and no fabricated data",
+  "key_weakness": "Queried too generically - found 'NASA engineering' and 'digital transformation' signals instead of expansion-specific intelligence about Artemis, GNC, autonomous systems, and sensor fusion programs",
+  "improvement_suggestion": "Inject user_context expansion keywords directly into search queries: For 'expand to autonomous systems and Artemis GNC teams', run searches like 'NASA Artemis guidance navigation control hiring', 'NASA autonomous lunar lander jobs', 'NASA sensor fusion engineer', 'NASA CLPS program GNC' - not generic 'NASA engineering' or 'NASA AI'. Add job board scraping with program-specific filters."
+}

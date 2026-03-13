@@ -1,0 +1,67 @@
+[
+  {
+    "check": "signal_count",
+    "passed": true,
+    "detail": "37 signals collected (min 10)"
+  },
+  {
+    "check": "citation_format",
+    "passed": true,
+    "detail": "3/3 opportunities have cited talking points"
+  },
+  {
+    "check": "confidence_threshold",
+    "passed": true,
+    "detail": "All 3 opportunities >= 0.65"
+  },
+  {
+    "check": "tech_stack_non_empty",
+    "passed": false,
+    "detail": "Tech stack is empty"
+  },
+  {
+    "check": "no_duplicate_signals",
+    "passed": false,
+    "detail": "1 duplicate signal(s) found"
+  },
+  {
+    "check": "opportunity_has_evidence",
+    "passed": true,
+    "detail": "All 3 opportunities have evidence"
+  },
+  {
+    "check": "url_in_signals",
+    "passed": true,
+    "detail": "37 signals have URLs (min 3)"
+  },
+  {
+    "check": "report_generated",
+    "passed": true,
+    "detail": "Report present (4943 chars)"
+  },
+  {
+    "check": "no_urgency_language",
+    "passed": true,
+    "detail": "No urgency/pressure language detected"
+  },
+  {
+    "check": "expected_products_mentioned",
+    "passed": false,
+    "detail": "Expected but not found: Deep Learning Toolbox, Automted Driving Toolbox, Simulink Fault Analyzer, Sensor fusion and Tracking Toolbox, System Composer | Found: Simulink (Simulink Product Family), MATLAB (MATLAB Product Family), Reinforcement Learning Toolbox (Control Systems)"
+  },
+  {
+    "check": "min_opportunities",
+    "passed": false,
+    "detail": "3 validated opportunities (min 5)"
+  },
+  {
+    "check": "report_keywords",
+    "passed": false,
+    "detail": "Missing from report: guidance, sensor"
+  },
+  {
+    "check": "report_has_next_steps",
+    "passed": true,
+    "detail": "Next-steps language found: 'next step'"
+  }
+]

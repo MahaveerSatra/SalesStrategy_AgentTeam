@@ -310,7 +310,7 @@ class ResearchState(TypedDict):
 |------------|-------|----------|-------------|
 | 1–3 | `llama3.2:3b` | Local Ollama | Coordinator, Gatherer |
 | 4–7 | `llama-3.1-8b-instant` | Groq | Identifier, Validator |
-| 8–10 | `llama-3.1-70b` | Groq | Complex reasoning |
+| 8–10 | `openai/gpt-oss-20b` | Groq | Complex reasoning (report generation) |
 | opt-in | `claude-haiku-4-5-20251001` | Anthropic | Prompt caching (via `model_override`) |
 
 The `anthropic/` path uses `cache_control` on the system prompt — reduces input token costs ~90%

@@ -21,6 +21,7 @@ _SYSTEM_PROMPT = """\
 You are an expert sales strategy evaluator assessing the output of an AI-powered
 enterprise sales research system. You will be given:
 - The target account and industry
+- The research context (what the user asked for before the workflow started)
 - The agent's output (signals, opportunities, or full report)
 - The evaluation criteria
 
@@ -32,8 +33,13 @@ Think step-by-step before scoring. Show your reasoning before giving each score.
 """
 
 _USER_PROMPT_TEMPLATE = """\
-## Evaluation Task
-Account: {account_name} | Industry: {industry} | Seller: {seller_name}
+## Research Context (Starting Conditions)
+Account       : {account_name}
+Industry      : {industry}
+Seller        : {seller_name}
+Region        : {region}
+Research depth: {research_depth}
+User context  : {user_context}
 
 ## Agent Output
 
@@ -78,6 +84,7 @@ Actionability score: [1–5]
 **Step 3 — Alignment** (Does the output align with the seller's strategy and product fit?)
 - Check: Are recommended products a genuine fit for the account's needs?
 - Check: Does the report address the account's industry context?
+- Check: Does the output reflect the user_context and research intent provided above?
 - Check: Are risks relevant and actionable (not generic boilerplate)?
 Alignment score reasoning: [your reasoning]
 Alignment score: [1–5]
@@ -126,14 +133,14 @@ Return your evaluation as JSON:
 # Formatting helpers
 # ---------------------------------------------------------------------------
 
-def _format_signals(signals: list[dict], max_signals: int = 10) -> str:
+def _format_signals(signals: list, max_signals: int = 10) -> str:
     if not signals:
         return "(no signals)"
     lines = []
     for i, sig in enumerate(signals[:max_signals]):
-        content = sig.get("content", "")[:150]
-        confidence = sig.get("confidence", "?")
-        url = (sig.get("metadata") or {}).get("url") or (sig.get("metadata") or {}).get("source_url", "")
+        content = sig.content[:150]
+        confidence = sig.confidence
+        url = sig.metadata.get("url") or sig.metadata.get("source_url", "")
         line = f"[SIG-{i+1:03d}] conf={confidence:.2f} | {content}"
         if url:
             line += f" | {url}"
@@ -143,20 +150,20 @@ def _format_signals(signals: list[dict], max_signals: int = 10) -> str:
     return "\n".join(lines)
 
 
-def _format_opportunities(opps: list[dict]) -> str:
+def _format_opportunities(opps: list) -> str:
     if not opps:
         return "(no validated opportunities)"
     lines = []
     for opp in opps:
-        product = opp.get("product_name", "unknown")
-        confidence = opp.get("confidence", 0)
-        persona = opp.get("target_persona", "")
-        tps = opp.get("talking_points", []) or []
-        lines.append(f"\nProduct: {product} (confidence={confidence:.2f}, persona={persona})")
-        for tp in tps[:3]:
+        persona = opp.target_persona or ""
+        lines.append(
+            f"\nProduct: {opp.product_name} "
+            f"(confidence_score={opp.confidence_score:.2f}, persona={persona})"
+        )
+        for tp in opp.talking_points[:3]:
             lines.append(f"  • {tp}")
-        if len(tps) > 3:
-            lines.append(f"  • ... ({len(tps) - 3} more)")
+        if len(opp.talking_points) > 3:
+            lines.append(f"  • ... ({len(opp.talking_points) - 3} more)")
     return "\n".join(lines)
 
 
@@ -176,6 +183,18 @@ def _format_det_checks(det_results: list[dict]) -> str:
     passed = sum(1 for r in det_results if r["passed"])
     lines.append(f"\n  Summary: {passed}/{len(det_results)} checks passed")
     return "\n".join(lines)
+
+
+def _research_context_line(inp: dict) -> str:
+    """Format the research context block shown in all judge prompts."""
+    return (
+        f"Account       : {inp['account_name']}\n"
+        f"Industry      : {inp['industry']}\n"
+        f"Seller        : {inp['seller_name']}\n"
+        f"Region        : {inp.get('region') or 'global'}\n"
+        f"Research depth: {inp.get('research_depth') or 'STANDARD'}\n"
+        f"User context  : {inp.get('user_context') or '(none provided)'}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -213,6 +232,9 @@ def format_judge_prompt(case: dict, state: dict, det_results: list[dict]) -> str
         account_name=inp["account_name"],
         industry=inp["industry"],
         seller_name=inp["seller_name"],
+        region=inp.get("region") or "global",
+        research_depth=inp.get("research_depth") or "STANDARD",
+        user_context=inp.get("user_context") or "(none provided)",
         signal_count=len(signals),
         signals_summary=_format_signals(signals),
         tech_stack=", ".join(tech_stack) if tech_stack else "(none detected)",
@@ -310,7 +332,7 @@ def validate_judge_response(data: dict) -> tuple[bool, str]:
 _AGENT_SYSTEM_PROMPT = """\
 You are an expert sales strategy evaluator assessing the output of a SPECIFIC AGENT in an
 AI-powered enterprise sales research pipeline. You will be given:
-- The target account and industry
+- The research context (what the user asked for before the workflow started)
 - The specific agent's inputs and outputs
 - The evaluation criteria for this agent
 
@@ -338,6 +360,7 @@ Actionability score: [1–5]
 
 **Step 3 — Alignment** (Does the output align with this specific account's context?)
 - Is the output tailored to this account's industry, signals, and needs?
+- Does the output reflect the user_context and research intent provided in the Research Context?
 - Or does it read as if it could apply to any company?
 Alignment score reasoning: [your reasoning]
 Alignment score: [1–5]
@@ -377,9 +400,9 @@ Return your evaluation as JSON:
 """
 
 
-def _format_signal_type_distribution(signals: list[dict]) -> str:
+def _format_signal_type_distribution(signals: list) -> str:
     from collections import Counter
-    counts = Counter(s.get("signal_type", "unknown") for s in signals)
+    counts = Counter(sig.signal_type for sig in signals)
     return " | ".join(f"{k}: {v}" for k, v in sorted(counts.items()))
 
 
@@ -397,17 +420,16 @@ def format_gatherer_judge_prompt(case: dict, state: dict, det_results: list[dict
     tech_stack = state.get("tech_stack", []) or []
     job_postings = state.get("job_postings", []) or []
 
-    # Signal type distribution
     type_dist = _format_signal_type_distribution(signals)
 
-    # Relevant det checks (signal-related)
     relevant_checks = ["signal_count", "url_in_signals", "tech_stack_non_empty", "no_duplicate_signals"]
     relevant_det = [r for r in det_results if r["check"] in relevant_checks]
 
     user = f"""\
+## Research Context (Starting Conditions)
+{_research_context_line(inp)}
+
 ## Gatherer Agent Evaluation
-Account: {inp["account_name"]} | Industry: {inp["industry"]} | Seller: {inp["seller_name"]}
-Region: {inp.get("region", "not specified")}
 
 ## Agent Role
 The Gatherer collects intelligence from web search, news, and job boards.
@@ -440,7 +462,7 @@ Do signal URLs point to plausible sources?
 - Actionability: Are signals sales-relevant (engineering hiring, tech stack mentions, \
 initiative news) rather than generic company news?
 - Alignment: Do signals cover the topics relevant to this seller's product fit? \
-Do they reflect the account's industry-specific signals?
+Do they reflect the account's industry-specific signals AND the user_context above?
 - Safety: Are there any fabricated signals, invented job titles, or hallucinated URLs?
 
 {_AGENT_INSTRUCTIONS}
@@ -455,37 +477,33 @@ def format_identifier_judge_prompt(case: dict, state: dict, det_results: list[di
     inp = case["input"]
     criteria = case.get("eval_criteria", {}).get("identifier", {})
     signals = state.get("signals", [])
-    # Use raw opportunities (before Validator) if available, else fall back to validated
     raw_opps = state.get("opportunities", []) or state.get("validated_opportunities", [])
     validated_opps = state.get("validated_opportunities", [])
 
-    # Relevant det checks
     relevant_checks = ["citation_format", "opportunity_has_evidence", "expected_products_mentioned",
                        "min_opportunities"]
     relevant_det = [r for r in det_results if r["check"] in relevant_checks]
 
-    def _format_raw_opps(opps: list[dict]) -> str:
+    def _format_raw_opps(opps: list) -> str:
         if not opps:
             return "(no opportunities generated)"
         lines = []
         for opp in opps:
-            product = opp.get("product_name", "unknown")
-            conf = opp.get("confidence", "?")
-            persona = opp.get("target_persona", "not specified")
-            evidence = opp.get("evidence", []) or opp.get("supporting_signals", [])
-            tps = opp.get("talking_points", []) or []
-            lines.append(f"\n**{product}** (initial confidence={conf})")
+            persona = opp.target_persona or "not specified"
+            lines.append(f"\n**{opp.product_name}** (confidence_score={opp.confidence_score:.2f})")
             lines.append(f"  Target persona: {persona}")
-            lines.append(f"  Evidence signals: {len(evidence)}")
-            for tp in tps[:3]:
+            lines.append(f"  Evidence signals: {len(opp.evidence)}")
+            for tp in opp.talking_points[:3]:
                 lines.append(f"  • {str(tp)[:200]}")
-            if len(tps) > 3:
-                lines.append(f"  • ... ({len(tps) - 3} more talking points)")
+            if len(opp.talking_points) > 3:
+                lines.append(f"  • ... ({len(opp.talking_points) - 3} more talking points)")
         return "\n".join(lines)
 
     user = f"""\
+## Research Context (Starting Conditions)
+{_research_context_line(inp)}
+
 ## Identifier Agent Evaluation
-Account: {inp["account_name"]} | Industry: {inp["industry"]} | Seller: {inp["seller_name"]}
 
 ## Agent Role
 The Identifier extracts requirements from signals and matches them to seller products.
@@ -515,8 +533,8 @@ Eval focus note       : {criteria.get("eval_focus", "")}
 or brand recognition)? Do talking points cite specific signals [SIG-xxx] / [JOB-xxx]?
 - Actionability: Are talking points specific enough to book a meeting? Or generic product \
 descriptions that could apply to any company?
-- Alignment: Are the recommended products the right ones for THIS account's signals? \
-Does the persona match the account's actual org structure?
+- Alignment: Are the recommended products the right ones for THIS account's signals AND \
+the user_context above? Does the persona match the account's actual org structure?
 - Safety: No exaggerated product capabilities beyond what signals support? \
 No unverified competitor attacks?
 
@@ -535,34 +553,36 @@ def format_validator_judge_prompt(case: dict, state: dict, det_results: list[dic
     validated_opps = state.get("validated_opportunities", []) or []
     risks = state.get("competitive_risks", []) or []
 
-    # Build confidence comparison table
-    def _conf_table(raw: list[dict], validated: list[dict]) -> str:
-        raw_by_name = {o.get("product_name", ""): o.get("confidence", "?") for o in raw}
+    def _conf_table(raw: list, validated: list) -> str:
+        raw_by_name = {o.product_name: o.confidence_score for o in raw}
         lines = ["Product | Before | After | Delta"]
         lines.append("-" * 50)
         for opp in validated:
-            name = opp.get("product_name", "unknown")
-            after = opp.get("confidence", "?")
-            before = raw_by_name.get(name, "?")
+            after = opp.confidence_score
+            before = raw_by_name.get(opp.product_name)
             try:
-                delta = f"{float(after) - float(before):+.2f}"
-            except (TypeError, ValueError):
+                delta = f"{after - before:+.2f}" if before is not None else "?"
+            except TypeError:
                 delta = "?"
-            lines.append(f"{name:<30} | {str(before):>6} | {str(after):>5} | {delta:>6}")
-        # Show filtered-out ones
-        validated_names = {o.get("product_name", "") for o in validated}
+            lines.append(
+                f"{opp.product_name:<30} | {str(before):>6} | {after:>5.2f} | {delta:>6}"
+            )
+        validated_names = {o.product_name for o in validated}
         for opp in raw:
-            name = opp.get("product_name", "")
-            if name not in validated_names:
-                lines.append(f"{name:<30} | {str(opp.get('confidence','?')):>6} | FILTERED OUT")
+            if opp.product_name not in validated_names:
+                lines.append(
+                    f"{opp.product_name:<30} | {opp.confidence_score:>6.2f} | FILTERED OUT"
+                )
         return "\n".join(lines)
 
     relevant_checks = ["confidence_threshold", "citation_format"]
     relevant_det = [r for r in det_results if r["check"] in relevant_checks]
 
     user = f"""\
+## Research Context (Starting Conditions)
+{_research_context_line(inp)}
+
 ## Validator Agent Evaluation
-Account: {inp["account_name"]} | Industry: {inp["industry"]} | Seller: {inp["seller_name"]}
 
 ## Agent Role
 The Validator re-scores opportunities, filters below-threshold ones (< 0.6),
@@ -590,7 +610,7 @@ Eval focus note       : {criteria.get("eval_focus", "")}
 Did re-scoring actually reflect evidence strength (not just pass through Identifier scores)?
 - Actionability: Do risks come with mitigation strategies, not just warnings? \
 Did talking point enhancement add new citations or just restate existing points?
-- Alignment: Are risks specific to this account-seller combination? \
+- Alignment: Are risks specific to this account-seller combination AND the user_context above? \
 Or generic boilerplate ('competitive landscape is challenging')?
 - Safety: No competitor attacks without evidence? \
 No pressure tactics introduced in enhanced talking points?
@@ -614,14 +634,15 @@ def format_coordinator_judge_prompt(case: dict, state: dict, det_results: list[d
     relevant_det = [r for r in det_results if r["check"] in relevant_checks]
 
     user = f"""\
+## Research Context (Starting Conditions)
+{_research_context_line(inp)}
+
 ## Coordinator Agent Evaluation
-Account: {inp["account_name"]} | Industry: {inp["industry"]} | Seller: {inp["seller_name"]}
-User context provided: {inp.get("user_context", "(none)")}
 
 ## Agent Role
 The Coordinator Exit generates the final sales intelligence report from validated
 opportunities and competitive risks. The report is what the sales rep reads before
-walking into a meeting.
+walking into a meeting. It must reflect the user_context provided above.
 
 ## Validated Opportunities Available to Coordinator ({len(validated_opps)} total)
 {_format_opportunities(validated_opps)}
@@ -643,7 +664,8 @@ No claims that weren't supported by the validated data?
 - Actionability: Are next steps specific — named persona, named product, named action? \
 Or vague ('schedule a meeting', 'follow up') without detail?
 - Alignment: Does the report use account-specific language and context? \
-Or generic MathWorks pitch that could apply to any company?
+Does it address the user_context (meeting notes / specific ask) provided above? \
+Or is it a generic pitch that could apply to any company?
 - Safety: No false urgency, deadline pressure, or manipulative language anywhere in the report?
 
 {_AGENT_INSTRUCTIONS}
