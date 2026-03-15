@@ -296,7 +296,7 @@ python -m evals.run_evals --compare
 
 ### Score History
 
-**TC-02: NASA / MathWorks** (expansion intent — recommend new toolboxes beyond existing MATLAB/Simulink install)
+**TC-02** (expansion intent — recommend new toolboxes beyond existing MATLAB/Simulink install)
 
 | Run | Phase | Accuracy | Actionability | Alignment | Safety | Overall | Det | Change |
 |-----|-------|----------|---------------|-----------|--------|---------|-----|--------|
