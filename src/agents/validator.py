@@ -158,7 +158,13 @@ Enterprise software/solutions provider."""
         opportunities = state.get("opportunities", [])
         signals = state.get("signals", [])
         feedback_context = state.get("feedback_context")
-        user_context = state.get("user_context", "")
+        user_context = state.get("user_context", "") or ""
+        if not user_context:
+            human_feedback = state.get("human_feedback", [])
+            if human_feedback:
+                user_context = human_feedback[-1]
+            elif state.get("feedback_context"):
+                user_context = state.get("feedback_context", "")
         seller_name = state.get("seller_name", "Our Company")
 
         self.logger.info(
@@ -357,24 +363,41 @@ If you cannot find evidence for a risk, you MUST:
 - Tag it as [INDUSTRY] and frame it as "Companies in {industry} typically face..."
 - Mark it as lower priority
 
+**MITIGATION REQUIREMENT (MANDATORY):**
+Every risk string MUST end with a `(Mitigation: ...)` clause.
+A risk without a mitigation strategy is INCOMPLETE and must not be returned.
+The mitigation must be a concrete, actionable counter-strategy for the sales rep —
+not a restatement of the risk.
+
 ═══════════════════════════════════════════════════════════════
 EXAMPLES
 ═══════════════════════════════════════════════════════════════
 
-❌ BAD (generic, no evidence):
+❌ BAD (generic, no evidence, no mitigation):
 "They probably have budget constraints this quarter"
+
+❌ BAD (has citation but missing mitigation):
+"[INDUSTRY] Aerospace companies typically have 12-18 month procurement cycles"
 
 ❌ BAD (invented competitor):
 "Strong presence of Competitor X" (when no competitor mentioned in signals)
 
-✅ GOOD (grounded with citation):
-"[SIG-003] Recent earnings call mentioned cost-cutting initiatives - budget approval may require executive sponsorship"
+✅ GOOD (grounded with citation + mitigation):
+"[SIG-003] Recent cost-cutting initiative signals budget scrutiny for new tools
+ (Mitigation: propose a phased pilot starting with one team to minimize initial
+ budget commitment; position ROI payback within 6 months)"
 
-✅ GOOD (grounded with opportunity reference):
-"[OPP-002] The Simulink opportunity faces integration risk - [SIG-007] indicates legacy FORTRAN codebase that may complicate deployment"
+✅ GOOD (grounded with opportunity reference + mitigation):
+"[OPP-002] The Simulink opportunity faces integration risk — [SIG-007] indicates
+ legacy FORTRAN codebase that may complicate deployment
+ (Mitigation: reference MathWorks FORTRAN co-simulation bridge; offer a free
+ integration assessment workshop before purchase commitment)"
 
-✅ GOOD (industry knowledge tagged):
-"[INDUSTRY] Aerospace companies typically have 12-18 month procurement cycles - timing may extend sales cycle"
+✅ GOOD (industry knowledge tagged + mitigation):
+"[INDUSTRY] Aerospace companies typically have 12-18 month procurement cycles —
+ timing may extend sales cycle
+ (Mitigation: engage procurement and contracting stakeholders 6+ months ahead;
+ align proposal timeline with their next fiscal year budget cycle)"
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT (CRITICAL - JSON ONLY)
@@ -383,13 +406,14 @@ OUTPUT FORMAT (CRITICAL - JSON ONLY)
 **RESPOND WITH VALID JSON ONLY. NO markdown, NO explanatory text, NO code fences.**
 
 Return 3-7 evidence-grounded risks. Quality over quantity.
+Each risk string MUST include a (Mitigation: ...) clause — this is non-negotiable.
 
 Your ENTIRE response must be this exact JSON structure:
 {{
     "risks": [
-        "[SIG-xxx] Risk description with specific evidence citation",
-        "[OPP-xxx] Risk affecting specific opportunity with evidence",
-        "[INDUSTRY] Industry-level risk (only if no direct evidence)"
+        "[SIG-xxx] Risk description with evidence citation (Mitigation: concrete counter-strategy)",
+        "[OPP-xxx] Risk affecting specific opportunity (Mitigation: specific mitigation approach)",
+        "[INDUSTRY] Industry-level risk (Mitigation: actionable sales rep counter-strategy)"
     ]
 }}
 
@@ -510,6 +534,44 @@ IDENTIFIED RISKS [RISK-xxx]
 {risks_formatted}
 
 ═══════════════════════════════════════════════════════════════
+INTENT PARSING (Run this FIRST — derive scoring rules from user context)
+═══════════════════════════════════════════════════════════════
+
+Analyze the USER'S SALES OBJECTIVE above and classify the intent into ONE of:
+
+  **EXPANSION**   → user says: "expand beyond", "new team", "grow", "beyond existing base",
+                    "not yet using", "new programs", "new initiatives", "expand into"
+  **ACQUISITION** → user says: "new prospect", "first deal", "win", "displace", "new logo"
+  **RENEWAL**     → user says: "renew", "at risk", "retain", "competitive threat", "defend"
+  **GENERAL**     → (default — no strong pattern detected)
+
+Then apply the matching rule for Criterion #5 (USER OBJECTIVE ALIGNMENT):
+
+  **If EXPANSION intent:**
+  - "HIGH alignment" means the product is NOT already deployed at this account
+  - Scan each opportunity's `evidence_summary` for these existing-usage phrases:
+    "already uses", "currently uses", "[account name] uses [product]",
+    "existing [product]", "already leveraging", "currently leveraging",
+    "[product] for [account]'s", "has [product]", "uses [product] for"
+  - If evidence CONFIRMS the account already uses this product → mark as EXISTING_USAGE_CONFLICT
+  - EXISTING_USAGE_CONFLICT = apply mandatory -0.25 penalty (regardless of other criteria)
+  - Write in score_rationale: "Expansion conflict: [cite SIG-xxx or evidence] confirms
+    this product is already deployed. User objective is expansion into new areas —
+    recommending existing products misrepresents deal type. Penalty: -0.25"
+  - Note: this typically drops confirmed existing products below the 0.6 threshold
+
+  **If ACQUISITION intent:**
+  - "HIGH alignment" = strong fit with their stated technical needs, not prior usage
+  - No expansion penalty applies; first-time product fit is the scoring goal
+
+  **If RENEWAL intent:**
+  - Confirmed existing products INCREASE alignment (defending the installed base IS the goal)
+  - Penalize opportunities where signals show dissatisfaction with current deployment
+
+  **If GENERAL intent (default):**
+  - Apply Criterion #5 as written below: "HIGH alignment with user's stated objective +0.1 to +0.15"
+
+═══════════════════════════════════════════════════════════════
 SCORING CRITERIA (Apply ALL factors)
 ═══════════════════════════════════════════════════════════════
 
@@ -532,10 +594,11 @@ For each opportunity, evaluate and adjust score based on:
    - Clear technical match: +0.1
    - Tangential fit: -0.1
 
-5. **USER OBJECTIVE ALIGNMENT** (CRITICAL - Adjustment: ±0.15)
-   - HIGH alignment with user's stated objective: +0.1 to +0.15 BONUS
-   - MODERATE alignment: no adjustment
-   - LOW/NO alignment with user objective: -0.1 to -0.15 PENALTY
+5. **USER OBJECTIVE ALIGNMENT** (CRITICAL — apply using the INTENT PARSING rules above)
+   - EXPANSION: existing products = -0.25 mandatory (see INTENT PARSING block above)
+   - ACQUISITION/GENERAL HIGH alignment: +0.1 to +0.15 BONUS
+   - ACQUISITION/GENERAL MODERATE alignment: no adjustment
+   - ACQUISITION/GENERAL LOW/NO alignment: -0.1 to -0.15 PENALTY
 
 ═══════════════════════════════════════════════════════════════
 SCORING GUIDELINES
@@ -546,6 +609,21 @@ Final score interpretation:
 - 0.6-0.8: Qualified opportunity - good fit, manageable risks
 - 0.4-0.6: Needs development - limited evidence or significant risks
 - 0.0-0.4: Deprioritize - weak evidence, high risks, or misaligned
+
+═══════════════════════════════════════════════════════════════
+COVERAGE CHECK (After scoring all opportunities)
+═══════════════════════════════════════════════════════════════
+
+After scoring all individual opportunities:
+
+1. Re-read the USER'S SALES OBJECTIVE above carefully.
+2. Identify the specific capability areas, technologies, or team targets mentioned.
+3. Check: does the set of opportunities with score ≥ 0.6 collectively address each stated area?
+4. For any stated area with NO validated opportunity covering it, add to competitive_risks:
+   "[OBJECTIVE_GAP] User objective includes {{describe gap using their words from objective}}
+   but no validated opportunity addresses this area. Relevant signals: {{cite any signals even
+   weakly related}}. (Mitigation: Re-run Identifier targeting products in this area)"
+5. If all stated areas are covered — no [OBJECTIVE_GAP] entries needed.
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT (CRITICAL - JSON ONLY)

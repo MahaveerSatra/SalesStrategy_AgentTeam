@@ -39,7 +39,7 @@ def mock_model_router():
         mock_response = MagicMock()
 
         # Detect prompt type and return appropriate schema
-        if "QUERY CATEGORIES" in prompt or "Generate targeted search queries" in prompt:
+        if "QUERY CATEGORIES" in prompt or "Generate targeted search queries" in prompt or "RESEARCH OBJECTIVE" in prompt:
             # SearchQueryGeneration schema
             mock_response.content = """{
                 "queries": [

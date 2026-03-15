@@ -93,7 +93,13 @@ class GathererAgent(StatelessAgent):
         account = state["account_name"]
         industry = state.get("industry", "")
         region = state.get("region", "")
-        user_context = state.get("user_context", "")
+        user_context = state.get("user_context", "") or ""
+        if not user_context:
+            human_feedback = state.get("human_feedback", [])
+            if human_feedback:
+                user_context = human_feedback[-1]
+            elif state.get("feedback_context"):
+                user_context = state.get("feedback_context", "")
         seller_name = state.get("seller_name", "")  # type: ignore
         depth = state["research_depth"]
 
@@ -246,7 +252,8 @@ class GathererAgent(StatelessAgent):
                         full_content=full_content,
                         account_name=account,
                         industry=industry,
-                        seller_name=seller_name
+                        seller_name=seller_name,
+                        user_context=user_context
                     )
 
                     state["signals"].append(analyzed_signal)
@@ -686,39 +693,35 @@ class GathererAgent(StatelessAgent):
         Returns:
             List of query dicts with category, query, and priority
         """
-        prompt = f"""Generate targeted search queries to research {account_name} as a potential customer for {seller_name}.
+        prompt = f"""You are a sales intelligence researcher for {seller_name or "the sales team"}, researching {account_name} ({industry or "technology"}).
 
 ═══════════════════════════════════════════════════════════════
-CONTEXT
+RESEARCH OBJECTIVE
 ═══════════════════════════════════════════════════════════════
-Account: {account_name}
-Industry: {industry or "Not specified"}
-Seller: {seller_name or "Not specified"}
-User Context: {user_context or "None"}
+{user_context if user_context else f"General sales intelligence for {account_name} to identify opportunities for {seller_name or 'our products'}"}
 
 ═══════════════════════════════════════════════════════════════
-QUERY CATEGORIES (generate 1 query per category)
+YOUR TASK
 ═══════════════════════════════════════════════════════════════
+Generate 7-10 targeted web search queries to gather intelligence about {account_name}.
 
-1. **TECH STACK & TOOLS** (priority 1)
-   Goal: Find what technologies they currently use
-   Pattern: "{account_name} engineering tech stack" or "{account_name} software tools platform"
+Base your queries on the research objective above. Think like an analyst who needs to
+surface evidence, programs, team signals, and technology investments relevant to that
+objective. Consider:
+- What programs or initiatives at this account are relevant to the objective?
+- Which teams or roles at this account should the seller target?
+- What recent investments or expansions has this account made in the relevant areas?
+- What technology challenges is this account publicly facing in these areas?
+- What hiring signals reveal where this account is growing?
 
-2. **HIRING SIGNALS** (priority 2)
-   Goal: Find what skills/roles they're hiring for (indicates investment areas)
-   Pattern: "{account_name} hiring engineers" or "{account_name} careers technology"
+Generate queries that will yield high-signal, verifiable results from authoritative
+sources (company websites, job boards, official press releases, government sites).
 
-3. **STRATEGIC INITIATIVES** (priority 3)
-   Goal: Find digital transformation, modernization, expansion projects
-   Pattern: "{account_name} digital transformation" or "{account_name} technology investment"
-
-4. **PARTNERSHIPS & VENDORS** (priority 4)
-   Goal: Find existing technology partnerships (potential displacement opportunities)
-   Pattern: "{account_name} partnership technology" or "{account_name} vendor software"
-
-5. **CHALLENGES & PAIN POINTS** (priority 5)
-   Goal: Find public statements about challenges they're solving
-   Pattern: "{account_name} challenges engineering" or "{account_name} {industry} problems"
+RULES:
+- Keep queries concise (3-7 words after company name)
+- Always start query with "{account_name}"
+- DO NOT include special characters or quotes in queries
+- Assign priority 1 to queries most directly relevant to the objective
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT
@@ -727,25 +730,15 @@ OUTPUT FORMAT
 Return JSON:
 {{
     "queries": [
-        {{"category": "tech_stack", "query": "...", "priority": 1}},
-        {{"category": "hiring", "query": "...", "priority": 2}},
-        {{"category": "strategic", "query": "...", "priority": 3}},
-        {{"category": "partnerships", "query": "...", "priority": 4}},
-        {{"category": "challenges", "query": "...", "priority": 5}}
+        {{"category": "descriptive_label", "query": "search string", "priority": 1}}
     ]
 }}
-
-RULES:
-- Keep queries concise (3-6 words max after company name)
-- Always start query with "{account_name}"
-- DO NOT include special characters or quotes in queries
-- Prioritize queries that would reveal {seller_name} sales opportunities
 """
 
         try:
             response = await self.model_router.generate(
                 prompt=prompt,
-                complexity=3,  # LOCAL Ollama
+                complexity=5,  # Groq 8B — nuanced objective-driven query generation
                 temperature=0,
                 use_cache=True,
                 response_format=SearchQueryGeneration.model_json_schema()
@@ -813,7 +806,8 @@ RULES:
         full_content: str,
         account_name: str,
         industry: str,
-        seller_name: str = ""
+        seller_name: str = "",
+        user_context: str = ""
     ) -> Signal:
         """
         Use LLM to analyze source for SALES INTELLIGENCE.
@@ -876,17 +870,32 @@ ANALYSIS TASKS
    - decision_makers: Titles or names of technology decision-makers
    - pain_points: Challenges they've publicly mentioned
    - competitors_mentioned: Vendors/competitors (displacement opportunities)
+{f"""
+═══════════════════════════════════════════════════════════════
+RESEARCH OBJECTIVE (For buying signal prioritization ONLY)
+═══════════════════════════════════════════════════════════════
+{user_context}
 
+When extracting buying_signals, highlight signals that relate to the objective above.
+Tag them in keywords with the relevant topic from the objective.
+This does NOT affect the confidence score — confidence is source authority only.
+""" if user_context else ""}
 4. **KEY FACTS** - Only VERIFIABLE facts, not speculation
 
 ═══════════════════════════════════════════════════════════════
-CONFIDENCE SCORING
+CONFIDENCE SCORING (Based on SOURCE AUTHORITY — not content relevance)
 ═══════════════════════════════════════════════════════════════
-0.9-1.0: Official company source with recent, sales-relevant facts
-0.7-0.8: Reputable news with sales-relevant insights
-0.5-0.6: Third-party source with useful context
-0.3-0.4: Tangentially relevant or dated information
-0.0-0.2: Irrelevant or unreliable source
+Score based on WHO published this, not what it says:
+  0.9-1.0: Official company website (nasa.gov), official job board (jobs.nasa.gov),
+            official press release, government publication (.gov/.mil)
+  0.7-0.8: Reputable news outlet (Reuters, AP, WSJ, TechCrunch, Bloomberg),
+            industry trade publication (Aviation Week, IEEE Spectrum)
+  0.5-0.6: Third-party research report, analyst publication, industry blog
+  0.3-0.4: Generic blog post, aggregator site, forum summary, LinkedIn post
+  0.1-0.2: Reddit, social media, opinion piece, unverified/unknown source
+
+DO NOT adjust confidence based on how relevant the content is to the sales objective.
+Relevance is captured in the sales_relevance field. Confidence = source trustworthiness.
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT
@@ -912,10 +921,10 @@ Return JSON:
 }}"""
 
         try:
-            # Use ModelRouter with complexity=3 (routes to Tier 1 LOCAL Ollama)
+            # Use ModelRouter with complexity=5 (Groq 8B) for accurate source-authority scoring
             response = await self.model_router.generate(
                 prompt=prompt,
-                complexity=3,  # LOCAL Ollama for cost efficiency
+                complexity=5,  # Groq 8B for proper confidence discrimination
                 temperature=0,
                 use_cache=True,
                 response_format=SalesSourceAnalysis.model_json_schema()

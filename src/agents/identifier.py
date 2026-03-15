@@ -110,7 +110,7 @@ class IdentifierAgent(StatelessAgent):
         # Step 2: Match requirements to products
         product_matches = await self.product_matcher.match_requirements_to_products(
             requirements=requirements,
-            top_k=10
+            top_k=15
         )
 
         self.logger.info("products_matched", count=len(product_matches))
@@ -413,6 +413,22 @@ EXAMPLES
 }}
 
 ═══════════════════════════════════════════════════════════════
+REQUIREMENT FORMATTING RULES
+═══════════════════════════════════════════════════════════════
+
+When writing requirement statements:
+- Expand domain abbreviations in parentheses:
+  "GNC" → "GNC (Guidance, Navigation and Control)"
+  "MBSE" → "MBSE (Model-Based Systems Engineering)"
+  "HIL" → "HIL (Hardware-in-the-Loop)"
+  "SIL" → "SIL (Software-in-the-Loop)"
+  "ADAS" → "ADAS (Advanced Driver Assistance Systems)"
+  "CFD" → "CFD (Computational Fluid Dynamics)"
+  "FEA" → "FEA (Finite Element Analysis)"
+- Include common synonyms: "autonomous systems" → "autonomous systems, self-driving, path planning"
+- This ensures product retrieval matches even when product documentation uses different terminology.
+
+═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT (CRITICAL - JSON ONLY)
 ═══════════════════════════════════════════════════════════════
 
@@ -512,6 +528,7 @@ Your ENTIRE response must be this exact JSON structure:
         """
         account_name = state["account_name"]
         industry = state.get("industry", "")
+        tech_stack = state.get("tech_stack", [])
 
         # Get seller name and context
         seller_name = getattr(self.product_matcher, 'company_name', 'Our Company')
@@ -519,7 +536,7 @@ Your ENTIRE response must be this exact JSON structure:
 
         # Build formatted context using helpers (consistent IDs with requirements)
         requirements_text = "\n".join(f"- {r}" for r in requirements)
-        products_text = self._get_product_details(product_matches, limit=8)
+        products_text = self._get_product_details(product_matches, limit=15)
         signals_formatted = self._format_signals_with_ids(signals, limit=12)
         jobs_formatted = self._format_jobs_with_ids(job_postings, limit=8)
 
@@ -547,6 +564,26 @@ You are an Enterprise Account Executive at {seller_name}. Your mission is to cre
 **TARGET ACCOUNT:**
 - Company: {account_name}
 - Industry: {industry}
+
+**KNOWN BASELINE (Confirmed existing tech stack — already deployed at this account):**
+{', '.join(tech_stack) if tech_stack else "None detected"}
+
+**EXPANSION RULE** (apply when user_context contains "expand beyond", "new team",
+"grow", "beyond existing base", "new programs", "not yet using", "new initiatives"):
+- Products in the KNOWN BASELINE are ALREADY DEPLOYED — do NOT recommend them as
+  primary expansion opportunities
+- Instead: identify adjacent toolboxes, higher-tier modules, or add-on products that
+  BUILD ON the existing deployment
+  - Example: "MATLAB" in baseline + expansion intent → recommend "Deep Learning Toolbox",
+    "Parallel Computing Toolbox", "Reinforcement Learning Toolbox", not "MATLAB" itself
+  - Example: "Simulink" in baseline + expansion intent → recommend "Simulink Fault Analyzer",
+    "System Composer", "Simulink Test", not "Simulink" itself
+- If you reference a baseline product in talking points, frame it as context:
+  "You already use [baseline product], which means [expansion product] integrates
+  with zero friction and your team can adopt it immediately"
+- If you must list a baseline product as an opportunity (e.g., major version upgrade),
+  label it explicitly: "Expansion of existing [Baseline Product] deployment: [specific
+  upgrade or add-on]" and assign it lower confidence than genuinely new products
 {feedback_section}
 ═══════════════════════════════════════════════════════════════
 EVIDENCE DATA (Cite these using IDs in your talking points)
@@ -624,7 +661,7 @@ OUTPUT FORMAT (CRITICAL - JSON ONLY)
 
 **RESPOND WITH VALID JSON ONLY. NO markdown, NO explanatory text, NO code fences.**
 
-Return 2-5 opportunities. Quality over quantity. Only products with genuine fit.
+Return 5-7 opportunities. Quality over quantity. Only products with genuine fit.
 
 Your ENTIRE response must be this exact JSON structure:
 {{

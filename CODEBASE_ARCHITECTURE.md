@@ -253,9 +253,12 @@ LLM-extracted requirements
 - Lazy-loaded once per process; reduce `rerank_pool_size` to 10-15 in `.env` if too slow
 - Upgrade path: swap model string to `mxbai-rerank-base-v1` (single config change) if accuracy insufficient
 
+**Phase 2 retrieval improvements (2026-03-15):** RRF now weights vector 1.5x vs BM25 1.0x (semantic intent dominates); `rerank_pool_size` raised to 30; `top_k` raised to 15 candidates shown to the LLM. Product corpus enriched with 133 individual product pages via `scrape_and_index_product_pages()` (total 347 docs: 147 product stubs + 76 solution pages + 133 product pages) — bridges domain abbreviations like "GNC" to "Sensor Fusion and Tracking Toolbox" via rich page content. Gatherer and signal-analysis LLMs upgraded from Ollama 3B (complexity 3) to Groq 8B (complexity 5) for objective-driven query generation and accurate source-authority confidence scoring.
+
 **Run-once setup:**
 ```bash
-python scripts/index_mathworks_solutions.py  # fetch ~76 solution pages via Tavily Extract → ChromaDB
+python scripts/index_mathworks_solutions.py   # fetch ~76 solution pages via Tavily Extract → ChromaDB
+python scripts/index_mathworks_products.py    # fetch ~133 product pages via Tavily Extract → ChromaDB
 ```
 
 ---

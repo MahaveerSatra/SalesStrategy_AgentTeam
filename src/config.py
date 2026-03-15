@@ -99,7 +99,7 @@ class Settings(BaseSettings):
     report_target_tokens: int = Field(default=12000, description="Target token limit for report context")
 
     # Product Matching
-    rerank_pool_size: int = Field(default=20, description="Max candidates fed to cross-encoder re-ranker (reduce to 10-15 if re-ranking is too slow)")
+    rerank_pool_size: int = Field(default=30, description="Max candidates fed to cross-encoder re-ranker (reduce to 10-15 if re-ranking is too slow)")
 
     # Checkpointing
     checkpoint_dir: str = Field(default="data/checkpoints", description="Checkpoint directory")

@@ -55,3 +55,4 @@ evals/results/*.txt
 evals/results/history.csv
 opportunity_matrix_plan.md
 reports/research_report_Rivian_2026-03-02.md
+evals/EVAL_improve_perf.md

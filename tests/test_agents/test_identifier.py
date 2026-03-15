@@ -384,7 +384,7 @@ class TestProductMatching:
         mock_product_matcher.match_requirements_to_products.assert_called_once()
         call_args = mock_product_matcher.match_requirements_to_products.call_args
         assert call_args.kwargs["requirements"] == ["Need ML platform", "Need simulation tools"]
-        assert call_args.kwargs["top_k"] == 10
+        assert call_args.kwargs["top_k"] == 15
 
     @pytest.mark.asyncio
     async def test_no_product_matches_returns_empty_opportunities(

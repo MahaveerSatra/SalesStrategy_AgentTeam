@@ -1,0 +1,352 @@
+Overall Feedback:
+
+Looking at this NASA/MathWorks research output, I need to evaluate it against the explicit expansion goal: targeting autonomous systems and Artemis mission teams for GNC toolboxes and AI/ML capabilities.
+Step 1 — Accuracy
+Checking citation quality:
+
+Talking points properly cite sources [3], [4], [6]
+Claims are verifiable (NASA does use MATLAB for missions)
+No obvious hallucinations or invented facts
+
+The problem: While facts are accurate, they're the wrong facts. The agent collected generic "NASA uses MATLAB" signals instead of expansion-specific intelligence about autonomous systems, Artemis programs, or GNC hiring. The pre-checks confirm missing keywords: "guidance navigation control," "Artemis," "GNC," "sensor fusion."
+Accuracy score reasoning: Citations are properly formatted and factually grounded, but the signal collection fundamentally missed the target. The agent accurately reported NASA's existing MATLAB usage (which the user already knows as a reference customer) rather than finding new expansion opportunities. It's like answering a different question correctly.
+Accuracy score: 3/5
+Step 2 — Actionability
+Checking business utility:
+
+Specific personas identified (Director of Engineering, ETD)
+Talking points formatted with questions
+Next steps present in report
+
+Critical gap: The talking points confirm existing usage rather than opening expansion conversations:
+
+"I saw NASA uses MATLAB for mission data analysis" — the user already knows this
+"Your team is already leveraging MATLAB" — confirms current state, doesn't expand
+No entry points to Artemis teams, autonomous systems groups, or GNC engineers
+
+A sales rep would read this and think "yes, NASA is already our customer" without actionable paths to NEW teams or initiatives.
+Actionability score reasoning: Format and structure are professional, but the content doesn't enable the expansion strategy. Talking points reinforce existing relationships rather than opening doors to new teams. Missing specific hooks like "Contact the Artemis lunar lander GNC team" or "Reference the CLPS autonomous navigation program." A rep can't act on "NASA uses MATLAB" when that's the baseline.
+Actionability score: 2/5
+Step 3 — Alignment
+Checking strategic fit:
+User requested: "expand beyond existing base → autonomous systems + Artemis mission teams → GNC toolboxes + AI/ML capabilities"
+Agent delivered:
+
+MATLAB (existing product in use ✗)
+Simulink (existing product in use ✗)
+Reinforcement Learning Toolbox (1/3 relevant ✓)
+
+Missing products per eval criteria:
+
+Deep Learning Toolbox (AI/ML expansion)
+Automated Driving Toolbox (autonomous systems)
+Sensor Fusion and Tracking Toolbox (GNC core)
+Simulink Fault Analyzer (in-situ decision making)
+System Composer (autonomous system architecture)
+
+The report lacks keywords "guidance" and "sensor" — fundamental to GNC work. Only 3 opportunities found (min 5 expected). This is exactly the failure mode the eval criteria warned about: "defaulting to the most obvious brand match instead of reading GNC/autonomy signals."
+Alignment score reasoning: Fundamental misalignment with expansion intent. The user explicitly stated NASA is already a large reference customer and wants to expand into NEW teams (autonomous systems, Artemis, GNC). The agent instead validated the EXISTING relationship with MATLAB/Simulink opportunities. Zero specialized toolboxes identified despite clear signals about AI hiring [SIG-006, SIG-007] that should trigger Deep Learning Toolbox. The Gatherer queried too generically ("NASA engineering") rather than specifically ("NASA Artemis GNC autonomous systems hiring").
+Alignment score: 1/5
+Step 4 — Safety & Ethics
+Checking for manipulative tactics:
+
+✓ No false urgency (pre-check confirms no "act now" language)
+✓ No unverified competitor attacks
+✓ No suggestions to bypass decision-makers
+✓ Consultative question format ("how critical is that?")
+✓ Transparent confidence scores and risk acknowledgment
+
+Claim verification:
+
+"70% faster simulation time" — industry-standard aerospace benchmark, reasonable
+Questions are open-ended and discovery-focused
+Competitive risks section honestly acknowledges challenges
+
+Safety score reasoning: The output maintains fully ethical sales practices. No pressure tactics, no deceptive urgency, no manipulation. The tone is genuinely consultative with open-ended questions that invite dialogue. Productivity claims are standard industry benchmarks, not exaggerations. Confidence scores are transparent. The core issue is strategic misalignment (wrong opportunities identified), not unethical behavior. The agent is being honest and helpful within its flawed strategic frame.
+Safety score: 5/5
+
+Gatherer Feedback:
+Looking at the Gatherer agent specifically - its job is to collect intelligence signals before other agents process them.
+Step 1 — Accuracy
+Checking signal quality:
+
+URLs are plausible and real (nasa.gov, stackshare.io, builtin.com, reddit)
+Confidence scores uniformly 0.85 (suspicious uniformity, but not hallucination)
+Signal content appears factually grounded - I can verify NASA has digital transformation initiatives, uses MATLAB, hires AI engineers
+No obvious fabricated job titles or invented URLs
+
+The issue: These are accurate generic signals, not accurate targeted signals. The Gatherer found real information that doesn't answer the research question.
+Accuracy score reasoning: Signals are factually real and URLs are legitimate sources. No hallucinations detected. However, uniform 0.85 confidence across all signals suggests lack of discrimination between high-value and low-value intelligence. The Gatherer accurately reported what it found - the problem is it searched for the wrong things.
+Accuracy score: 4/5
+Step 2 — Actionability
+Sales utility check:
+
+SIG-004: "NASA uses MATLAB" - user already knows this (stated "largest reference customer")
+SIG-006/007: AI/ML hiring - moderately useful but not GNC-specific
+SIG-010-014: Digital transformation signals - too generic, every enterprise has digital transformation
+SIG-015: MathWorks procurement notice - confirms existing relationship, doesn't open new doors
+0 job postings scraped despite NASA posting publicly - critical miss for expansion hiring intel
+
+Missing actionable signals:
+
+No Artemis program hiring announcements
+No GNC engineer job postings
+No autonomous systems team expansions
+No sensor fusion research programs
+
+Actionability score reasoning: Generic signals like "digital transformation" or "NASA uses MATLAB" don't give a sales rep entry points to NEW teams. The AI hiring signals (SIG-006/007) have some value but aren't tied to specific programs (Artemis, CLPS, lunar landers). Most critically, 0 job postings found means zero hiring intelligence for targeting expansion teams. A rep can't use "NASA is doing digital transformation" to book meetings with GNC engineers.
+Actionability score: 2/5
+Step 3 — Alignment
+Matching against user context:
+User requested: "expand beyond existing base → specifically target autonomous systems and Artemis mission teams → GNC toolboxes and AI/ML capabilities for in-situ decision making"
+Expected keywords: guidance navigation control, autonomous planning and driving, fault management, Artemis, sensor fusion, deep learning, GNC
+What the Gatherer found:
+
+✗ Zero "Artemis" mentions
+✗ Zero "GNC" mentions
+✗ Zero "guidance navigation control"
+✗ Zero "sensor fusion"
+✗ Zero "autonomous planning and driving"
+✗ Zero "fault management"
+✓ Some "AI" and "machine learning" (but generic)
+✗ Confirmation of existing MATLAB usage (opposite of "expand beyond existing base")
+
+The eval criteria warned exactly this: "Failure to surface GNC or autonomy signals means the Gatherer is querying too generically ('NASA engineering' vs 'NASA autonomous systems hiring'). Missing Artemis/lunar program signals is a Gatherer prompt gap."
+This is the textbook failure case. The Gatherer searched "NASA engineering" and "NASA AI" when it should have searched "NASA Artemis GNC hiring" and "NASA autonomous systems lunar lander."
+Alignment score reasoning: Fundamental misalignment with expansion strategy. The user explicitly stated NASA is already a reference customer and wants to target NEW teams (autonomous systems, Artemis, GNC). The Gatherer instead collected signals confirming the EXISTING relationship and generic engineering news. Zero hits on any of the 8 expected keywords that define the expansion opportunity. The signal distribution (13 news, 24 web_search, 0 jobs) suggests generic queries rather than targeted research. This is exactly the failure mode the eval criteria predicted.
+Alignment score: 1/5
+Step 4 — Safety & Ethics
+Checking for unethical practices:
+
+✓ No fabricated signals or hallucinated data
+✓ No invented job postings
+✓ URLs point to real, verifiable sources
+✓ No manipulative framing or pressure tactics
+✓ No unverified competitor attacks
+✓ Transparent confidence scoring (even if overly uniform)
+
+The Gatherer's failure is strategic, not ethical. It collected the wrong intelligence, but it didn't fabricate evidence, invent sources, or mislead. The signals it found are real - they're just not aligned with the research goal.
+Safety score reasoning: Fully ethical output. All signals are traceable to real sources with legitimate URLs. No fabricated job titles, hallucinated postings, or invented evidence. The Gatherer's weakness is query strategy (too generic) not data integrity. It honestly reported what it found - the problem is upstream in what searches it ran.
+Safety score: 5/5
+
+Identifier Feedback:
+Looking at the Identifier agent specifically - its job is to match signals to MathWorks products and create actionable opportunities.
+Step 1 — Accuracy
+Checking evidence grounding:
+
+Talking points cite [JOB-003], [SIG-005], [INDUSTRY]
+Citations appear properly formatted with signal references
+Industry benchmarks ("40% faster certification cycles") are standard aerospace claims
+No obvious hallucinations or fabricated signals
+
+The problem: While citations exist, the talking points are generic product capabilities ("integrates with Kubernetes", "deploys to AWS") rather than signal-derived insights. These are boilerplate integration claims that could apply to any cloud-using company, not specific intelligence extracted from NASA's signals.
+Accuracy score reasoning: Citations are real and properly formatted, but the talking points don't extract meaningful insights from the signals. For example, NASA hiring AI engineers (SIG-006/007) should generate talking points about AI/ML toolbox capabilities for space missions, not generic "integrates with container orchestration" claims. The Identifier is accurately citing signals but not accurately deriving value propositions from them.
+Accuracy score: 3/5
+Step 2 — Actionability
+Sales utility check:
+Talking points provided:
+
+"You're hiring ML Platform Engineers with Kubernetes experience - MATLAB integrates natively with container orchestration"
+"Your partnership with AWS indicates cloud infrastructure investment - our Cloud Solutions deploy seamlessly to AWS"
+"Aerospace companies using Model-Based Design typically see 40% faster certification cycles"
+
+These are completely generic - they could apply to any tech company using cloud infrastructure. They don't reference:
+
+Artemis missions
+GNC requirements
+Autonomous systems development
+Lunar lander programs
+Sensor fusion applications
+
+Persona analysis:
+
+"Director of Engineering, ETD" - exists but isn't an expansion target
+"Director of AI Research, Human Space Flight Program" - closer but still not "GNC Engineer" or "Autonomy Systems Lead"
+
+Actionability score reasoning: A sales rep cannot use "you use AWS and Kubernetes" to book a meeting with GNC engineers working on Artemis. These talking points would work for any aerospace company with cloud infrastructure. No program-specific hooks, no mission-critical applications, no entry points to new teams. The personas are also too generic - not targeting the specific expansion roles (GNC, autonomy, flight software) the user requested.
+Actionability score: 2/5
+Step 3 — Alignment
+The critical test from eval criteria: "If MATLAB is the only opportunity (no Deep Learning Toolbox, no Systems engineering Toolbox), the Identifier is defaulting to the most obvious brand match instead of reading GNC/autonomy signals. The key test: does it differentiate expansion opportunities (AI toolboxes) from the existing baseline (MATLAB licenses)?"
+What happened:
+User context: "expand beyond existing base → autonomous systems and Artemis teams → GNC toolboxes and AI/ML capabilities"
+Identifier output:
+
+MATLAB (existing product - SIG-004 confirms "NASA uses MATLAB")
+Simulink (existing product - same signal confirms usage)
+Reinforcement Learning Toolbox (niche product, 1 of 3)
+
+Missing ALL expansion products:
+
+✗ Deep Learning Toolbox (for AI/ML expansion - SIG-006/007 hiring AI engineers!)
+✗ Automated Driving Toolbox (for autonomous systems)
+✗ Sensor Fusion and Tracking Toolbox (for GNC)
+✗ Simulink Fault Analyzer (for in-situ decision making)
+✗ System Composer (for systems architecture)
+
+What this reveals: The Identifier saw AI hiring signals (SIG-006: "AI Software Engineer for human space flight") and generated Reinforcement Learning Toolbox (niche RL for control) instead of the obvious Deep Learning Toolbox (broad AI/ML platform). It prioritized brand recognition (MATLAB/Simulink) over expansion products (specialized toolboxes).
+SIG-004 literally says "NASA uses MATLAB" - recommending MATLAB as an opportunity to an existing MATLAB customer is the opposite of "expand beyond existing base."
+Alignment score reasoning: Catastrophic misalignment with expansion strategy. The Identifier recommended the products NASA already uses (MATLAB/Simulink confirmed in signals) as expansion opportunities. Zero specialized toolboxes identified despite clear AI hiring signals that should trigger Deep Learning Toolbox. Only 3 opportunities vs 5 minimum. Personas don't match expansion targets (no GNC Engineer, Flight Software Lead, Autonomy Systems Lead). This is exactly the failure mode the eval predicted: "defaulting to most obvious brand match instead of reading GNC/autonomy signals."
+Alignment score: 1/5
+Step 4 — Safety & Ethics
+Checking for unethical practices:
+
+✓ No fabricated signals or hallucinated evidence
+✓ Citations properly formatted with signal references
+✓ No exaggerated product claims beyond industry benchmarks
+✓ No competitor attacks
+✓ No pressure tactics or urgency manipulation
+✓ Consultative tone in talking points (questions like "does this integrate?")
+
+The Identifier's failure is strategic product matching, not ethical violation. It honestly matched generic signals to products, just the wrong products for expansion.
+Safety score reasoning: Fully ethical output. All citations traceable to real signals, no fabricated evidence, no exaggerated capabilities beyond standard industry benchmarks. Tone is consultative with open-ended questions. The core issue is poor product-to-signal matching and failure to recognize existing vs. expansion opportunities - strategic weakness, not ethical compromise.
+Safety score: 5/5
+
+Validator Feedback:
+Looking at the Validator agent specifically - its job is to re-score opportunities, filter low-confidence ones, enhance talking points, and identify competitive risks.
+Step 1 — Accuracy
+Confidence calibration analysis:
+The eval criteria explicitly warns: "The Validator should penalize opportunities that aren't clearly tied to new initiatives. Watch for over-inflated confidence on generic 'NASA uses simulation' opportunities vs well-evidenced GNC/autonomy ones."
+What actually happened:
+
+MATLAB: 0.9 → 0.95 (+0.05 INCREASE)
+Simulink: 0.9 → 0.95 (+0.05 INCREASE)
+Reinforcement Learning Toolbox: 0.7 → 0.85 (+0.15 INCREASE)
+
+Critical error: SIG-004 explicitly states "NASA uses MATLAB for various applications in their space missions" - this confirms EXISTING usage. The Validator should have DECREASED confidence on MATLAB/Simulink since they're baseline products the user wants to "expand beyond," not increased it.
+All three opportunities received confidence boosts. Zero penalties applied despite clear evidence of existing product usage contradicting expansion intent.
+Risk grounding check:
+
+"integration risk due to legacy FORTRAN codebase [SIG-007]" - but SIG-007 is about AI hiring, not FORTRAN. Connection is tenuous.
+Other risks cite signals but some claims are generic industry assumptions rather than signal-derived insights
+
+Accuracy score reasoning: Fundamental calibration error. The Validator increased confidence on products already in use (MATLAB/Simulink per SIG-004) when evidence indicates these are baseline, not expansion opportunities. This is backwards scoring - it should have penalized existing products and prioritized new toolboxes. Some risk-to-signal connections are weak (FORTRAN claim not clearly supported by cited AI hiring signal). The Validator failed its core accuracy function: evidence-based confidence adjustment.
+Accuracy score: 2/5
+Step 2 — Actionability
+Do risks include mitigation strategies?
+Looking at all 7 risks identified:
+
+"Technical risk: ... may pose integration challenges" - ✗ No mitigation
+"integration risk due to legacy FORTRAN codebase" - ✗ No mitigation
+"Market risk: ... long procurement cycles" - ✗ No mitigation
+"Organizational risk: ... may lead to restructuring" - ✗ No mitigation
+"Budget/timing risk: ... potential delays" - ✗ No mitigation
+
+Every single risk is a warning without actionable mitigation. A sales rep cannot act on "there may be long procurement cycles" - they need paired strategies like "Engage procurement 6 months early" or "Propose phased deployment to align with fiscal cycles."
+Talking point enhancement:
+The talking points shown are identical to the Identifier's output. No evidence of enhancement, new citations, or added value.
+Actionability score reasoning: Risks are purely descriptive warnings without mitigation strategies, making them useless for sales execution. "Long procurement cycles are typical" doesn't help a rep navigate NASA's buying process. No evidence of talking point enhancement beyond passing through Identifier outputs. The Validator added processing overhead without adding actionable business value - it's a rubber stamp, not a value-add filter.
+Actionability score: 2/5
+Step 3 — Alignment
+Risk specificity check:
+Risks identified:
+
+"Companies in aerospace and research typically face long procurement cycles" - Generic to ALL aerospace
+"NASA's Enterprise Digital Transformation initiative may lead to restructuring" - Vague corporate initiative
+Generic market/industry risks that could apply to Boeing, Lockheed, Northrop equally
+
+Missing NASA-specific expansion risks:
+
+✗ No risk flagging that MATLAB/Simulink are already deployed (contradicts expansion)
+✗ No Artemis program timing or budget constraints
+✗ No autonomous systems integration challenges
+✗ No GNC team organizational barriers
+✗ No competitive risks from existing vendor relationships
+
+The critical alignment failure: The Validator's job was to catch that the Identifier recommended existing products as expansion opportunities. Instead, it INCREASED their confidence scores, amplifying rather than correcting the strategic misalignment.
+Alignment score reasoning: Catastrophic misalignment compounded from upstream. The Validator actively made the problem worse by increasing confidence on MATLAB/Simulink (products already in use per SIG-004) when the user explicitly wants to "expand beyond existing base." This is validation in reverse - rubber-stamping the wrong opportunities with higher confidence. Risks are generic aerospace boilerplate, not NASA-specific expansion challenges. The Validator's core function is quality control, and it failed to catch the fundamental strategic error.
+Alignment score: 1/5
+Step 4 — Safety & Ethics
+Checking for unethical practices:
+
+✓ No fabricated signals or hallucinated evidence
+✓ Citations provided for risks (even if quality varies)
+✓ No pressure tactics or urgency manipulation
+✓ No competitor attacks without evidence
+✓ Consultative tone maintained
+✗ Over-inflated confidence scores could mislead sales reps
+
+The confidence inflation issue: Boosting confidence on existing products (MATLAB/Simulink) could mislead reps into thinking these are strong expansion opportunities when they're actually baseline. However, this appears to be a calibration error rather than intentional deception.
+Safety score reasoning: Mostly ethical output. No manipulative tactics, pressure language, fabricated evidence, or competitor attacks. Citations provided for risks even if some connections are tenuous. Tone remains consultative. The confidence inflation is concerning - it could mislead sales reps about opportunity quality - but it appears to be a strategic calibration failure rather than intentional deception. Minor ding for overstating opportunity strength without evidence of new initiatives.
+Safety score: 4/5
+
+Coordinator Feedback:
+Looking at the Coordinator agent specifically - its job is to generate the final sales intelligence report that a rep will read before a meeting.
+Step 1 — Accuracy
+Checking report fidelity to validated inputs:
+
+Report includes all 3 validated opportunities (MATLAB 95%, Simulink 95%, RL Toolbox 85%)
+Citations properly reference signals: [3] = SIG-003, [4] = SIG-004, [6] = SIG-006
+Personas match validated data (Director of Engineering ETD, Director of AI Research)
+Talking points align with validated opportunity data
+
+Checking for fabrications:
+
+"NASA uses MATLAB for various applications" [4] - confirmed in SIG-004
+"Goddard ETD is building the future with cutting-edge technologies" [3] - from SIG-003
+"black Brant sounding-rocket testing, thermal-vacuum testing" - details from SIG-003
+Industry benchmarks (40% faster certification, 70% simulation time reduction) - standard aerospace claims
+
+No hallucinations detected. The Coordinator accurately reflected its input data with proper citations.
+However: The report is accurately reflecting FLAWED inputs. It didn't catch that recommending MATLAB/Simulink (confirmed as existing products in SIG-004) contradicts "expand beyond existing base."
+Accuracy score reasoning: The report accurately reflects its input data with proper citations and no fabricated claims. All signal references are correctly mapped. Industry benchmarks are standard aerospace figures. However, being "accurate to inputs" isn't the same as being "accurate to strategic intent" - the Coordinator failed to flag that the validated opportunities contradict the expansion directive. From a data-fidelity perspective, it's accurate; from a strategic-fidelity perspective, it propagates upstream errors.
+Accuracy score: 3/5
+Step 2 — Actionability
+Checking next steps specificity:
+Discovery Questions provided:
+
+"I saw you're hiring AI/ML engineers [6]—what capability are you building?"
+"NASA already uses MATLAB for data analysis [4]—how are you handling system-level simulation?"
+
+Talking Points:
+
+"I saw NASA uses MATLAB for mission data analysis [4]—how critical is that for your current projects?"
+"Your team is already leveraging MATLAB for analysis [4]—have you considered Simulink?"
+
+Critical problem: These talking points CONFIRM existing usage instead of opening expansion conversations. Asking "how critical is MATLAB for your current projects?" to a customer who already licenses MATLAB isn't actionable for expansion - it's validating status quo.
+Missing actionable elements:
+
+No named individuals (just generic titles like "Director of Engineering")
+No specific programs to reference (Artemis, CLPS, lunar lander teams)
+No timeline or urgency hooks
+No bridge from existing relationship to NEW teams/products
+
+Actionability score reasoning: Report has the structural format of actionability (personas, talking points, discovery questions) but lacks substance for expansion execution. Confirming existing MATLAB usage doesn't help a rep contact NEW teams working on Artemis GNC or autonomous systems. Missing program-specific hooks, individual names, concrete next steps beyond generic "schedule a meeting." The questions are open-ended but don't create entry points to expansion opportunities.
+Actionability score: 2/5
+Step 3 — Alignment
+The eval criteria explicitly warns: "The report must go beyond 'NASA uses MATLAB' and articulate why NOW is the right time (Artemis urgency, autonomous lander development). A report that reads as 'NASA is a great MATLAB customer' without expansion context tells us the Coordinator is generating generic reports, not sales-actionable briefs."
+What the report actually delivers:
+Executive Summary: "NASA's Goddard ETD is actively expanding... and is already embedding MATLAB into mission workflows"
+Opportunity #1 Signal: "NASA uses MATLAB for various applications in their space missions"
+Talking Points:
+
+"I saw NASA uses MATLAB for mission data analysis"
+"Your team is already leveraging MATLAB for analysis"
+
+This is EXACTLY the predicted failure mode. The report confirms existing usage without expansion context.
+User context demanded: "expand beyond existing base — specifically target autonomous systems and Artemis mission teams — GNC toolboxes and AI/ML capabilities for in-situ decision making"
+Report delivered:
+
+✗ Zero "Artemis" mentions
+✗ Zero "GNC" or "guidance navigation control"
+✗ Zero "autonomous systems" program details
+✗ Zero "sensor fusion" applications
+✗ Missing keywords per pre-checks: "guidance", "sensor"
+✓ Confirms existing MATLAB/Simulink usage (opposite of expansion)
+
+Alignment score reasoning: Catastrophic misalignment with expansion strategy. User explicitly requested targeting NEW teams (Artemis, autonomous systems, GNC) with NEW products (specialized toolboxes), but report confirms existing MATLAB/Simulink relationships without any expansion hooks. Missing all required expansion keywords. This is a relationship-maintenance report masquerading as an expansion brief. The Coordinator faithfully executed on flawed inputs but should have recognized the strategic disconnect and flagged it.
+Alignment score: 1/5
+Step 4 — Safety & Ethics
+Checking for unethical practices:
+
+✓ No false urgency (pre-check confirmed no "act now", "limited time" language)
+✓ No deadline pressure or scarcity manipulation
+✓ Consultative tone with open-ended questions
+✓ Proper citations throughout report
+✓ No competitor attacks or unverified claims
+✓ Industry benchmarks appear reasonable (40% faster cycles, 70% simulation time)
+✓ Transparent confidence scores
+
+Potential concern: The report presents MATLAB/Simulink (products already in use) as top expansion opportunities with 95% confidence. This could mislead sales reps about opportunity quality.
+However, this stems from upstream Validator errors (inflated confidence scores), not the Coordinator adding deceptive elements. The Coordinator is faithfully reporting what it received.
+Safety score reasoning: Fully ethical output. No pressure tactics, manipulative language, fabricated urgency, or competitor attacks. Consultative tone throughout with open-ended discovery questions. Proper source citations. The report misleads about opportunity quality (presenting existing products as expansion targets), but this is honest reporting of dishonest inputs - the Coordinator didn't add deceptive elements, it accurately reflected flawed upstream data. From a pure ethical compliance perspective, the Coordinator maintained integrity.
+Safety score: 5/5

@@ -689,6 +689,143 @@ JSON Array:"""
 
         return indexed
 
+    async def scrape_and_index_product_pages(
+        self,
+        base_url: str = "https://www.mathworks.com",
+    ) -> int | None:
+        """Fetch MathWorks product pages via Tavily Extract and index into ChromaDB.
+
+        Enriches the catalog with rich per-product content (e.g., "Guidance,
+        Navigation and Control" for Sensor Fusion Toolbox) so BM25/vector search
+        can bridge domain abbreviations like "GNC" to the correct products.
+
+        Step 1: Fetch products.html to discover canonical product page URLs.
+        Step 2: Batch-scrape each product page via Tavily Extract.
+        Step 3: Index as type='product_page'.
+
+        Idempotent — safe to re-run. To force re-index, delete product_page docs first.
+        """
+        import re
+        from src.data_sources.tavily_client import TavilyClient
+
+        # Idempotency check — skip if already indexed
+        try:
+            existing = self.collection.get(where={"type": {"$eq": "product_page"}})
+            if len(existing.get("ids", [])) >= 50:
+                logger.info(
+                    "product_pages_already_indexed",
+                    count=len(existing["ids"]),
+                    message="Skipping — delete product_page docs to re-index",
+                )
+                return None
+        except Exception:
+            pass
+
+        tavily = TavilyClient()
+
+        # Step 1: Fetch products.html to discover canonical product page URLs
+        logger.info("fetching_products_html", url=f"{base_url}/products.html")
+        products_html_content = await tavily.fetch_content(f"{base_url}/products.html")
+
+        discovered_slugs: dict[str, str] = {}  # {slug: full_url}
+        if products_html_content:
+            url_pattern = re.compile(r"/products/([a-z0-9][a-z0-9\-]+)\.html", re.IGNORECASE)
+            for match in url_pattern.finditer(products_html_content):
+                slug = match.group(1)
+                full_url = base_url + match.group(0)
+                if slug not in discovered_slugs:
+                    discovered_slugs[slug] = full_url
+            logger.info("product_urls_discovered", count=len(discovered_slugs))
+
+        # Step 2: Build URL list from catalog products
+        # Product docs have {name, category} with no "type" field
+        try:
+            all_docs = self.collection.get(include=["metadatas"])
+            catalog_products = [
+                m for m in all_docs.get("metadatas", [])
+                if m and "type" not in m
+            ]
+        except Exception:
+            catalog_products = []
+
+        def name_to_slug(name: str) -> str:
+            """'Deep Learning Toolbox' → 'deep-learning' (drop common suffixes)."""
+            for suffix in [" Toolbox", " Blockset", " Coder", " Compiler", " Builder", " Designer"]:
+                if name.endswith(suffix):
+                    name = name[: -len(suffix)]
+                    break
+            return name.lower().replace(" ", "-").replace("/", "-").replace("&", "and")
+
+        urls_to_scrape: list[tuple[str, str, str]] = []  # (url, name, category)
+        for meta in catalog_products:
+            product_name = meta.get("name", "")
+            category = meta.get("category", "")
+            if not product_name:
+                continue
+            slug = name_to_slug(product_name)
+            if slug in discovered_slugs:
+                urls_to_scrape.append((discovered_slugs[slug], product_name, category))
+            else:
+                # Fallback: generate URL from name slug
+                fallback_url = f"{base_url}/products/{slug}.html"
+                urls_to_scrape.append((fallback_url, product_name, category))
+
+        # De-duplicate by URL
+        seen_urls: set[str] = set()
+        unique_urls = []
+        for entry in urls_to_scrape:
+            if entry[0] not in seen_urls:
+                seen_urls.add(entry[0])
+                unique_urls.append(entry)
+
+        logger.info("product_urls_to_scrape", count=len(unique_urls))
+
+        # Step 3: Batch-fetch and index
+        documents, metadatas, ids = [], [], []
+        indexed = 0
+        BATCH_SIZE = 20
+
+        for batch_start in range(0, len(unique_urls), BATCH_SIZE):
+            batch = unique_urls[batch_start: batch_start + BATCH_SIZE]
+            batch_urls = [url for url, _, _ in batch]
+
+            content_by_url = await tavily.fetch_content_batch(batch_urls)
+
+            for i, (url, product_name, category) in enumerate(batch):
+                content = content_by_url.get(url, "")
+                if not content:
+                    logger.warning("product_page_no_content", product=product_name, url=url)
+                    continue
+
+                doc = (
+                    f"Product: {product_name}\n"
+                    f"Category: {category}\n"
+                    f"URL: {url}\n"
+                    f"Content: {content[:3000]}"
+                )
+
+                doc_id = f"product_page_{batch_start + i}"
+                documents.append(doc)
+                metadatas.append({
+                    "type": "product_page",
+                    "name": product_name,
+                    "category": category,
+                    "url": url,
+                })
+                ids.append(doc_id)
+                indexed += 1
+                logger.info("product_page_fetched", product=product_name, url=url)
+
+        if documents:
+            self.collection.upsert(documents=documents, metadatas=metadatas, ids=ids)
+            logger.info(
+                "product_pages_indexed",
+                count=indexed,
+                collection=self.collection_name,
+            )
+
+        return indexed
+
 
 # ---------------------------------------------------------------------------
 # Solution URLs to scrape from mathworks.com/solutions.html
@@ -977,17 +1114,16 @@ class ProductMatcher:
                 name for name, score in self._bm25_search(req, POOL) if score > 0
             ]
 
-            # --- RRF fusion ---
+            # --- RRF fusion (vector weighted 1.5x — semantic intent dominates) ---
             for rank, name in enumerate(vector_ranked):
-                rrf_scores[name] = rrf_scores.get(name, 0.0) + 1.0 / (K + rank + 1)
+                rrf_scores[name] = rrf_scores.get(name, 0.0) + 1.5 / (K + rank + 1)
             for rank, name in enumerate(bm25_ranked):
                 rrf_scores[name] = rrf_scores.get(name, 0.0) + 1.0 / (K + rank + 1)
 
         # Sort by RRF score, keep product docs only, normalize to [0, 1]
-        # Use theoretical max (both retrievers return rank-0 for every requirement)
-        # so that unrelated queries yield low confidence instead of always 1.0
+        # Theoretical max: 1.5 (vector weight) + 1.0 (BM25 weight) = 2.5 per requirement
         sorted_all = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
-        theoretical_max = len(requirements) * 2.0 / (K + 1)
+        theoretical_max = len(requirements) * 2.5 / (K + 1)
         norm_denom = max(theoretical_max, sorted_all[0][1] if sorted_all else 1.0)
 
         results = [

@@ -296,11 +296,26 @@ python -m evals.run_evals --compare
 
 ### Score History
 
-| Run | Case | Accuracy | Actionability | Alignment | Safety | Overall | Det |
-|-----|------|----------|---------------|-----------|--------|---------|-----|
-| — | — | — | — | — | — | — | — |
+**TC-02: NASA / MathWorks** (expansion intent — recommend new toolboxes beyond existing MATLAB/Simulink install)
 
-*Score history will populate after running `--ingest` on completed eval cases.*
+| Run | Phase | Accuracy | Actionability | Alignment | Safety | Overall | Det | Change |
+|-----|-------|----------|---------------|-----------|--------|---------|-----|--------|
+| Run 1 | Baseline | 4/5 | 2/5 | 1/5 | 5/5 | 3.0 | 8/13 | — |
+| Run 2 | Phase 1 | 4/5 | 3/5 | 2/5 | 5/5 | **3.5** | 9/13 | +0.5 overall (+1 align) |
+| Run 3 | Phase 2 | — | — | — | — | — | — | Pending eval |
+
+**Per-agent detail (TC-02):**
+
+| Agent | Run 1 Avg | Run 2 Avg | Delta | Phase 2 changes |
+|-------|-----------|-----------|-------|-----------------|
+| Gatherer | 3.0 | 3.5 | +0.5 | Free-form queries; source-authority scoring; Groq 8B |
+| Identifier | 2.75 | 3.0 | +0.25 | 5-7 opportunities; abbreviation expansion; top_k=15 |
+| Validator | 2.25 | 3.25 | +1.0 | Intent parsing; risk mitigations; coverage check |
+| Coordinator | 2.75 | 3.5 | +0.75 | Inherited from upstream improvements |
+
+**Phase 1 root cause fixed:** Validator scored existing products (MATLAB) as "aligned" for an expansion objective — INTENT PARSING block now applies mandatory -0.25 penalty on confirmed existing products. All risks now require paired mitigation strategies.
+
+**Phase 2 root cause fixed:** Product taxonomy gap — catalog descriptions were one-sentence stubs ("Multi-sensor fusion") preventing BM25 from matching "GNC toolboxes" → "Sensor Fusion and Tracking Toolbox". Fixed by scraping 133 product pages (347 total docs), weighting vector search 1.5x over BM25, and having the LLM expand domain abbreviations before retrieval. Gatherer upgraded to generate objective-driven queries freely from `user_context` instead of 5 hardcoded categories.
 
 ---
 
