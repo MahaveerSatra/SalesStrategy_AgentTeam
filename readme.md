@@ -2,6 +2,11 @@
 
 > Reduces account research time from 4 hours to 4 minutes for enterprise sales teams.
 
+![Tests](https://img.shields.io/badge/tests-454%20passing-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-multi--agent-7c3aed)
+![License](https://img.shields.io/badge/license-MIT-22c55e)
+
 A full-stack multi-agent AI system that automates enterprise sales research. Given a target account, it gathers intelligence in real time, identifies sales opportunities, and generates actionable reports.
 
 **Stack:** LangGraph · FastAPI · React/TypeScript · ChromaDB · LangSmith
@@ -66,42 +71,76 @@ The workflow pauses after report generation using LangGraph's `interrupt()` prim
 
 **Web UI** — Real-time streaming interface. Watch agents execute live, click any completed node to inspect extracted signals, opportunities, or risks, and submit feedback to loop back.
 
+<!-- TODO: replace with Web UI demo GIF/MP4 once recorded -->
+> 🎬 *Web UI demo coming soon*
+
 **CLI** — No UI required. Same agent orchestration, terminal output:
 ```bash
 python -m src.cli research "Remora Carbon" --industry "carbon capture" --seller "MathWorks"
 ```
 
+<!-- TODO: replace with CLI demo GIF once recorded -->
+> 🎬 *CLI demo coming soon*
+
 ---
 
 ## What Makes This Hard — and How It's Built
 
-**Account research takes 4–5 hours. This cuts it to 4 minutes.**
-- An AE has to manually gather, read, and synthesize signals across job boards, news, and company pages before they can even form a hypothesis about what a customer needs
-- Four specialized agents run this pipeline automatically — Gatherer collects raw signals, Identifier maps them to product opportunities, Validator re-scores with risk assessment, and Coordinator assembles the final report. Each step is observable: click any node in the browser to inspect run time and what was extracted
+<details>
+<summary><strong>Account research takes 4–5 hours. This cuts it to 4 minutes.</strong></summary>
+<br>
 
-**AI recommends the wrong products without business context**
-- A system that recommends existing products for an expansion deal, or niche products where broad capabilities are needed, destroys AE trust immediately
-- The Validator parses sales intent (expansion / renewal / acquisition) from the stated objective and applies scoring rules specific to that scenario. A seller taxonomy JSON maps requirement types to primary products. Products outside the stated capability domain receive a −0.30 confidence penalty before surfacing in the report
+An AE has to manually gather, read, and synthesize signals across job boards, news, and company pages before they can even form a hypothesis about what a customer needs. Four specialized agents run this pipeline automatically — Gatherer collects raw signals, Identifier maps them to product opportunities, Validator re-scores with risk assessment, and Coordinator assembles the final report. Each step is observable: click any node in the browser to inspect run time and what was extracted.
 
-**LLM output isn't grounded — claims can't be verified in a customer meeting**
-- Unverified talking points are a liability. An AE needs to know exactly which signal supports which claim before they walk into the room
-- Every signal collected is tagged (`[SIG-001]`, `[JOB-002]`). The LLM is required to cite evidence in every talking point. Nine deterministic checks run post-generation — if a cited signal doesn't exist in the collected data, the check fails and the output is flagged
+</details>
 
-**Generic output: every product cites the same evidence**
-- Boilerplate talking points (three products all referencing the same Kubernetes job posting) signal low-quality output immediately to any experienced AE
-- Signal uniqueness rules require each opportunity to build its own evidence story with distinct citations. Shared signals across products are rejected during generation
+<details>
+<summary><strong>AI recommends the wrong products without business context.</strong></summary>
+<br>
 
-**Prompts degrade silently — you don't know until output quality drops**
-- Without measurement, every prompt change is a guess. It's easy to improve one thing and break another without noticing
-- A custom eval framework grades every run across accuracy, actionability, alignment, and safety (1–5 scale) using Claude as judge, plus 9 deterministic rule checks. Score history in a CSV shows the delta across prompt iterations — you see whether a change helped or hurt, and where
+A system that recommends existing products for an expansion deal, or niche products where broad capabilities are needed, destroys AE trust immediately. The Validator parses sales intent (expansion / renewal / acquisition) from the stated objective and applies scoring rules specific to that scenario. A seller taxonomy JSON maps requirement types to primary products. Products outside the stated capability domain receive a −0.30 confidence penalty before surfacing in the report.
 
-**Inference cost compounds at scale**
-- Running a frontier model for every sub-task adds up fast — especially for tasks that don't need frontier reasoning
-- Three-tier LLM routing dispatches by complexity: entry validation goes to local Ollama (instant, $0); analysis goes to Groq 8B; quality assessment goes to Groq 20B. Anthropic prompt caching marks the product catalog and analysis playbooks with `cache_control` — cached server-side, ~90% cost reduction on repeated lookups across a session
+</details>
 
-**Semantic search misses domain-specific terminology**
-- "GNC toolboxes" doesn't semantically match "Sensor Fusion and Tracking Toolbox" without domain context. A naive vector search returns wrong products, and the LLM has nothing good to reason over
-- A 3-stage retrieval pipeline: BM25 keyword + ChromaDB vector search merged via Reciprocal Rank Fusion → cross-encoder re-ranking (`ms-marco-MiniLM-L-12-v2`) on the top 30 → top 15 candidates passed to the LLM. The corpus includes 76 scraped solution pages (fetched via Tavily Extract API, which bypasses Cloudflare WAF) to bridge the gap between industry language and product names
+<details>
+<summary><strong>LLM output isn't grounded — claims can't be verified in a customer meeting.</strong></summary>
+<br>
+
+Unverified talking points are a liability. An AE needs to know exactly which signal supports which claim before they walk into the room. Every signal collected is tagged (`[SIG-001]`, `[JOB-002]`). The LLM is required to cite evidence in every talking point. Nine deterministic checks run post-generation — if a cited signal doesn't exist in the collected data, the check fails and the output is flagged.
+
+</details>
+
+<details>
+<summary><strong>Generic output: every product cites the same evidence.</strong></summary>
+<br>
+
+Boilerplate talking points (three products all referencing the same Kubernetes job posting) signal low-quality output immediately to any experienced AE. Signal uniqueness rules require each opportunity to build its own evidence story with distinct citations. Shared signals across products are rejected during generation.
+
+</details>
+
+<details>
+<summary><strong>Prompts degrade silently — you don't know until output quality drops.</strong></summary>
+<br>
+
+Without measurement, every prompt change is a guess. It's easy to improve one thing and break another without noticing. A custom eval framework grades every run across accuracy, actionability, alignment, and safety (1–5 scale) using Claude as judge, plus 9 deterministic rule checks. Score history in a CSV shows the delta across prompt iterations — you see whether a change helped or hurt, and where.
+
+</details>
+
+<details>
+<summary><strong>Inference cost compounds at scale.</strong></summary>
+<br>
+
+Running a frontier model for every sub-task adds up fast — especially for tasks that don't need frontier reasoning. Three-tier LLM routing dispatches by complexity: entry validation goes to local Ollama (instant, $0); analysis goes to Groq 8B; quality assessment goes to Groq 20B. Anthropic prompt caching marks the product catalog and analysis playbooks with `cache_control` — cached server-side, ~90% cost reduction on repeated lookups across a session.
+
+</details>
+
+<details>
+<summary><strong>Semantic search misses domain-specific terminology.</strong></summary>
+<br>
+
+"GNC toolboxes" doesn't semantically match "Sensor Fusion and Tracking Toolbox" without domain context. A naive vector search returns wrong products, and the LLM has nothing good to reason over. A 3-stage retrieval pipeline: BM25 keyword + ChromaDB vector search merged via Reciprocal Rank Fusion → cross-encoder re-ranking (`ms-marco-MiniLM-L-12-v2`) on the top 30 → top 15 candidates passed to the LLM. The corpus includes 76 scraped solution pages to bridge the gap between industry language and product names.
+
+</details>
 
 ---
 
