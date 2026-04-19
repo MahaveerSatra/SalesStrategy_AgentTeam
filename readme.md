@@ -1,4 +1,4 @@
-# Enterprise Account Business Development System
+# Agentic Research team for Enterprise Account Business Development
 
 > Reduces account research time from 4 hours to 4 minutes for enterprise sales teams.
 
