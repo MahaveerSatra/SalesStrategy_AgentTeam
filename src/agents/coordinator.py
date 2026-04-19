@@ -18,6 +18,7 @@ from src.core.base_agent import StatelessAgent
 from src.utils.json_parsing import extract_json_from_llm_response, JSONParseError
 from src.models.state import ResearchState, ResearchProgress, Opportunity
 from src.models.llm_schemas import InputValidation, ClarificationCheck, FeedbackIntent
+from src.data_sources.taxonomy_loader import load_seller_taxonomy, format_taxonomy_for_identifier
 from src.core.model_router import ModelRouter
 
 
@@ -625,6 +626,96 @@ Example when we can proceed:
     # EXIT POINT (After Validator)
     # ─────────────────────────────────────────────────────────────────────────
 
+    async def _assess_report_quality(self, state: ResearchState) -> tuple[bool, str]:
+        """
+        Automatically assess whether validated opportunities cover the user's stated objectives.
+
+        Uses complexity=8 (advanced model) with seller taxonomy as ground truth.
+        Only runs on the first pass (workflow_iteration < 2) to avoid infinite loops.
+
+        Args:
+            state: Current research state
+
+        Returns:
+            Tuple of (needs_rework: bool, rework_feedback: str).
+            If needs_rework is True, rework_feedback contains specific instructions
+            for the Identifier agent.
+        """
+        # Guard: only auto-reroute once
+        if state.get("workflow_iteration", 1) >= 2:
+            return False, ""
+
+        validated = state.get("validated_opportunities", [])
+        user_context = state.get("user_context", "") or ""
+        risks = state.get("competitive_risks", [])
+        seller_name = state.get("seller_name", "")
+
+        # Load seller taxonomy for informed quality assessment
+        taxonomy = load_seller_taxonomy(seller_name)
+        taxonomy_block = format_taxonomy_for_identifier(taxonomy) if taxonomy else ""
+
+        opportunities_summary = "\n".join(
+            f"- {o.product_name} (score: {o.confidence_score:.2f})"
+            for o in validated
+        ) if validated else "None"
+
+        risks_summary = "\n".join(risks) if risks else "None"
+
+        taxonomy_section = (
+            f"\nSELLER PRODUCT TAXONOMY (authoritative requirement → primary toolbox mappings):\n"
+            f"{taxonomy_block}"
+        ) if taxonomy_block else ""
+
+        prompt = f"""You are a senior sales quality reviewer.
+
+USER'S SALES OBJECTIVE:
+{user_context or "Not specified"}
+
+VALIDATED OPPORTUNITIES ({len(validated)} products):
+{opportunities_summary}
+
+COMPETITIVE RISKS (may contain [OBJECTIVE_GAP] entries):
+{risks_summary}
+{taxonomy_section}
+
+TASK: Using the taxonomy above as ground truth, assess whether the validated opportunities
+collectively cover the CORE technical capabilities stated in the user's objective.
+- Check if PRIMARY toolboxes for each stated requirement type are present.
+- Check for [OBJECTIVE_GAP] entries in the risks section.
+- Flag obvious misalignment (peripheral products for a specific technical objective).
+
+Respond with JSON ONLY:
+{{
+    "quality_sufficient": true,
+    "rework_reason": ""
+}}
+
+OR if there are critical gaps:
+{{
+    "quality_sufficient": false,
+    "rework_reason": "Specific instruction for Identifier: describe the technical gap and cite the taxonomy entry. Example: 'sensor_fusion requirement (primary: Sensor Fusion and Tracking Toolbox) is absent despite GNC objective. Include products for state estimation / sensor integration.'"
+}}"""
+
+        try:
+            response = await self.model_router.generate(
+                prompt=prompt,
+                complexity=8,  # Advanced model — same tier as report generation
+                use_cache=False
+            )
+            result = extract_json_from_llm_response(response.content)
+            quality_ok = result.get("quality_sufficient", True)
+            reason = result.get("rework_reason", "")
+            needs_rework = not quality_ok and bool(reason)
+            self.logger.info(
+                "quality_assessment_complete",
+                quality_sufficient=quality_ok,
+                needs_rework=needs_rework
+            )
+            return needs_rework, reason
+        except Exception as e:
+            self.logger.warning("quality_assessment_failed", error=str(e))
+            return False, ""  # On error, proceed normally to avoid blocking the workflow
+
     async def process_exit(self, state: ResearchState) -> None:
         """
         Exit point processing - formats and presents results to human.
@@ -644,6 +735,18 @@ Example when we can proceed:
             opportunities_count=len(state.get("validated_opportunities", [])),
             risks_count=len(state.get("competitive_risks", []))
         )
+
+        # Auto quality check — reroute to Identifier if critical gaps detected
+        needs_rework, rework_feedback = await self._assess_report_quality(state)
+        if needs_rework:
+            state["feedback_context"] = f"[COORDINATOR AUTO-QUALITY CHECK]\n{rework_feedback}"  # type: ignore
+            state["next_route"] = "identifier"  # type: ignore
+            state["workflow_iteration"] = state.get("workflow_iteration", 1) + 1  # type: ignore
+            self.logger.info(
+                "coordinator_auto_reroute_to_identifier",
+                reason=rework_feedback[:120]
+            )
+            return  # Skip report generation; workflow routes back to Identifier
 
         # Format the report
         report = await self._format_report(state)

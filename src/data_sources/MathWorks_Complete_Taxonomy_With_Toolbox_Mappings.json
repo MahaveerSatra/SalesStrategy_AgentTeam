@@ -1,0 +1,1744 @@
+{
+  "metadata": {
+    "document_title": "MathWorks Multi-Level Taxonomy with Explicit Toolbox Mappings for RAG",
+    "version": "3.0-ENHANCED-WITH-TOOLBOX-MAPPINGS",
+    "created": "2026-03-15",
+    "purpose": "Enable precise mapping of buyer requirements to specific MathWorks toolbox names. Each use case, workflow, and algorithm includes explicit toolbox mappings for RAG system validation.",
+    "structure": "Product Family → Industry → Use Case → Technical Capabilities → **TOOLBOX MAPPINGS**",
+    "key_enhancement": "Every workflow, algorithm, and capability now explicitly lists which toolbox(es) provide that functionality",
+    "total_products_covered": "90+",
+    "rag_output_format": "Toolbox names are the final validated output for LLM responses"
+  },
+  
+  "quick_reference_toolbox_catalog": {
+    "core_platform": [
+      "MATLAB",
+      "MATLAB Copilot",
+      "Parallel Computing Toolbox",
+      "MATLAB Parallel Server"
+    ],
+    "ai_data_science": [
+      "Deep Learning Toolbox",
+      "Statistics and Machine Learning Toolbox",
+      "Text Analytics Toolbox",
+      "Curve Fitting Toolbox"
+    ],
+    "simulink_platform": [
+      "Simulink",
+      "Stateflow",
+      "SimEvents",
+      "Simscape",
+      "Simscape Electrical",
+      "Simscape Driveline",
+      "Simscape Fluids",
+      "Simscape Multibody",
+      "Simscape Battery"
+    ],
+    "signal_processing": [
+      "Signal Processing Toolbox",
+      "DSP System Toolbox",
+      "Audio Toolbox",
+      "Wavelet Toolbox",
+      "DSP HDL Toolbox"
+    ],
+    "image_computer_vision": [
+      "Image Processing Toolbox",
+      "Computer Vision Toolbox",
+      "Lidar Toolbox",
+      "Medical Imaging Toolbox",
+      "Vision HDL Toolbox"
+    ],
+    "wireless_communications": [
+      "5G Toolbox",
+      "LTE Toolbox",
+      "WLAN Toolbox",
+      "Bluetooth Toolbox",
+      "Communications Toolbox",
+      "Satellite Communications Toolbox",
+      "Wireless HDL Toolbox",
+      "Wireless Testbench"
+    ],
+    "control_systems": [
+      "Control System Toolbox",
+      "Fuzzy Logic Toolbox",
+      "Model Predictive Control Toolbox",
+      "Robust Control Toolbox",
+      "Simulink Control Design",
+      "System Identification Toolbox",
+      "Reinforcement Learning Toolbox",
+      "Simulink Design Optimization"
+    ],
+    "fpga_hardware": [
+      "HDL Coder",
+      "Fixed-Point Designer",
+      "HDL Verifier",
+      "Vision HDL Toolbox",
+      "Deep Learning HDL Toolbox",
+      "SoC Blockset",
+      "Wireless HDL Toolbox",
+      "DSP HDL Toolbox",
+      "GPU Coder"
+    ],
+    "automotive": [
+      "Automated Driving Toolbox",
+      "Vehicle Dynamics Blockset",
+      "Powertrain Blockset",
+      "Model-Based Calibration Toolbox",
+      "AUTOSAR Blockset",
+      "Vehicle Network Toolbox",
+      "IEC Certification Kit",
+      "RoadRunner",
+      "RoadRunner Scenario",
+      "RoadRunner Scene Builder"
+    ],
+    "aerospace": [
+      "Aerospace Toolbox",
+      "Aerospace Blockset",
+      "UAV Toolbox",
+      "Satellite Communications Toolbox",
+      "DO Qualification Kit"
+    ],
+    "radar_sensors": [
+      "Radar Toolbox",
+      "Phased Array System Toolbox",
+      "Sensor Fusion and Tracking Toolbox"
+    ],
+    "rf_mixed_signal": [
+      "RF Toolbox",
+      "RF PCB Toolbox",
+      "RF Blockset",
+      "Antenna Toolbox",
+      "Mixed-Signal Blockset",
+      "SerDes Toolbox",
+      "Signal Integrity Toolbox"
+    ],
+    "financial": [
+      "Financial Toolbox",
+      "Financial Instruments Toolbox",
+      "Risk Management Toolbox",
+      "Econometrics Toolbox",
+      "Database Toolbox",
+      "Datafeed Toolbox"
+    ],
+    "test_measurement": [
+      "Data Acquisition Toolbox",
+      "Instrument Control Toolbox",
+      "Image Acquisition Toolbox",
+      "Industrial Communication Toolbox",
+      "Vehicle Network Toolbox",
+      "ThingSpeak"
+    ],
+    "code_generation": [
+      "MATLAB Coder",
+      "Embedded Coder",
+      "GPU Coder",
+      "HDL Coder",
+      "Simulink Coder",
+      "Simulink PLC Coder",
+      "MATLAB Compiler",
+      "MATLAB Compiler SDK",
+      "MATLAB Production Server",
+      "MATLAB Web App Server"
+    ],
+    "verification_validation": [
+      "Simulink Test",
+      "Simulink Coverage",
+      "Simulink Design Verifier",
+      "Simulink Check",
+      "Polyspace Bug Finder",
+      "Polyspace Code Prover",
+      "Polyspace Test",
+      "Requirements Toolbox",
+      "MATLAB Test"
+    ],
+    "robotics": [
+      "Robotics System Toolbox",
+      "ROS Toolbox",
+      "Navigation Toolbox",
+      "UAV Toolbox"
+    ],
+    "predictive_maintenance": [
+      "Predictive Maintenance Toolbox"
+    ],
+    "computational_biology": [
+      "Bioinformatics Toolbox",
+      "SimBiology"
+    ],
+    "mathematical": [
+      "Symbolic Math Toolbox",
+      "Optimization Toolbox",
+      "Global Optimization Toolbox",
+      "Partial Differential Equation Toolbox",
+      "Mapping Toolbox"
+    ],
+    "specialized": [
+      "Motor Control Blockset",
+      "C2000 Microcontroller Blockset",
+      "DDS Blockset",
+      "System Composer",
+      "Simulink 3D Animation",
+      "Simulink Real-Time",
+      "Simulink Desktop Real-Time"
+    ]
+  },
+
+  "product_families_with_toolbox_mappings": [
+    {
+      "family_name": "MATLAB AI & Data Science",
+      "products": [
+        {
+          "product_name": "Deep Learning Toolbox",
+          "industry_use_cases": [
+            {
+              "industry": "Automotive",
+              "use_cases": [
+                {
+                  "use_case": "Object Detection for ADAS",
+                  "primary_toolbox": "Deep Learning Toolbox",
+                  "supporting_toolboxes": [
+                    "Computer Vision Toolbox",
+                    "Automated Driving Toolbox",
+                    "Image Processing Toolbox"
+                  ],
+                  "technical_capabilities": {
+                    "algorithms": [
+                      {
+                        "algorithm": "YOLO v4 Object Detection",
+                        "toolbox": "Deep Learning Toolbox",
+                        "key_functions": ["yolov4ObjectDetector()", "trainYOLOv4ObjectDetector()"]
+                      },
+                      {
+                        "algorithm": "Faster R-CNN",
+                        "toolbox": "Deep Learning Toolbox",
+                        "key_functions": ["fasterRCNNObjectDetector()", "trainFasterRCNNObjectDetector()"]
+                      },
+                      {
+                        "algorithm": "SSD (Single Shot Detector)",
+                        "toolbox": "Deep Learning Toolbox",
+                        "key_functions": ["ssdObjectDetector()"]
+                      }
+                    ],
+                    "workflows": [
+                      {
+                        "workflow_step": "Data Labeling",
+                        "toolboxes": ["Computer Vision Toolbox", "Image Processing Toolbox"],
+                        "tools": ["Image Labeler app", "Video Labeler app"]
+                      },
+                      {
+                        "workflow_step": "Network Design & Training",
+                        "toolboxes": ["Deep Learning Toolbox"],
+                        "tools": ["Deep Network Designer", "trainNetwork()"]
+                      },
+                      {
+                        "workflow_step": "Deployment to ECU",
+                        "toolboxes": ["GPU Coder", "Embedded Coder", "Deep Learning HDL Toolbox"],
+                        "deployment_targets": ["NVIDIA GPUs", "ARM processors", "Xilinx FPGAs"]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "use_case": "Lane Detection & Road Marking Recognition",
+                  "primary_toolbox": "Deep Learning Toolbox",
+                  "supporting_toolboxes": [
+                    "Computer Vision Toolbox",
+                    "Automated Driving Toolbox",
+                    "Image Processing Toolbox"
+                  ],
+                  "technical_capabilities": {
+                    "algorithms": [
+                      {
+                        "algorithm": "Semantic Segmentation (DeepLab v3+, U-Net)",
+                        "toolbox": "Deep Learning Toolbox",
+                        "key_functions": ["deeplabv3plusLayers()", "unetLayers()", "semanticseg()"]
+                      },
+                      {
+                        "algorithm": "Lane Boundary Detection",
+                        "toolbox": "Automated Driving Toolbox",
+                        "key_functions": ["detectLaneMarkers()", "parabolicLaneBoundary()"]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "use_case": "Driver Monitoring & Drowsiness Detection",
+                  "primary_toolbox": "Deep Learning Toolbox",
+                  "supporting_toolboxes": ["Computer Vision Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "Facial Landmark Detection",
+                      "toolbox": "Computer Vision Toolbox",
+                      "key_functions": ["vision.CascadeObjectDetector"]
+                    },
+                    {
+                      "algorithm": "LSTM for Temporal Behavior Analysis",
+                      "toolbox": "Deep Learning Toolbox",
+                      "key_functions": ["lstmLayer()", "sequenceInputLayer()"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "industry": "Healthcare & Medical Devices",
+              "use_cases": [
+                {
+                  "use_case": "Medical Image Classification (X-ray, CT, MRI)",
+                  "primary_toolbox": "Deep Learning Toolbox",
+                  "supporting_toolboxes": [
+                    "Medical Imaging Toolbox",
+                    "Image Processing Toolbox"
+                  ],
+                  "technical_capabilities": {
+                    "algorithms": [
+                      {
+                        "algorithm": "Transfer Learning with Pretrained CNNs",
+                        "toolbox": "Deep Learning Toolbox",
+                        "pretrained_networks": ["ResNet-50", "ResNet-101", "Inception-v3", "DenseNet-201"],
+                        "key_functions": ["resnet50()", "inceptionv3()", "trainNetwork()"]
+                      },
+                      {
+                        "algorithm": "3D CNN for Volumetric Data",
+                        "toolbox": "Deep Learning Toolbox",
+                        "key_functions": ["convolution3dLayer()", "maxPooling3dLayer()"]
+                      },
+                      {
+                        "algorithm": "Grad-CAM Explainability",
+                        "toolbox": "Deep Learning Toolbox",
+                        "key_functions": ["gradCAM()", "occlusionSensitivity()"]
+                      }
+                    ],
+                    "workflows": [
+                      {
+                        "workflow_step": "DICOM Image Import",
+                        "toolboxes": ["Medical Imaging Toolbox", "Image Processing Toolbox"],
+                        "key_functions": ["dicomread()", "dicominfo()"]
+                      },
+                      {
+                        "workflow_step": "Image Preprocessing & Augmentation",
+                        "toolboxes": ["Image Processing Toolbox", "Deep Learning Toolbox"],
+                        "key_functions": ["imageDatastore()", "augmentedImageDatastore()"]
+                      },
+                      {
+                        "workflow_step": "Model Training",
+                        "toolboxes": ["Deep Learning Toolbox"],
+                        "key_functions": ["trainNetwork()", "trainingOptions()"]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "use_case": "Tumor Segmentation",
+                  "primary_toolbox": "Deep Learning Toolbox",
+                  "supporting_toolboxes": ["Medical Imaging Toolbox", "Image Processing Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "U-Net for Medical Image Segmentation",
+                      "toolbox": "Deep Learning Toolbox",
+                      "key_functions": ["unetLayers()", "pixelClassificationLayer()"]
+                    },
+                    {
+                      "algorithm": "3D U-Net for Volumetric Segmentation",
+                      "toolbox": "Deep Learning Toolbox",
+                      "key_functions": ["unet3dLayers()"]
+                    }
+                  ]
+                },
+                {
+                  "use_case": "ECG Arrhythmia Classification",
+                  "primary_toolbox": "Deep Learning Toolbox",
+                  "supporting_toolboxes": ["Signal Processing Toolbox", "Wavelet Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "1D CNN for Signal Classification",
+                      "toolbox": "Deep Learning Toolbox",
+                      "key_functions": ["convolution1dLayer()", "sequenceInputLayer()"]
+                    },
+                    {
+                      "algorithm": "LSTM for Time Series",
+                      "toolbox": "Deep Learning Toolbox",
+                      "key_functions": ["lstmLayer()", "bilstmLayer()"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "industry": "Manufacturing & Quality Inspection",
+              "use_cases": [
+                {
+                  "use_case": "Visual Defect Detection",
+                  "primary_toolbox": "Deep Learning Toolbox",
+                  "supporting_toolboxes": ["Computer Vision Toolbox", "Image Processing Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "Faster R-CNN for Defect Detection",
+                      "toolbox": "Deep Learning Toolbox",
+                      "key_functions": ["fasterRCNNObjectDetector()", "trainFasterRCNNObjectDetector()"]
+                    },
+                    {
+                      "algorithm": "Anomaly Detection using Autoencoders",
+                      "toolbox": "Deep Learning Toolbox",
+                      "key_functions": ["trainNetwork()", "anomalyDetection()"]
+                    }
+                  ],
+                  "deployment": {
+                    "edge_devices": {
+                      "toolboxes": ["GPU Coder", "Embedded Coder"],
+                      "targets": ["NVIDIA Jetson", "ARM processors"]
+                    },
+                    "fpga": {
+                      "toolboxes": ["Deep Learning HDL Toolbox"],
+                      "targets": ["Xilinx Zynq", "Intel FPGA"]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "industry": "Finance & Trading",
+              "use_cases": [
+                {
+                  "use_case": "Time Series Forecasting for Stock Prices",
+                  "primary_toolbox": "Deep Learning Toolbox",
+                  "supporting_toolboxes": ["Financial Toolbox", "Econometrics Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "LSTM for Time Series Prediction",
+                      "toolbox": "Deep Learning Toolbox",
+                      "key_functions": ["lstmLayer()", "trainNetwork()", "predict()"]
+                    },
+                    {
+                      "algorithm": "Transformer Models for Sequential Data",
+                      "toolbox": "Deep Learning Toolbox",
+                      "key_functions": ["transformerEncoder()", "selfAttentionLayer()"]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "product_name": "Statistics and Machine Learning Toolbox",
+          "industry_use_cases": [
+            {
+              "industry": "Financial Services",
+              "use_cases": [
+                {
+                  "use_case": "Credit Risk Scoring",
+                  "primary_toolbox": "Statistics and Machine Learning Toolbox",
+                  "supporting_toolboxes": ["Risk Management Toolbox"],
+                  "technical_capabilities": {
+                    "algorithms": [
+                      {
+                        "algorithm": "Logistic Regression",
+                        "toolbox": "Statistics and Machine Learning Toolbox",
+                        "key_functions": ["fitglm()", "glmfit()"],
+                        "use_for": "Probability of default modeling"
+                      },
+                      {
+                        "algorithm": "Decision Trees & Random Forests",
+                        "toolbox": "Statistics and Machine Learning Toolbox",
+                        "key_functions": ["fitctree()", "TreeBagger()", "fitcensemble()"],
+                        "use_for": "Non-linear credit scoring"
+                      },
+                      {
+                        "algorithm": "Gradient Boosting",
+                        "toolbox": "Statistics and Machine Learning Toolbox",
+                        "key_functions": ["fitcensemble() with 'GentleBoost' or 'LogitBoost'"],
+                        "use_for": "High-accuracy prediction"
+                      },
+                      {
+                        "algorithm": "Credit Scorecard Development",
+                        "toolbox": "Risk Management Toolbox",
+                        "key_functions": ["creditscorecard()", "autobinning()"],
+                        "use_for": "Regulatory-compliant scorecards"
+                      }
+                    ],
+                    "workflows": [
+                      {
+                        "workflow_step": "Data Preprocessing & Feature Engineering",
+                        "toolboxes": ["Statistics and Machine Learning Toolbox"],
+                        "key_functions": ["fillmissing()", "normalize()", "isoutlier()"]
+                      },
+                      {
+                        "workflow_step": "Model Training & Selection",
+                        "toolboxes": ["Statistics and Machine Learning Toolbox"],
+                        "tools": ["Classification Learner App"],
+                        "key_functions": ["fitcensemble()", "crossval()"]
+                      },
+                      {
+                        "workflow_step": "Model Validation",
+                        "toolboxes": ["Statistics and Machine Learning Toolbox"],
+                        "key_functions": ["perfcurve()", "confusionmat()"]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "use_case": "Fraud Detection",
+                  "primary_toolbox": "Statistics and Machine Learning Toolbox",
+                  "algorithms": [
+                    {
+                      "algorithm": "Isolation Forest (Anomaly Detection)",
+                      "toolbox": "Statistics and Machine Learning Toolbox",
+                      "key_functions": ["iforest()", "isanomaly()"]
+                    },
+                    {
+                      "algorithm": "One-Class SVM",
+                      "toolbox": "Statistics and Machine Learning Toolbox",
+                      "key_functions": ["fitcsvm() with 'KernelScale', 'auto'"]
+                    },
+                    {
+                      "algorithm": "Imbalanced Data Handling",
+                      "toolbox": "Statistics and Machine Learning Toolbox",
+                      "key_functions": ["oversample()", "undersample()", "SMOTE techniques"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "industry": "Retail & E-commerce",
+              "use_cases": [
+                {
+                  "use_case": "Customer Segmentation",
+                  "primary_toolbox": "Statistics and Machine Learning Toolbox",
+                  "algorithms": [
+                    {
+                      "algorithm": "K-Means Clustering",
+                      "toolbox": "Statistics and Machine Learning Toolbox",
+                      "key_functions": ["kmeans()", "silhouette()", "evalclusters()"]
+                    },
+                    {
+                      "algorithm": "Hierarchical Clustering",
+                      "toolbox": "Statistics and Machine Learning Toolbox",
+                      "key_functions": ["linkage()", "dendrogram()", "cluster()"]
+                    },
+                    {
+                      "algorithm": "Gaussian Mixture Models",
+                      "toolbox": "Statistics and Machine Learning Toolbox",
+                      "key_functions": ["fitgmdist()", "cluster()"]
+                    },
+                    {
+                      "algorithm": "DBSCAN (Density-Based Clustering)",
+                      "toolbox": "Statistics and Machine Learning Toolbox",
+                      "key_functions": ["dbscan()"]
+                    }
+                  ]
+                },
+                {
+                  "use_case": "Demand Forecasting",
+                  "primary_toolbox": "Statistics and Machine Learning Toolbox",
+                  "supporting_toolboxes": ["Econometrics Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "ARIMA Time Series",
+                      "toolbox": "Econometrics Toolbox",
+                      "key_functions": ["arima()", "estimate()", "forecast()"]
+                    },
+                    {
+                      "algorithm": "Regression Trees for Forecasting",
+                      "toolbox": "Statistics and Machine Learning Toolbox",
+                      "key_functions": ["fitrtree()", "fitrensemble()"]
+                    },
+                    {
+                      "algorithm": "Gaussian Process Regression",
+                      "toolbox": "Statistics and Machine Learning Toolbox",
+                      "key_functions": ["fitrgp()", "predict()"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "industry": "Telecommunications",
+              "use_cases": [
+                {
+                  "use_case": "Customer Churn Prediction",
+                  "primary_toolbox": "Statistics and Machine Learning Toolbox",
+                  "algorithms": [
+                    {
+                      "algorithm": "Ensemble Methods (Random Forest, Boosting)",
+                      "toolbox": "Statistics and Machine Learning Toolbox",
+                      "key_functions": ["fitcensemble()", "TreeBagger()"]
+                    },
+                    {
+                      "algorithm": "Hyperparameter Optimization",
+                      "toolbox": "Statistics and Machine Learning Toolbox",
+                      "key_functions": ["bayesopt()", "fitcensemble() with 'OptimizeHyperparameters'"]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "product_name": "Text Analytics Toolbox",
+          "industry_use_cases": [
+            {
+              "industry": "Financial Services",
+              "use_cases": [
+                {
+                  "use_case": "Sentiment Analysis for Trading Signals",
+                  "primary_toolbox": "Text Analytics Toolbox",
+                  "supporting_toolboxes": ["Deep Learning Toolbox", "Financial Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "Bag-of-Words Model",
+                      "toolbox": "Text Analytics Toolbox",
+                      "key_functions": ["bagOfWords()", "tfidf()"]
+                    },
+                    {
+                      "algorithm": "Word Embeddings (Word2Vec)",
+                      "toolbox": "Text Analytics Toolbox",
+                      "key_functions": ["wordEmbedding()", "trainWordEmbedding()"]
+                    },
+                    {
+                      "algorithm": "LSTM for Sentiment Classification",
+                      "toolbox": "Deep Learning Toolbox",
+                      "key_functions": ["lstmLayer()", "wordEmbeddingLayer()"]
+                    },
+                    {
+                      "algorithm": "VADER Sentiment Scores",
+                      "toolbox": "Text Analytics Toolbox",
+                      "key_functions": ["vaderSentimentScores()"]
+                    }
+                  ],
+                  "workflows": [
+                    {
+                      "workflow_step": "Text Preprocessing",
+                      "toolboxes": ["Text Analytics Toolbox"],
+                      "key_functions": ["preprocessText()", "tokenizedDocument()", "removeStopWords()"]
+                    },
+                    {
+                      "workflow_step": "Feature Extraction",
+                      "toolboxes": ["Text Analytics Toolbox"],
+                      "key_functions": ["bagOfWords()", "wordEmbedding()"]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "industry": "Customer Service",
+              "use_cases": [
+                {
+                  "use_case": "Chatbot Intent Classification",
+                  "primary_toolbox": "Text Analytics Toolbox",
+                  "supporting_toolboxes": ["Statistics and Machine Learning Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "Topic Modeling (LDA)",
+                      "toolbox": "Text Analytics Toolbox",
+                      "key_functions": ["fitlda()", "transform()"]
+                    },
+                    {
+                      "algorithm": "Text Classification",
+                      "toolbox": "Statistics and Machine Learning Toolbox",
+                      "key_functions": ["fitcecoc()", "fitcnb()"]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "family_name": "Automotive ADAS & Autonomous Driving",
+      "products": [
+        {
+          "product_name": "Automated Driving Toolbox",
+          "industry_use_cases": [
+            {
+              "industry": "Automotive",
+              "use_cases": [
+                {
+                  "use_case": "Sensor Fusion for Multi-Object Tracking",
+                  "primary_toolbox": "Automated Driving Toolbox",
+                  "supporting_toolboxes": [
+                    "Sensor Fusion and Tracking Toolbox",
+                    "Radar Toolbox",
+                    "Lidar Toolbox",
+                    "Computer Vision Toolbox"
+                  ],
+                  "technical_capabilities": {
+                    "algorithms": [
+                      {
+                        "algorithm": "Multi-Object Tracker with JPDA",
+                        "toolbox": "Automated Driving Toolbox",
+                        "key_functions": ["multiObjectTracker", "trackerJPDA"],
+                        "description": "Joint Probabilistic Data Association for multi-target tracking"
+                      },
+                      {
+                        "algorithm": "Extended Kalman Filter (EKF)",
+                        "toolbox": "Sensor Fusion and Tracking Toolbox",
+                        "key_functions": ["trackingEKF", "extendedKalmanFilter"]
+                      },
+                      {
+                        "algorithm": "Unscented Kalman Filter (UKF)",
+                        "toolbox": "Sensor Fusion and Tracking Toolbox",
+                        "key_functions": ["trackingUKF", "unscentedKalmanFilter"]
+                      },
+                      {
+                        "algorithm": "IMM Filter (Interacting Multiple Model)",
+                        "toolbox": "Sensor Fusion and Tracking Toolbox",
+                        "key_functions": ["trackingIMM"]
+                      }
+                    ],
+                    "sensor_modeling": [
+                      {
+                        "sensor": "Camera",
+                        "toolboxes": ["Automated Driving Toolbox", "Computer Vision Toolbox"],
+                        "key_functions": ["visionDetectionGenerator", "monoCamera"]
+                      },
+                      {
+                        "sensor": "Radar",
+                        "toolboxes": ["Automated Driving Toolbox", "Radar Toolbox"],
+                        "key_functions": ["drivingRadarDataGenerator", "radarDetectionGenerator"]
+                      },
+                      {
+                        "sensor": "Lidar",
+                        "toolboxes": ["Automated Driving Toolbox", "Lidar Toolbox"],
+                        "key_functions": ["lidarPointCloudGenerator", "pointCloudToImage"]
+                      },
+                      {
+                        "sensor": "GPS/INS",
+                        "toolboxes": ["Sensor Fusion and Tracking Toolbox"],
+                        "key_functions": ["insfilterNonholonomic", "gpsins"]
+                      }
+                    ],
+                    "workflows": [
+                      {
+                        "workflow_step": "Scenario Generation",
+                        "toolboxes": ["Automated Driving Toolbox", "RoadRunner Scenario"],
+                        "key_functions": ["drivingScenario", "Scenario Designer app"]
+                      },
+                      {
+                        "workflow_step": "Sensor Simulation",
+                        "toolboxes": ["Automated Driving Toolbox"],
+                        "key_functions": ["visionDetectionGenerator", "radarDetectionGenerator"]
+                      },
+                      {
+                        "workflow_step": "Detection & Tracking",
+                        "toolboxes": ["Automated Driving Toolbox", "Sensor Fusion and Tracking Toolbox"],
+                        "key_functions": ["multiObjectTracker", "trackingEKF"]
+                      },
+                      {
+                        "workflow_step": "Visualization",
+                        "toolboxes": ["Automated Driving Toolbox"],
+                        "key_functions": ["Bird's-Eye-View display", "Chase Camera display"]
+                      }
+                    ]
+                  }
+                },
+                {
+                  "use_case": "Path Planning for Autonomous Navigation",
+                  "primary_toolbox": "Automated Driving Toolbox",
+                  "supporting_toolboxes": ["Robotics System Toolbox", "Navigation Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "RRT (Rapidly-exploring Random Tree)",
+                      "toolbox": "Automated Driving Toolbox",
+                      "key_functions": ["pathPlannerRRT"]
+                    },
+                    {
+                      "algorithm": "Hybrid A* for Parking",
+                      "toolbox": "Automated Driving Toolbox",
+                      "key_functions": ["plannerHybridAStar"]
+                    },
+                    {
+                      "algorithm": "Optimal Trajectory Generation",
+                      "toolbox": "Automated Driving Toolbox",
+                      "key_functions": ["trajectoryOptimalFrenet"]
+                    },
+                    {
+                      "algorithm": "Costmap-Based Planning",
+                      "toolbox": "Automated Driving Toolbox",
+                      "key_functions": ["vehicleCostmap", "pathPlannerRRT"]
+                    }
+                  ]
+                },
+                {
+                  "use_case": "Behavioral Planning & Decision Making",
+                  "primary_toolbox": "Automated Driving Toolbox",
+                  "supporting_toolboxes": ["Stateflow", "Reinforcement Learning Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "Finite State Machines for Behavior",
+                      "toolbox": "Stateflow",
+                      "description": "High-level behavioral logic"
+                    },
+                    {
+                      "algorithm": "Reinforcement Learning for Decision Making",
+                      "toolbox": "Reinforcement Learning Toolbox",
+                      "key_functions": ["rlDDPGAgent", "rlPPOAgent"]
+                    }
+                  ]
+                },
+                {
+                  "use_case": "Scenario-Based Testing",
+                  "primary_toolbox": "Automated Driving Toolbox",
+                  "supporting_toolboxes": ["RoadRunner", "RoadRunner Scenario", "Simulink Test"],
+                  "workflows": [
+                    {
+                      "workflow_step": "Scene Creation",
+                      "toolboxes": ["RoadRunner"],
+                      "description": "3D environment design"
+                    },
+                    {
+                      "workflow_step": "Scenario Definition",
+                      "toolboxes": ["RoadRunner Scenario", "Automated Driving Toolbox"],
+                      "standards": ["OpenSCENARIO", "OpenDRIVE"]
+                    },
+                    {
+                      "workflow_step": "Closed-Loop Simulation",
+                      "toolboxes": ["Automated Driving Toolbox", "Simulink"],
+                      "key_functions": ["drivingScenario", "Unreal Engine visualization"]
+                    },
+                    {
+                      "workflow_step": "Test Automation",
+                      "toolboxes": ["Simulink Test"],
+                      "key_functions": ["Test Manager", "Coverage analysis"]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "product_name": "Vehicle Dynamics Blockset",
+          "use_cases": [
+            {
+              "use_case": "Vehicle Handling Simulation",
+              "primary_toolbox": "Vehicle Dynamics Blockset",
+              "supporting_toolboxes": ["Simscape Multibody"],
+              "components": [
+                {
+                  "component": "Vehicle Body Dynamics",
+                  "toolbox": "Vehicle Dynamics Blockset",
+                  "blocks": ["Vehicle Body 3DOF", "Vehicle Body 6DOF"]
+                },
+                {
+                  "component": "Tire Models",
+                  "toolbox": "Vehicle Dynamics Blockset",
+                  "models": ["Magic Formula", "Pacejka", "Delft-Tyre"],
+                  "blocks": ["Tire (Magic Formula)", "Combined Slip Wheel 2DOF"]
+                },
+                {
+                  "component": "Suspension Systems",
+                  "toolbox": "Vehicle Dynamics Blockset",
+                  "blocks": ["Double Wishbone", "MacPherson Strut", "Solid Axle"]
+                },
+                {
+                  "component": "Steering System",
+                  "toolbox": "Vehicle Dynamics Blockset",
+                  "blocks": ["Rack and Pinion"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "product_name": "Powertrain Blockset",
+          "use_cases": [
+            {
+              "use_case": "Hybrid Electric Vehicle Energy Management",
+              "primary_toolbox": "Powertrain Blockset",
+              "supporting_toolboxes": ["Simscape Electrical", "Simscape Battery", "Stateflow"],
+              "components": [
+                {
+                  "component": "IC Engine Models",
+                  "toolbox": "Powertrain Blockset",
+                  "blocks": ["SI Engine", "CI Engine", "Mapped Engine"]
+                },
+                {
+                  "component": "Electric Motor/Generator",
+                  "toolbox": "Simscape Electrical",
+                  "blocks": ["Mapped Motor", "PMSM", "Induction Motor"]
+                },
+                {
+                  "component": "Battery Pack",
+                  "toolbox": "Simscape Battery",
+                  "blocks": ["Battery (Table-Based)", "Simscape Battery Builder"]
+                },
+                {
+                  "component": "Transmission",
+                  "toolbox": "Powertrain Blockset",
+                  "blocks": ["CVT", "Dual Clutch", "Automatic Transmission"]
+                },
+                {
+                  "component": "Energy Management Strategy",
+                  "toolbox": "Stateflow",
+                  "description": "Rule-based or optimal control strategy"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "product_name": "AUTOSAR Blockset",
+          "use_cases": [
+            {
+              "use_case": "AUTOSAR Classic Software Component Development",
+              "primary_toolbox": "AUTOSAR Blockset",
+              "supporting_toolboxes": ["Simulink", "Embedded Coder"],
+              "workflows": [
+                {
+                  "workflow_step": "Import ARXML",
+                  "toolboxes": ["AUTOSAR Blockset"],
+                  "key_functions": ["autosar.api.getAUTOSARProperties", "slautosarimport"]
+                },
+                {
+                  "workflow_step": "Model Software Components",
+                  "toolboxes": ["AUTOSAR Blockset", "Simulink"],
+                  "description": "Application, sensor, actuator, service SWCs"
+                },
+                {
+                  "workflow_step": "Generate C Code",
+                  "toolboxes": ["Embedded Coder"],
+                  "description": "Production-quality C code for ECU"
+                },
+                {
+                  "workflow_step": "Export ARXML",
+                  "toolboxes": ["AUTOSAR Blockset"],
+                  "key_functions": ["autosarexport"]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "family_name": "Wireless Communications (5G/LTE/WLAN)",
+      "products": [
+        {
+          "product_name": "5G Toolbox",
+          "use_cases": [
+            {
+              "use_case": "5G NR Physical Layer Development",
+              "primary_toolbox": "5G Toolbox",
+              "supporting_toolboxes": ["Communications Toolbox", "Antenna Toolbox", "RF Toolbox"],
+              "technical_capabilities": {
+                "channel_coding": [
+                  {
+                    "algorithm": "LDPC Encoding/Decoding",
+                    "toolbox": "5G Toolbox",
+                    "key_functions": ["nrLDPCEncode()", "nrLDPCDecode()"]
+                  },
+                  {
+                    "algorithm": "Polar Coding",
+                    "toolbox": "5G Toolbox",
+                    "key_functions": ["nrPolarEncode()", "nrPolarDecode()"]
+                  }
+                ],
+                "waveform_generation": [
+                  {
+                    "algorithm": "PDSCH (Physical Downlink Shared Channel)",
+                    "toolbox": "5G Toolbox",
+                    "key_functions": ["nrPDSCH()", "nrPDSCHInfo()"]
+                  },
+                  {
+                    "algorithm": "PUSCH (Physical Uplink Shared Channel)",
+                    "toolbox": "5G Toolbox",
+                    "key_functions": ["nrPUSCH()", "nrPUSCHDecode()"]
+                  },
+                  {
+                    "algorithm": "Complete Waveform Generation",
+                    "toolbox": "5G Toolbox",
+                    "key_functions": ["nrWaveformGenerator()"]
+                  }
+                ],
+                "mimo_beamforming": [
+                  {
+                    "algorithm": "Massive MIMO Precoding",
+                    "toolbox": "5G Toolbox",
+                    "key_functions": ["nrPDSCHPrecode()", "nrPUSCHPrecode()"]
+                  },
+                  {
+                    "algorithm": "MMSE/ZF Equalization",
+                    "toolbox": "5G Toolbox",
+                    "key_functions": ["nrEqualizeMMSE()", "nrEqualizeZF()"]
+                  }
+                ],
+                "channel_models": [
+                  {
+                    "algorithm": "TDL (Tapped Delay Line) Channel",
+                    "toolbox": "5G Toolbox",
+                    "key_functions": ["nrTDLChannel"]
+                  },
+                  {
+                    "algorithm": "CDL (Clustered Delay Line) Channel",
+                    "toolbox": "5G Toolbox",
+                    "key_functions": ["nrCDLChannel"]
+                  }
+                ],
+                "workflows": [
+                  {
+                    "workflow_step": "Link-Level Simulation",
+                    "toolboxes": ["5G Toolbox"],
+                    "description": "PHY layer BER/BLER performance"
+                  },
+                  {
+                    "workflow_step": "End-to-End System Simulation",
+                    "toolboxes": ["5G Toolbox", "Simulink"],
+                    "description": "gNodeB and UE complete chain"
+                  },
+                  {
+                    "workflow_step": "RF Testing with Instruments",
+                    "toolboxes": ["5G Toolbox", "Instrument Control Toolbox"],
+                    "description": "Waveform generation for signal generators"
+                  }
+                ]
+              }
+            },
+            {
+              "use_case": "Massive MIMO Beamforming",
+              "primary_toolbox": "5G Toolbox",
+              "supporting_toolboxes": ["Phased Array System Toolbox", "Antenna Toolbox"],
+              "algorithms": [
+                {
+                  "algorithm": "Digital Beamforming",
+                  "toolbox": "5G Toolbox",
+                  "key_functions": ["nrPDSCHPrecode()"]
+                },
+                {
+                  "algorithm": "Analog/Hybrid Beamforming",
+                  "toolbox": "Phased Array System Toolbox",
+                  "key_functions": ["phased.HybridBeamformer"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "product_name": "Communications Toolbox",
+          "use_cases": [
+            {
+              "use_case": "Custom Modulation/Demodulation",
+              "primary_toolbox": "Communications Toolbox",
+              "algorithms": [
+                {
+                  "algorithm": "QAM Modulation",
+                  "toolbox": "Communications Toolbox",
+                  "key_objects": ["comm.QPSKModulator", "comm.QAMModulator"]
+                },
+                {
+                  "algorithm": "OFDM",
+                  "toolbox": "Communications Toolbox",
+                  "key_objects": ["comm.OFDMModulator", "comm.OFDMDemodulator"]
+                },
+                {
+                  "algorithm": "Channel Coding (Turbo, LDPC, Convolutional)",
+                  "toolbox": "Communications Toolbox",
+                  "key_objects": ["comm.TurboEncoder", "comm.LDPCEncoder", "comm.ConvolutionalEncoder"]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "family_name": "FPGA & Hardware Development",
+      "products": [
+        {
+          "product_name": "HDL Coder",
+          "use_cases": [
+            {
+              "use_case": "FPGA-Based Signal Processing",
+              "primary_toolbox": "HDL Coder",
+              "supporting_toolboxes": ["Fixed-Point Designer", "DSP HDL Toolbox", "HDL Verifier"],
+              "workflows": [
+                {
+                  "workflow_step": "Algorithm Development in MATLAB/Simulink",
+                  "toolboxes": ["MATLAB", "Simulink", "DSP System Toolbox"],
+                  "description": "Floating-point algorithm design"
+                },
+                {
+                  "workflow_step": "Fixed-Point Conversion",
+                  "toolboxes": ["Fixed-Point Designer"],
+                  "key_tools": ["Fixed-Point Tool", "Fixed-Point Advisor"],
+                  "key_functions": ["fi()", "fipref()"]
+                },
+                {
+                  "workflow_step": "HDL Code Generation",
+                  "toolboxes": ["HDL Coder"],
+                  "key_tools": ["HDL Workflow Advisor"],
+                  "outputs": ["Verilog", "VHDL", "SystemVerilog"]
+                },
+                {
+                  "workflow_step": "Verification",
+                  "toolboxes": ["HDL Verifier"],
+                  "methods": ["HDL co-simulation", "FPGA-in-the-loop"],
+                  "supported_simulators": ["ModelSim", "Vivado Simulator", "Questa"]
+                },
+                {
+                  "workflow_step": "FPGA Implementation",
+                  "toolboxes": ["HDL Coder"],
+                  "supported_fpgas": ["Xilinx Vivado", "Intel Quartus"],
+                  "key_features": ["Resource utilization reports", "Timing analysis"]
+                }
+              ]
+            },
+            {
+              "use_case": "5G Channel Coding on FPGA",
+              "primary_toolbox": "HDL Coder",
+              "supporting_toolboxes": ["5G Toolbox", "Wireless HDL Toolbox", "Fixed-Point Designer"],
+              "algorithms": [
+                {
+                  "algorithm": "LDPC Encoder/Decoder for FPGA",
+                  "toolboxes": ["Wireless HDL Toolbox", "HDL Coder"],
+                  "description": "Hardware-optimized LDPC implementation"
+                },
+                {
+                  "algorithm": "Polar Encoder/Decoder",
+                  "toolboxes": ["Wireless HDL Toolbox", "HDL Coder"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "product_name": "Deep Learning HDL Toolbox",
+          "use_cases": [
+            {
+              "use_case": "CNN Deployment on FPGA",
+              "primary_toolbox": "Deep Learning HDL Toolbox",
+              "supporting_toolboxes": ["Deep Learning Toolbox", "HDL Coder"],
+              "workflows": [
+                {
+                  "workflow_step": "Network Training",
+                  "toolboxes": ["Deep Learning Toolbox"],
+                  "key_functions": ["trainNetwork()"]
+                },
+                {
+                  "workflow_step": "Quantization",
+                  "toolboxes": ["Deep Learning Toolbox"],
+                  "key_functions": ["dlquantizer()"]
+                },
+                {
+                  "workflow_step": "HDL Code Generation",
+                  "toolboxes": ["Deep Learning HDL Toolbox"],
+                  "key_objects": ["dlhdl.Workflow", "dlhdl.Target"],
+                  "supported_fpgas": ["Xilinx Zynq", "Xilinx Versal", "Intel Arria/Stratix"]
+                },
+                {
+                  "workflow_step": "FPGA Deployment",
+                  "toolboxes": ["Deep Learning HDL Toolbox"],
+                  "description": "Deploy to target hardware"
+                }
+              ],
+              "supported_networks": ["ResNet", "MobileNet", "YOLO", "SqueezeNet", "Custom networks"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "family_name": "Control Systems Design",
+      "products": [
+        {
+          "product_name": "Model Predictive Control Toolbox",
+          "use_cases": [
+            {
+              "use_case": "Chemical Process Control",
+              "primary_toolbox": "Model Predictive Control Toolbox",
+              "supporting_toolboxes": ["Control System Toolbox", "Simulink"],
+              "workflows": [
+                {
+                  "workflow_step": "Plant Model Development",
+                  "toolboxes": ["System Identification Toolbox", "Control System Toolbox"],
+                  "key_functions": ["ssest()", "tfest()"]
+                },
+                {
+                  "workflow_step": "MPC Controller Design",
+                  "toolboxes": ["Model Predictive Control Toolbox"],
+                  "key_functions": ["mpc()", "setconstraint()", "setEstimator()"]
+                },
+                {
+                  "workflow_step": "Closed-Loop Simulation",
+                  "toolboxes": ["Model Predictive Control Toolbox", "Simulink"],
+                  "key_blocks": ["MPC Controller block"]
+                },
+                {
+                  "workflow_step": "Deployment",
+                  "toolboxes": ["Embedded Coder"],
+                  "description": "Generate C code for real-time controller"
+                }
+              ]
+            },
+            {
+              "use_case": "Adaptive Cruise Control",
+              "primary_toolbox": "Model Predictive Control Toolbox",
+              "supporting_toolboxes": ["Automated Driving Toolbox", "Vehicle Dynamics Blockset"],
+              "algorithms": [
+                {
+                  "algorithm": "Linear MPC with Constraints",
+                  "toolbox": "Model Predictive Control Toolbox",
+                  "key_functions": ["mpc()", "mpcmove()"]
+                },
+                {
+                  "algorithm": "Adaptive MPC",
+                  "toolbox": "Model Predictive Control Toolbox",
+                  "description": "Online model adaptation"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "product_name": "Reinforcement Learning Toolbox",
+          "use_cases": [
+            {
+              "use_case": "Robot Manipulation Learning",
+              "primary_toolbox": "Reinforcement Learning Toolbox",
+              "supporting_toolboxes": ["Robotics System Toolbox", "Deep Learning Toolbox"],
+              "algorithms": [
+                {
+                  "algorithm": "DDPG (Deep Deterministic Policy Gradient)",
+                  "toolbox": "Reinforcement Learning Toolbox",
+                  "key_functions": ["rlDDPGAgent", "rlDDPGAgentOptions"]
+                },
+                {
+                  "algorithm": "TD3 (Twin Delayed DDPG)",
+                  "toolbox": "Reinforcement Learning Toolbox",
+                  "key_functions": ["rlTD3Agent"]
+                },
+                {
+                  "algorithm": "SAC (Soft Actor-Critic)",
+                  "toolbox": "Reinforcement Learning Toolbox",
+                  "key_functions": ["rlSACAgent"]
+                },
+                {
+                  "algorithm": "PPO (Proximal Policy Optimization)",
+                  "toolbox": "Reinforcement Learning Toolbox",
+                  "key_functions": ["rlPPOAgent"]
+                }
+              ],
+              "environments": [
+                {
+                  "environment": "Simulink Environment",
+                  "toolbox": "Reinforcement Learning Toolbox",
+                  "key_functions": ["rlSimulinkEnv"]
+                },
+                {
+                  "environment": "Custom MATLAB Environment",
+                  "toolbox": "Reinforcement Learning Toolbox",
+                  "key_functions": ["rlFunctionEnv", "createIntegratedEnv"]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "family_name": "Verification & Testing",
+      "products": [
+        {
+          "product_name": "Polyspace Bug Finder",
+          "use_cases": [
+            {
+              "use_case": "Automotive Software Quality Assurance",
+              "primary_toolbox": "Polyspace Bug Finder",
+              "supporting_toolboxes": ["Embedded Coder"],
+              "standards_checked": [
+                {
+                  "standard": "MISRA C:2012",
+                  "toolbox": "Polyspace Bug Finder",
+                  "description": "Mandatory, Required, Advisory rules"
+                },
+                {
+                  "standard": "MISRA C++:2008",
+                  "toolbox": "Polyspace Bug Finder"
+                },
+                {
+                  "standard": "CERT C/C++",
+                  "toolbox": "Polyspace Bug Finder"
+                },
+                {
+                  "standard": "CWE (Common Weakness Enumeration)",
+                  "toolbox": "Polyspace Bug Finder"
+                },
+                {
+                  "standard": "AUTOSAR C++14",
+                  "toolbox": "Polyspace Bug Finder"
+                }
+              ],
+              "defects_detected": [
+                "Concurrency issues",
+                "Data flow anomalies",
+                "Numerical issues",
+                "Security vulnerabilities",
+                "Dead code"
+              ]
+            }
+          ]
+        },
+        {
+          "product_name": "Polyspace Code Prover",
+          "use_cases": [
+            {
+              "use_case": "Safety-Critical Software Verification (DO-178C, ISO 26262)",
+              "primary_toolbox": "Polyspace Code Prover",
+              "supporting_toolboxes": ["Embedded Coder", "DO Qualification Kit", "IEC Certification Kit"],
+              "proven_properties": [
+                {
+                  "property": "No overflow",
+                  "toolbox": "Polyspace Code Prover"
+                },
+                {
+                  "property": "No division by zero",
+                  "toolbox": "Polyspace Code Prover"
+                },
+                {
+                  "property": "No array index out of bounds",
+                  "toolbox": "Polyspace Code Prover"
+                },
+                {
+                  "property": "No pointer arithmetic errors",
+                  "toolbox": "Polyspace Code Prover"
+                },
+                {
+                  "property": "No use of uninitialized variables",
+                  "toolbox": "Polyspace Code Prover"
+                }
+              ],
+              "certification_support": [
+                {
+                  "standard": "DO-178C (Aerospace)",
+                  "toolbox": "DO Qualification Kit"
+                },
+                {
+                  "standard": "ISO 26262 (Automotive)",
+                  "toolbox": "IEC Certification Kit"
+                },
+                {
+                  "standard": "IEC 61508 (Industrial)",
+                  "toolbox": "IEC Certification Kit"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "product_name": "Simulink Test",
+          "use_cases": [
+            {
+              "use_case": "Model-Based Testing with Coverage",
+              "primary_toolbox": "Simulink Test",
+              "supporting_toolboxes": ["Simulink Coverage", "Requirements Toolbox"],
+              "workflows": [
+                {
+                  "workflow_step": "Test Authoring",
+                  "toolboxes": ["Simulink Test"],
+                  "key_tools": ["Test Manager", "Test Sequence block", "Test Assessment block"]
+                },
+                {
+                  "workflow_step": "Requirements-Based Testing",
+                  "toolboxes": ["Requirements Toolbox", "Simulink Test"],
+                  "description": "Link tests to requirements"
+                },
+                {
+                  "workflow_step": "Coverage Analysis",
+                  "toolboxes": ["Simulink Coverage"],
+                  "metrics": ["Decision", "Condition", "MCDC", "Relational boundary"]
+                },
+                {
+                  "workflow_step": "Regression Testing",
+                  "toolboxes": ["Simulink Test"],
+                  "description": "Automated test execution in CI/CD"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "family_name": "Financial Services & Risk",
+      "products": [
+        {
+          "product_name": "Risk Management Toolbox",
+          "use_cases": [
+            {
+              "use_case": "Credit Risk Modeling (IFRS 9, CECL)",
+              "primary_toolbox": "Risk Management Toolbox",
+              "supporting_toolboxes": ["Statistics and Machine Learning Toolbox", "Econometrics Toolbox"],
+              "workflows": [
+                {
+                  "workflow_step": "Credit Scorecard Development",
+                  "toolboxes": ["Risk Management Toolbox"],
+                  "key_objects": ["creditscorecard"],
+                  "key_functions": ["autobinning()", "fitmodel()", "formatpoints()"]
+                },
+                {
+                  "workflow_step": "PD Model Development",
+                  "toolboxes": ["Risk Management Toolbox"],
+                  "key_functions": ["fitLifetimePDModel()", "fitProbabilityOfDefaultModel()"]
+                },
+                {
+                  "workflow_step": "LGD Modeling",
+                  "toolboxes": ["Risk Management Toolbox"],
+                  "key_objects": ["lgdmodel"],
+                  "approaches": ["Regression", "Tobit", "Beta regression"]
+                },
+                {
+                  "workflow_step": "Expected Credit Loss (ECL)",
+                  "toolboxes": ["Risk Management Toolbox"],
+                  "standards": ["IFRS 9", "CECL"],
+                  "key_functions": ["ecl()"]
+                }
+              ]
+            },
+            {
+              "use_case": "Market Risk - Value at Risk (VaR)",
+              "primary_toolbox": "Risk Management Toolbox",
+              "supporting_toolboxes": ["Financial Toolbox"],
+              "algorithms": [
+                {
+                  "algorithm": "Historical Simulation VaR",
+                  "toolbox": "Risk Management Toolbox",
+                  "key_functions": ["varbacktest()"]
+                },
+                {
+                  "algorithm": "Parametric VaR",
+                  "toolbox": "Risk Management Toolbox"
+                },
+                {
+                  "algorithm": "Monte Carlo VaR",
+                  "toolbox": "Risk Management Toolbox"
+                },
+                {
+                  "algorithm": "Expected Shortfall (CVaR)",
+                  "toolbox": "Risk Management Toolbox",
+                  "key_functions": ["esbacktest()"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "product_name": "Financial Toolbox",
+          "use_cases": [
+            {
+              "use_case": "Derivatives Pricing",
+              "primary_toolbox": "Financial Toolbox",
+              "algorithms": [
+                {
+                  "algorithm": "Black-Scholes-Merton",
+                  "toolbox": "Financial Toolbox",
+                  "key_functions": ["optstockbyls()", "blsprice()"]
+                },
+                {
+                  "algorithm": "Binomial Trees",
+                  "toolbox": "Financial Toolbox",
+                  "key_functions": ["optstockbybls()", "crrtree()"]
+                },
+                {
+                  "algorithm": "Monte Carlo Simulation",
+                  "toolbox": "Financial Toolbox",
+                  "key_functions": ["optstockbymc()"]
+                },
+                {
+                  "algorithm": "Finite Difference Methods",
+                  "toolbox": "Financial Toolbox",
+                  "key_functions": ["optstockbyft()"]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "family_name": "Predictive Maintenance",
+      "products": [
+        {
+          "product_name": "Predictive Maintenance Toolbox",
+          "use_cases": [
+            {
+              "use_case": "Remaining Useful Life (RUL) Prediction for Industrial Equipment",
+              "primary_toolbox": "Predictive Maintenance Toolbox",
+              "supporting_toolboxes": ["Signal Processing Toolbox", "Statistics and Machine Learning Toolbox", "Deep Learning Toolbox"],
+              "workflows": [
+                {
+                  "workflow_step": "Data Import & Labeling",
+                  "toolboxes": ["Predictive Maintenance Toolbox"],
+                  "key_functions": ["fileEnsembleDatastore", "simulationEnsembleDatastore"]
+                },
+                {
+                  "workflow_step": "Feature Extraction",
+                  "toolboxes": ["Predictive Maintenance Toolbox", "Signal Processing Toolbox", "Wavelet Toolbox"],
+                  "features": ["Time-domain (RMS, kurtosis, peak)", "Frequency-domain (spectral kurtosis)", "Time-frequency (wavelet)"],
+                  "key_functions": ["tsa()", "pkurtosis()", "envspectrum()"]
+                },
+                {
+                  "workflow_step": "Health Indicator Construction",
+                  "toolboxes": ["Predictive Maintenance Toolbox"],
+                  "key_functions": ["monotonicity()", "trendability()"]
+                },
+                {
+                  "workflow_step": "RUL Estimation",
+                  "toolboxes": ["Predictive Maintenance Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "Similarity-Based RUL",
+                      "key_functions": ["residualSimilarityModel()"]
+                    },
+                    {
+                      "algorithm": "Degradation Models",
+                      "key_functions": ["exponentialDegradationModel()", "linearDegradationModel()"]
+                    },
+                    {
+                      "algorithm": "Survival Models",
+                      "key_functions": ["reliabilitySurvivalModel()"]
+                    },
+                    {
+                      "algorithm": "Deep Learning for RUL",
+                      "toolbox": "Deep Learning Toolbox",
+                      "description": "LSTM networks for time series prediction"
+                    }
+                  ]
+                },
+                {
+                  "workflow_step": "Deployment",
+                  "toolboxes": ["MATLAB Production Server", "Simulink"],
+                  "description": "Real-time monitoring and prediction"
+                }
+              ]
+            },
+            {
+              "use_case": "Fault Detection & Diagnosis",
+              "primary_toolbox": "Predictive Maintenance Toolbox",
+              "supporting_toolboxes": ["Statistics and Machine Learning Toolbox"],
+              "algorithms": [
+                {
+                  "algorithm": "Anomaly Detection",
+                  "toolboxes": ["Predictive Maintenance Toolbox", "Statistics and Machine Learning Toolbox"],
+                  "key_functions": ["detectdrift()", "iforest()"]
+                },
+                {
+                  "algorithm": "Residual Generation (Model-Based)",
+                  "toolbox": "Predictive Maintenance Toolbox",
+                  "key_functions": ["residualGenerator()"]
+                },
+                {
+                  "algorithm": "Classification for Fault Types",
+                  "toolbox": "Statistics and Machine Learning Toolbox",
+                  "key_functions": ["fitcensemble()", "fitcsvm()"]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "family_name": "Robotics & Navigation",
+      "products": [
+        {
+          "product_name": "Robotics System Toolbox",
+          "use_cases": [
+            {
+              "use_case": "Industrial Robot Manipulator Programming",
+              "primary_toolbox": "Robotics System Toolbox",
+              "supporting_toolboxes": ["Optimization Toolbox"],
+              "workflows": [
+                {
+                  "workflow_step": "Robot Model Import",
+                  "toolboxes": ["Robotics System Toolbox"],
+                  "key_functions": ["importrobot()", "robotics.RigidBodyTree"],
+                  "formats": ["URDF", "SDF"]
+                },
+                {
+                  "workflow_step": "Inverse Kinematics",
+                  "toolboxes": ["Robotics System Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "Analytical IK (when available)",
+                      "key_functions": ["analyticalInverseKinematics()"]
+                    },
+                    {
+                      "algorithm": "Numerical IK",
+                      "key_functions": ["inverseKinematics()", "generalizedInverseKinematics()"]
+                    }
+                  ]
+                },
+                {
+                  "workflow_step": "Motion Planning",
+                  "toolboxes": ["Robotics System Toolbox"],
+                  "algorithms": [
+                    {
+                      "algorithm": "RRT for Manipulators",
+                      "key_functions": ["manipulatorRRT()"]
+                    },
+                    {
+                      "algorithm": "Trajectory Generation",
+                      "key_functions": ["minjerkpolytraj()", "cubicpolytraj()"]
+                    }
+                  ]
+                },
+                {
+                  "workflow_step": "Collision Checking",
+                  "toolboxes": ["Robotics System Toolbox"],
+                  "key_functions": ["checkCollision()"]
+                }
+              ]
+            },
+            {
+              "use_case": "Mobile Robot SLAM",
+              "primary_toolbox": "Robotics System Toolbox",
+              "supporting_toolboxes": ["Computer Vision Toolbox", "Lidar Toolbox", "Navigation Toolbox"],
+              "algorithms": [
+                {
+                  "algorithm": "Lidar-Based SLAM",
+                  "toolboxes": ["Robotics System Toolbox", "Lidar Toolbox"],
+                  "key_functions": ["lidarSLAM", "matchScans()"]
+                },
+                {
+                  "algorithm": "Visual SLAM (vSLAM)",
+                  "toolboxes": ["Computer Vision Toolbox"],
+                  "key_functions": ["imageviewset()", "bundleAdjustment()"]
+                },
+                {
+                  "algorithm": "Occupancy Grid Mapping",
+                  "toolbox": "Robotics System Toolbox",
+                  "key_functions": ["robotics.OccupancyGrid", "insertRay()"]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "product_name": "Navigation Toolbox",
+          "use_cases": [
+            {
+              "use_case": "Autonomous Mobile Robot Path Planning",
+              "primary_toolbox": "Navigation Toolbox",
+              "supporting_toolboxes": ["Robotics System Toolbox"],
+              "algorithms": [
+                {
+                  "algorithm": "A* Path Planning",
+                  "toolbox": "Navigation Toolbox",
+                  "key_functions": ["plannerAStar"]
+                },
+                {
+                  "algorithm": "RRT Path Planning",
+                  "toolbox": "Navigation Toolbox",
+                  "key_functions": ["plannerRRT", "plannerRRTStar"]
+                },
+                {
+                  "algorithm": "Pure Pursuit Controller",
+                  "toolbox": "Navigation Toolbox",
+                  "key_functions": ["controllerPurePursuit"]
+                },
+                {
+                  "algorithm": "VFH (Vector Field Histogram)",
+                  "toolbox": "Navigation Toolbox",
+                  "key_functions": ["controllerVFH"]
+                },
+                {
+                  "algorithm": "Dynamic Window Approach (DWA)",
+                  "toolbox": "Navigation Toolbox",
+                  "key_functions": ["controllerDWA"]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+
+  "cross_reference_matrix": {
+    "description": "Quick lookup: Technical requirement → Primary toolbox(es)",
+    "requirement_to_toolbox_mapping": {
+      "deep_learning": {
+        "primary_toolbox": "Deep Learning Toolbox",
+        "supporting_toolboxes": ["Computer Vision Toolbox", "Image Processing Toolbox", "Signal Processing Toolbox"]
+      },
+      "object_detection": {
+        "primary_toolbox": "Deep Learning Toolbox",
+        "supporting_toolboxes": ["Computer Vision Toolbox", "Automated Driving Toolbox"],
+        "key_algorithms_and_toolboxes": {
+          "YOLO": "Deep Learning Toolbox",
+          "Faster_RCNN": "Deep Learning Toolbox",
+          "SSD": "Deep Learning Toolbox",
+          "ACF_detector": "Computer Vision Toolbox"
+        }
+      },
+      "5G_development": {
+        "primary_toolbox": "5G Toolbox",
+        "supporting_toolboxes": ["Communications Toolbox", "Antenna Toolbox", "RF Toolbox", "Phased Array System Toolbox"]
+      },
+      "autonomous_driving": {
+        "primary_toolbox": "Automated Driving Toolbox",
+        "supporting_toolboxes": ["Sensor Fusion and Tracking Toolbox", "Computer Vision Toolbox", "Lidar Toolbox", "Radar Toolbox", "Deep Learning Toolbox", "RoadRunner", "Vehicle Dynamics Blockset"]
+      },
+      "predictive_maintenance": {
+        "primary_toolbox": "Predictive Maintenance Toolbox",
+        "supporting_toolboxes": ["Signal Processing Toolbox", "Wavelet Toolbox", "Statistics and Machine Learning Toolbox", "Deep Learning Toolbox"]
+      },
+      "fpga_implementation": {
+        "primary_toolbox": "HDL Coder",
+        "supporting_toolboxes": ["Fixed-Point Designer", "HDL Verifier", "DSP HDL Toolbox", "Vision HDL Toolbox", "Deep Learning HDL Toolbox", "Wireless HDL Toolbox"]
+      },
+      "control_system_design": {
+        "primary_toolbox": "Control System Toolbox",
+        "supporting_toolboxes": ["Simulink Control Design", "Model Predictive Control Toolbox", "Robust Control Toolbox", "System Identification Toolbox"]
+      },
+      "sensor_fusion": {
+        "primary_toolbox": "Sensor Fusion and Tracking Toolbox",
+        "supporting_toolboxes": ["Automated Driving Toolbox", "Radar Toolbox", "Lidar Toolbox", "Computer Vision Toolbox"]
+      },
+      "image_processing": {
+        "primary_toolbox": "Image Processing Toolbox",
+        "supporting_toolboxes": ["Computer Vision Toolbox", "Medical Imaging Toolbox", "Deep Learning Toolbox"]
+      },
+      "signal_processing": {
+        "primary_toolbox": "Signal Processing Toolbox",
+        "supporting_toolboxes": ["DSP System Toolbox", "Audio Toolbox", "Wavelet Toolbox"]
+      },
+      "machine_learning": {
+        "primary_toolbox": "Statistics and Machine Learning Toolbox",
+        "supporting_toolboxes": ["Deep Learning Toolbox", "Text Analytics Toolbox"]
+      },
+      "financial_risk": {
+        "primary_toolbox": "Risk Management Toolbox",
+        "supporting_toolboxes": ["Financial Toolbox", "Econometrics Toolbox", "Statistics and Machine Learning Toolbox"]
+      },
+      "robotics": {
+        "primary_toolbox": "Robotics System Toolbox",
+        "supporting_toolboxes": ["ROS Toolbox", "Navigation Toolbox", "Computer Vision Toolbox", "Lidar Toolbox"]
+      },
+      "code_generation": {
+        "embedded_c": "Embedded Coder",
+        "gpu_cuda": "GPU Coder",
+        "fpga_hdl": "HDL Coder",
+        "plc_code": "Simulink PLC Coder",
+        "standalone_apps": "MATLAB Compiler"
+      },
+      "verification_testing": {
+        "static_analysis": ["Polyspace Bug Finder", "Polyspace Code Prover"],
+        "model_testing": ["Simulink Test", "Simulink Coverage"],
+        "requirements": "Requirements Toolbox"
+      }
+    }
+  },
+
+  "usage_instructions_for_rag": {
+    "primary_use": "This enhanced taxonomy explicitly maps toolbox names to every workflow, algorithm, and capability. Use this structure to validate LLM outputs.",
+    "validation_workflow": "When RAG system returns recommendations, verify that: (1) The toolbox name is explicitly listed in the relevant use case, (2) The workflow steps reference the correct toolboxes, (3) The algorithms cite the providing toolbox",
+    "example_query_flow": "User asks 'I need object detection for autonomous vehicles' → RAG retrieves use case → Returns: PRIMARY: Deep Learning Toolbox, SUPPORTING: Computer Vision Toolbox, Automated Driving Toolbox → LLM validates these are the correct toolboxes for YOLO/Faster R-CNN implementation",
+    "toolbox_name_format": "Always use official toolbox names as listed in quick_reference_toolbox_catalog",
+    "multi_toolbox_scenarios": "Most real-world applications require 2-5 toolboxes. Primary toolbox provides core functionality, supporting toolboxes enable complete workflow"
+  }
+}

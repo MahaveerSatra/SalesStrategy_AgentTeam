@@ -13,6 +13,7 @@ from src.utils.json_parsing import extract_json_from_llm_response, JSONParseErro
 from src.models.state import ResearchState, Signal, Opportunity, OpportunityConfidence
 from src.models.llm_schemas import RequirementsExtraction, OpportunitiesGeneration
 from src.data_sources.product_catalog import ProductMatcher
+from src.data_sources.taxonomy_loader import load_seller_taxonomy, format_taxonomy_for_identifier
 from src.core.model_router import ModelRouter
 
 logger = structlog.get_logger(__name__)
@@ -78,6 +79,9 @@ class IdentifierAgent(StatelessAgent):
         tech_stack = state.get("tech_stack", [])
         feedback_context = state.get("feedback_context")
         user_context = state.get("user_context", "")
+
+        # Clear coordinator auto-reroute flag so it doesn't persist into later routing
+        state["next_route"] = None  # type: ignore
 
         self.logger.info(
             "identifier_started",
@@ -269,7 +273,7 @@ class IdentifierAgent(StatelessAgent):
 
         if seller_name.lower() == "mathworks":
             # MathWorks-specific context (since we have hardcoded products)
-            return f"""**SELLER: {seller_name}**
+            context = f"""**SELLER: {seller_name}**
 MathWorks is the leading developer of mathematical computing software.
 Our products enable engineers and scientists to analyze data, develop algorithms,
 and create models for applications in automotive, aerospace, communications,
@@ -285,11 +289,21 @@ electronics, industrial automation, and other industries.
 **Product Domains:** {', '.join(categories) if categories else 'Various technical computing solutions'}"""
         else:
             # Generic seller context
-            return f"""**SELLER: {seller_name}**
+            context = f"""**SELLER: {seller_name}**
 We provide solutions in the following domains:
 {', '.join(categories) if categories else 'Various software solutions'}
 
 *Note: For more accurate seller positioning, configure seller profile in product catalog.*"""
+
+        # Inject seller taxonomy (requirement → primary toolbox mappings) if available.
+        # Each seller provides their own JSON — no product names hardcoded here.
+        taxonomy = load_seller_taxonomy(seller_name)
+        if taxonomy:
+            taxonomy_block = format_taxonomy_for_identifier(taxonomy)
+            if taxonomy_block:
+                context += f"\n\n{taxonomy_block}"
+
+        return context
 
     async def _extract_requirements(
         self,
@@ -628,6 +642,11 @@ For each product with GENUINE fit (relevance > 50%), create an opportunity:
 ═══════════════════════════════════════════════════════════════
 GROUNDING RULES (CRITICAL)
 ═══════════════════════════════════════════════════════════════
+
+**SIGNAL UNIQUENESS RULE (CRITICAL):**
+- Do NOT reuse the same [JOB-xxx] or [SIG-xxx] citation across more than 2 opportunities.
+- Each product needs its own evidence story. Shared citations = boilerplate that loses rep trust.
+- Use different supporting signals per product; fall back to [INDUSTRY] if needed.
 
 You are PROHIBITED from:
 - Inventing quotes not found in the provided evidence

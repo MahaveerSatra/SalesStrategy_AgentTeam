@@ -988,7 +988,7 @@ class ProductMatcher:
 
         # Lazy cross-encoder slot — loaded on first call to _get_cross_encoder()
         self._cross_encoder: CrossEncoder | None = None
-        self._cross_encoder_model = "mixedbread-ai/mxbai-rerank-xsmall-v1"
+        self._cross_encoder_model = "cross-encoder/ms-marco-MiniLM-L-12-v2"
 
     def _bm25_search(self, query: str, top_k: int) -> list[tuple[str, float]]:
         """BM25 keyword search over all indexed documents."""
@@ -1018,7 +1018,7 @@ class ProductMatcher:
         Fetches full product documents from ChromaDB, scores all (requirement, document)
         pairs, aggregates by max score per product, and returns top_k re-sorted results.
 
-        mxbai-rerank-xsmall-v1 outputs raw logits — sigmoid converts to [0, 1].
+        ms-marco-MiniLM-L-12-v2 outputs raw logits — sigmoid converts to [0, 1].
         Raises if cross-encoder fails — re-ranking is required, not optional.
         """
         if not candidates:

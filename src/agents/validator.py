@@ -11,6 +11,7 @@ from src.core.base_agent import StatelessAgent
 from src.utils.json_parsing import extract_json_from_llm_response, JSONParseError
 from src.models.state import ResearchState, Signal, Opportunity, OpportunityConfidence
 from src.models.llm_schemas import RiskAssessment, OpportunityScoring
+from src.data_sources.taxonomy_loader import load_seller_taxonomy, format_taxonomy_for_validator
 from src.core.model_router import ModelRouter
 
 logger = structlog.get_logger(__name__)
@@ -498,6 +499,10 @@ Your ENTIRE response must be this exact JSON structure:
         risks_formatted = self._format_risks_with_ids(risks)
         seller_context = self._get_seller_context(seller_name)
 
+        # Load seller taxonomy for COVERAGE CHECK (domain categories + requirement mappings)
+        taxonomy = load_seller_taxonomy(seller_name)
+        taxonomy_block = format_taxonomy_for_validator(taxonomy) if taxonomy else ""
+
         # Build feedback section
         feedback_section = ""
         if feedback_context:
@@ -614,16 +619,21 @@ Final score interpretation:
 COVERAGE CHECK (After scoring all opportunities)
 ═══════════════════════════════════════════════════════════════
 
-After scoring all individual opportunities:
+{taxonomy_block if taxonomy_block else ""}
 
-1. Re-read the USER'S SALES OBJECTIVE above carefully.
-2. Identify the specific capability areas, technologies, or team targets mentioned.
-3. Check: does the set of opportunities with score ≥ 0.6 collectively address each stated area?
-4. For any stated area with NO validated opportunity covering it, add to competitive_risks:
-   "[OBJECTIVE_GAP] User objective includes {{describe gap using their words from objective}}
-   but no validated opportunity addresses this area. Relevant signals: {{cite any signals even
-   weakly related}}. (Mitigation: Re-run Identifier targeting products in this area)"
-5. If all stated areas are covered — no [OBJECTIVE_GAP] entries needed.
+Using the taxonomy above:
+1. Re-read the USER'S SALES OBJECTIVE. Extract stated capability areas.
+2. For each area: identify which REQUIREMENT TYPE from the taxonomy above it matches.
+3. Check: is the PRIMARY TOOLBOX for that requirement type in the validated set (score ≥ 0.6)?
+4. If the PRIMARY TOOLBOX is missing: add to competitive_risks:
+   "[OBJECTIVE_GAP] {{primary_toolbox}} (primary for {{requirement_type}}) is missing despite
+   signal {{cite SIG-xxx}}. User objective: '{{quote exact text}}'.
+   (Mitigation: Re-run Identifier for {{requirement_type}} products.)"
+5. For any validated product whose DOMAIN CATEGORY from the taxonomy does NOT match any
+   stated capability area: apply -0.30 to its score. Explain why in score_rationale.
+   Note: -0.30 is intentionally strong — it should drop clearly peripheral products
+   (e.g. a communications toolbox scored 0.65 for a GNC objective → 0.35, below threshold).
+6. If all stated areas are covered → no [OBJECTIVE_GAP] entries needed.
 
 ═══════════════════════════════════════════════════════════════
 OUTPUT FORMAT (CRITICAL - JSON ONLY)
@@ -798,6 +808,12 @@ INTELLIGENCE SIGNALS [SIG-xxx] (use for evidence linking)
 ═══════════════════════════════════════════════════════════════
 GROUNDING RULES (CRITICAL)
 ═══════════════════════════════════════════════════════════════
+
+**CROSS-OPPORTUNITY UNIQUENESS (CRITICAL):**
+Review current_talking_points across ALL opportunities in this request.
+Do NOT generate an additional talking point that cites a [JOB-xxx] or [SIG-xxx]
+already used by another opportunity's talking points.
+Each product must have its own evidence story.
 
 You are PROHIBITED from:
 - Inventing quotes not found in the provided evidence

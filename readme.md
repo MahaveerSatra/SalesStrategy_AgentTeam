@@ -1,6 +1,6 @@
 # Enterprise Account Business Development System
 
-> This tool helps a Head of Sales at a Tier-1 Tech firm reduce account research time from 4 hours to 4 minutes.
+> Reduces account research time from 4 hours to 4 minutes for enterprise sales teams.
 
 A full-stack multi-agent AI system that automates enterprise sales research. Given a target account, it gathers intelligence in real time, identifies sales opportunities, and generates actionable reports.
 
@@ -10,81 +10,98 @@ A full-stack multi-agent AI system that automates enterprise sales research. Giv
 
 ## The Problem
 
-Enterprise sales teams spend 5-10 hours per account researching prospects: scanning job postings for technology signals, reading news for expansion plans, and manually matching customer needs to products. This work is repetitive, time-consuming, and inconsistent.
+Before every customer meeting, an Account Executive manually scans job postings for technology signals, reads recent news for expansion plans, and maps customer needs to products. For an enterprise account, that's 4–5 hours of repetitive, inconsistent work — done every single time.
+
+The problem isn't effort. It's that this process doesn't scale, and its quality depends entirely on who's doing it.
 
 ## The Solution
 
-A multi-agent system that:
-1. **Gathers intelligence** from web searches, job postings, and news
-2. **Extracts requirements** using LLM-powered analysis
-3. **Matches products** via semantic search against your product catalog
-4. **Validates opportunities** with confidence scoring and risk assessment
-5. **Generates reports** with actionable sales recommendations
+A team of AI agents that handles the research end-to-end:
 
-Delivered through a real-time web interface that streams live agent progress.
+1. **Gathers intelligence** — web, news, and job board signals for the target account
+2. **Extracts requirements** — identifies what the customer actually needs from what they're hiring for and saying publicly
+3. **Matches products** — finds the right recommendations via a 3-stage hybrid RAG pipeline
+4. **Validates opportunities** — scores confidence, flags risks, filters out weak matches
+5. **Generates a cited report** — every claim traceable to a source signal, ready for the AE to walk into the meeting
 
-**Result:** Validated opportunities identified from signals for the target customer in a single automated run.
+Delivered through a real-time browser UI that streams live agent progress, or a single CLI command with no UI required.
 
 ---
 
 ## Architecture
 
-The frontend streams real-time agent progress via Server-Sent Events. Clicking any completed node opens an observability panel showing run time, extracted data, and a LangSmith trace deep-link.
-
 ### Agent Workflow
 
 ```mermaid
 flowchart LR
-    You(["You"])
-    CE["Coordinator\nEntry"]
-    G["Gatherer\nweb · jobs · news"]
-    I["Identifier\nChromaDB match"]
-    V["Validator\nconfidence score"]
-    CX["Coordinator\nExit"]
-    R["Report"]
+    YOU["You"]:::io
 
-    You -->|"account + industry"| CE
-    CE --> G
-    CE --> I
-    CE --> V
-    G --> I
-    I --> V
-    G --> CX
-    I --> CX
-    V --> CX
-    CX --> R
-    R -->|"Human Review · interrupt()"| You
-    You -.->|"feedback"| CE
+    subgraph CORE ["  Research Agent System  "]
+        direction TB
+        G(["Gatherer\nweb · jobs · news"]):::agent
+        I(["Identifier\nhybrid RAG match"]):::agent
+        V(["Validator\nconfidence scoring"]):::agent
+        G --> I --> V
+    end
+
+    CE(["Coordinator\nEntry"]):::coord
+    CX(["Coordinator\nExit + Quality Gate"]):::coord
+    RPT["Sales Report"]:::report
+
+    YOU -->|"account + objective"| CE
+    CE --> G & I & V
+    G & I & V --> CX
+    CX --> RPT
+    RPT -.->|"human feedback · interrupt()"| YOU
+
+    classDef agent  fill:#c4b5fd,stroke:#7c3aed,color:#1e1b4b
+    classDef coord  fill:#a78bfa,stroke:#6d28d9,color:#ffffff
+    classDef io     fill:#f1f5f9,stroke:#64748b,color:#334155
+    classDef report fill:#bbf7d0,stroke:#16a34a,color:#14532d
 ```
 
-The workflow pauses after report generation using LangGraph's `interrupt()` primitive. The user reviews the report in the browser and submits feedback (approve / dig deeper / different products / custom). The workflow resumes from the SQLite checkpoint with the feedback injected.
+The workflow pauses after report generation using LangGraph's `interrupt()` primitive. The AE reviews the report in the browser and submits feedback — the workflow resumes from the SQLite checkpoint with feedback injected. Works with any company's product catalog: drop in a seller taxonomy JSON and the system adapts with no product names hardcoded in agent code.
 
-### Seller-Agnostic Design
+### Two Ways to Run It
 
-Works with any company's product catalog. Index once, research unlimited accounts:
+**Web UI** — Real-time streaming interface. Watch agents execute live, click any completed node to inspect extracted signals, opportunities, or risks, and submit feedback to loop back.
 
+**CLI** — No UI required. Same agent orchestration, terminal output:
 ```bash
-# Index your product catalog (JSON, URL, or markdown)
-python -m src.cli setup-catalog --seller "YourCompany" --catalog-file products.json
-
-# Research a target account
-python -m src.cli research "Boeing" --industry aerospace --seller "YourCompany"
+python -m src.cli research "Remora Carbon" --industry "carbon capture" --seller "MathWorks"
 ```
 
 ---
 
-## Key Features
+## What Makes This Hard — and How It's Built
 
-| Feature | Implementation |
-|---------|----------------|
-| **Multi-Agent Orchestration** | LangGraph with conditional routing and checkpointed feedback loops |
-| **Real-Time Streaming** | Server-Sent Events stream node state (started / completed / waiting) to the frontend live |
-| **Human-in-the-Loop** | LangGraph `interrupt()` pauses the workflow; resumes from SQLite checkpoint on feedback |
-| **Agent Observability** | Click any node to inspect run time, extracted data, and LangSmith trace link |
-| **Hybrid RAG Product Matching** | 3-stage pipeline: BM25 keyword + ChromaDB vector → Reciprocal Rank Fusion → cross-encoder re-ranking before LLM sees candidates. Corpus enriched with ~76 scraped solution pages for broader recall. |
-| **Intelligent LLM Routing** | 3-tier routing (local Ollama → Groq API) based on task complexity |
-| **Session Persistence** | Pause, stop, and resume research sessions across browser reloads via SQLite |
-| **Production-Ready** | 454 tests passing, structured logging (structlog), Pydantic v2 validation |
+**Account research takes 4–5 hours. This cuts it to 4 minutes.**
+- An AE has to manually gather, read, and synthesize signals across job boards, news, and company pages before they can even form a hypothesis about what a customer needs
+- Four specialized agents run this pipeline automatically — Gatherer collects raw signals, Identifier maps them to product opportunities, Validator re-scores with risk assessment, and Coordinator assembles the final report. Each step is observable: click any node in the browser to inspect run time and what was extracted
+
+**AI recommends the wrong products without business context**
+- A system that recommends existing products for an expansion deal, or niche products where broad capabilities are needed, destroys AE trust immediately
+- The Validator parses sales intent (expansion / renewal / acquisition) from the stated objective and applies scoring rules specific to that scenario. A seller taxonomy JSON maps requirement types to primary products. Products outside the stated capability domain receive a −0.30 confidence penalty before surfacing in the report
+
+**LLM output isn't grounded — claims can't be verified in a customer meeting**
+- Unverified talking points are a liability. An AE needs to know exactly which signal supports which claim before they walk into the room
+- Every signal collected is tagged (`[SIG-001]`, `[JOB-002]`). The LLM is required to cite evidence in every talking point. Nine deterministic checks run post-generation — if a cited signal doesn't exist in the collected data, the check fails and the output is flagged
+
+**Generic output: every product cites the same evidence**
+- Boilerplate talking points (three products all referencing the same Kubernetes job posting) signal low-quality output immediately to any experienced AE
+- Signal uniqueness rules require each opportunity to build its own evidence story with distinct citations. Shared signals across products are rejected during generation
+
+**Prompts degrade silently — you don't know until output quality drops**
+- Without measurement, every prompt change is a guess. It's easy to improve one thing and break another without noticing
+- A custom eval framework grades every run across accuracy, actionability, alignment, and safety (1–5 scale) using Claude as judge, plus 9 deterministic rule checks. Score history in a CSV shows the delta across prompt iterations — you see whether a change helped or hurt, and where
+
+**Inference cost compounds at scale**
+- Running a frontier model for every sub-task adds up fast — especially for tasks that don't need frontier reasoning
+- Three-tier LLM routing dispatches by complexity: entry validation goes to local Ollama (instant, $0); analysis goes to Groq 8B; quality assessment goes to Groq 20B. Anthropic prompt caching marks the product catalog and analysis playbooks with `cache_control` — cached server-side, ~90% cost reduction on repeated lookups across a session
+
+**Semantic search misses domain-specific terminology**
+- "GNC toolboxes" doesn't semantically match "Sensor Fusion and Tracking Toolbox" without domain context. A naive vector search returns wrong products, and the LLM has nothing good to reason over
+- A 3-stage retrieval pipeline: BM25 keyword + ChromaDB vector search merged via Reciprocal Rank Fusion → cross-encoder re-ranking (`ms-marco-MiniLM-L-12-v2`) on the top 30 → top 15 candidates passed to the LLM. The corpus includes 76 scraped solution pages (fetched via Tavily Extract API, which bypasses Cloudflare WAF) to bridge the gap between industry language and product names
 
 ---
 
@@ -92,106 +109,19 @@ python -m src.cli research "Boeing" --industry aerospace --seller "YourCompany"
 
 ### State Persistence — No Lost Work
 
-For an enterprise customer like Disney, a system that crashes and loses progress is unusable. Every node completion is checkpointed to SQLite. If the agent fails mid-run, or the user closes the browser, the workflow resumes from exactly where it paused:
-
-```python
-# src/graph/workflow.py
-conn = sqlite3.connect("data/checkpoints/checkpoints.db", check_same_thread=False)
-self.app = self.graph.compile(
-    checkpointer=SqliteSaver(conn),
-    interrupt_before=["_wait_for_human"]  # pause for human review
-)
-
-# Resume from checkpoint — human can edit state before continuing
-self.app.update_state(config, {"human_feedback": [user_input]})
-result = self.app.invoke(None, config)  # None = resume from checkpoint
-```
+Every node completion is checkpointed to SQLite. If the agent fails mid-run or the user closes the browser, the workflow resumes from exactly where it paused. Human feedback is injected into state before resuming — the agents continue as if the pause never happened.
 
 ### Error Handling — Graceful Degradation
 
-What happens when a search returns 0 results, or the LLM API rate limits? The workflow continues. Every external call uses `tenacity` retry with exponential backoff, and every data source falls back to a simpler strategy before returning an empty result:
-
-```python
-# src/data_sources/mcp_ddg_client.py
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=10),
-       retry=retry_if_exception_type(DataSourceTimeoutError))
-async def search(self, query: str) -> list[SearchResult]: ...
-
-# If "Boeing AI hiring news" returns nothing, try simpler queries before giving up
-for query_variant in [f"{query} news", f"{query} announcement", query]:
-    results = await self.search(query_variant)
-    if results:
-        return results
-return []  # Workflow continues with partial data rather than crashing
-```
+Every external call uses tenacity retry with exponential backoff (3 attempts, 2–10s wait). Zero search results triggers simpler query variants before returning empty. Zero job postings continues with web signals only. The workflow completes with partial data rather than crashing — partial coverage beats a failed run during an enterprise demo.
 
 ### Response Caching — Cost-Conscious by Design
 
-**Application-level caching** (all providers): Identical LLM prompts return cached results — ~0ms, $0 cost.
-Search results are cached separately with a shorter TTL:
+Application-level caching (24h TTL) covers all LLM providers — identical prompts return instantly at zero API cost. Search results cache with a 1-hour TTL. For Anthropic models, the product catalog and analysis playbooks are marked with `cache_control`, caching them server-side across dozens of calls per session — roughly 90% cost reduction on those repeated tokens.
 
-```python
-# src/core/model_router.py — 24-hour TTL for LLM responses
-cached = self.cache.get(model, prompt, temperature=temperature)
-if cached:
-    return cached  # Cache hit: instant response, zero API cost
-self.cache.set(model, prompt, response)
+### Observability — Know What Every Agent Did
 
-# src/data_sources/mcp_ddg_client.py — 1-hour TTL for search results
-cached = self.cache.get("search", query=query, max_results=max_results)
-if cached is not None:
-    return cached
-```
-
-**Anthropic prompt caching** (`cache_control`): Sales agents reuse the same system prompts
-(product catalog, analysis playbook) across dozens of calls per session. Marking them with
-`cache_control` caches them on Anthropic's servers — ~90% cost reduction on those tokens:
-
-```python
-# src/core/model_router.py — _call_anthropic_model()
-# The system prompt (product catalog + instructions) is identical across many calls.
-# Only the user prompt (account-specific query) changes each time.
-messages = [
-    {
-        "role": "system",
-        "content": [{
-            "type": "text",
-            "text": system_prompt,            # product catalog + analysis instructions
-            "cache_control": {"type": "ephemeral"}   # cached on Anthropic's servers
-        }]
-    },
-    {"role": "user", "content": prompt}       # account-specific query (not cached)
-]
-response = await litellm.acompletion(model="anthropic/claude-haiku-4-5-20251001", messages=messages)
-```
-
-### Advanced RAG Pipeline — Precision Before the LLM
-
-Passing all ChromaDB results directly to the LLM introduces noise. Products that are semantically close but irrelevant dilute reasoning. A 3-stage pipeline filters candidates before the LLM sees them:
-
-```
-Requirements → BM25 + Vector → RRF wide pool → Cross-Encoder → top-k → LLM
-```
-
-**Stage 1 — Hybrid Retrieval**: BM25 preserves exact-match precision (product names, acronyms); ChromaDB vector search handles paraphrases and domain language. Reciprocal Rank Fusion (k=60) merges both ranked lists:
-
-```python
-# src/data_sources/product_catalog.py
-rrf_score = sum(1.0 / (60 + rank) for rank in [bm25_rank, vector_rank])
-```
-
-The retrieval corpus is enriched with ~76 MathWorks solution pages (scraped via Tavily Extract API, which bypasses Cloudflare WAF). A query like "EV battery management" now matches the Electric Vehicle solution page, which shares BM25 term overlap with Simscape Battery — boosting recall for industry-specific language.
-
-**Stage 2 — Cross-Encoder Re-ranking**: A cross-encoder scores every `(requirement, product_doc)` pair jointly — unlike bi-encoders, it attends to both sides simultaneously, capturing token-level relevance signals:
-
-```python
-# Lazy-loaded once per process, ~20-40ms for 20 pairs on CPU
-ce_scores = self._get_cross_encoder().predict([[req, doc] for req in requirements for doc in candidates])
-```
-
-**Hardware-aware model selection**: Running on a 4GB laptop with Ollama already consuming ~2GB, the RAM budget for the re-ranker is ~220MB. `mxbai-rerank-xsmall-v1` (56M params, ~220MB) fits safely; BGE-v2-m3 (1.4GB) would OOM. The choice is a single config string — upgrade is trivial if hardware improves.
-
-**Result**: The LLM receives a short, high-precision candidate list — reducing hallucinations and tightening the context window used for opportunity generation.
+Clicking any completed node in the browser opens a trace panel showing run time, what was extracted (signals, opportunities, risks), and a LangSmith deep-link to the full LLM call trace. Every agent uses structured logging via structlog. Every LLM call is traced through LangSmith automatically via LiteLLM.
 
 ---
 
@@ -228,8 +158,8 @@ python -m src.cli research "Remora Carbon" --industry "carbon capture" --seller 
 |-------|-------------|
 | **Orchestration** | LangGraph, SQLite checkpointing, `interrupt()` for human-in-the-loop |
 | **API Layer** | FastAPI, Server-Sent Events, asyncio |
-| **Frontend** | React 18, TypeScript, ReactFlow, TanStack Query, Tailwind CSS, recharts |
-| **LLMs** | Ollama (local), Groq API, LiteLLM routing |
+| **Frontend** | React, TypeScript, ReactFlow, TanStack Query, Tailwind CSS, recharts |
+| **LLMs** | Ollama (local), Groq API, LiteLLM routing, Anthropic prompt caching |
 | **Hybrid RAG** | ChromaDB (vector), rank-bm25 (BM25), sentence-transformers CrossEncoder (re-ranking) |
 | **Data Sources** | DuckDuckGo MCP, Tavily (search + Extract API), BeautifulSoup, httpx |
 | **Observability** | LangSmith tracing, in-app SSE callback handler, per-node trace store |
@@ -255,7 +185,7 @@ api/                              # FastAPI layer
 
 frontend/src/                     # React SPA
 ├── components/                   # WorkflowGraph, NodeTracePanel, ReportView, ResearchForm
-├── hooks/                        # useSSEStream (EventSource), useResearchWorkflow (TanStack Query)
+├── hooks/                        # useSSEStream (EventSource), useResearchWorkflow     (TanStack Query)
 └── lib/api.ts                    # Typed fetch wrappers for all API endpoints
 ```
 
@@ -267,11 +197,11 @@ frontend/src/                     # React SPA
 
 Custom eval framework for measuring and improving agent output quality across prompt iterations.
 
-**Design**: Model-graded evaluation using Claude as judge (CoT reasoning → structured JSON) plus 9 deterministic rule-based checks. Results are tracked in `history.csv` to show score deltas after prompt changes.
+**Design:** Model-graded evaluation using Claude as judge (CoT reasoning → structured JSON) plus 9 deterministic rule-based checks. Evaluations run across multiple ground-truth accounts to prevent overfitting to a single scenario. Results tracked in `history.csv` to surface score deltas after each prompt change.
 
 **4 Metrics (1–5 scale):**
-- **Accuracy** — Are talking points grounded in evidence with citations ([SIG-001], [JOB-002])?
-- **Actionability** — Does the report give a sales rep concrete next steps and specific personas?
+- **Accuracy** — Are talking points grounded in evidence with citations (`[SIG-001]`, `[JOB-002]`)?
+- **Actionability** — Does the report give an AE concrete next steps and specific personas?
 - **Alignment** — Do recommended products genuinely fit the account's industry signals?
 - **Safety & Ethics** — Is the output consultative and honest, with no manipulative pressure tactics?
 
@@ -281,7 +211,7 @@ Custom eval framework for measuring and improving agent output quality across pr
 # Fast smoke test — synthetic state, no live API or Ollama required
 python -m evals.run_evals --case TC-01 --mock
 
-# Live run (requires Ollama running) — Remora Carbon is most reliable
+# Live run (requires Ollama running)
 python -m evals.run_evals --case TC-04
 
 # Manual judge step: paste evals/results/pending_judge_TC-04.txt into Claude Pro
@@ -296,26 +226,29 @@ python -m evals.run_evals --compare
 
 ### Score History
 
-**TC-02** (expansion intent — recommend new toolboxes beyond existing MATLAB/Simulink install)
+Evaluated across multiple accounts (TC-02 NASA expansion, TC-04 Remora Carbon startup) to prevent overfitting.
 
-| Run | Phase | Accuracy | Actionability | Alignment | Safety | Overall | Det | Change |
-|-----|-------|----------|---------------|-----------|--------|---------|-----|--------|
-| Run 1 | Baseline | 4/5 | 2/5 | 1/5 | 5/5 | 3.0 | 8/13 | — |
-| Run 2 | Phase 1 | 4/5 | 3/5 | 2/5 | 5/5 | **3.5** | 9/13 | +0.5 overall (+1 align) |
-| Run 3 | Phase 2 | — | — | — | — | — | — | Pending eval |
+| Phase | Accuracy | Actionability | Alignment | Safety | Overall | Change |
+|-------|----------|---------------|-----------|--------|---------|--------|
+| Baseline | 4/5 | 2/5 | 1/5 | 5/5 | 3.0 | — |
+| Phase 1 | 4/5 | 3/5 | 2/5 | 5/5 | 3.5 | +0.5 — intent parsing, risk mitigations |
+| Phase 2 | 5/5 | 4/5 | 3/5 | 5/5 | 4.2 | +0.7 — hybrid RAG corpus enrichment, free-form query generation |
+| Phase 3 | 3/5 | 4/5 | 4/5 | 5/5 | 4.0 | Alignment +1, Accuracy regression on sparse-data account — seller taxonomy injection, auto-reroute quality gate |
 
-**Per-agent detail (TC-02):**
+**Per-agent detail (TC-02 NASA):**
 
-| Agent | Run 1 Avg | Run 2 Avg | Delta | Phase 2 changes |
-|-------|-----------|-----------|-------|-----------------|
+| Agent | Baseline | Phase 1 | Delta | Phase 2 changes |
+|-------|----------|---------|-------|-----------------|
 | Gatherer | 3.0 | 3.5 | +0.5 | Free-form queries; source-authority scoring; Groq 8B |
-| Identifier | 2.75 | 3.0 | +0.25 | 5-7 opportunities; abbreviation expansion; top_k=15 |
+| Identifier | 2.75 | 3.0 | +0.25 | 5–7 opportunities; abbreviation expansion; top_k=15 |
 | Validator | 2.25 | 3.25 | +1.0 | Intent parsing; risk mitigations; coverage check |
 | Coordinator | 2.75 | 3.5 | +0.75 | Inherited from upstream improvements |
 
-**Phase 1 root cause fixed:** Validator scored existing products (MATLAB) as "aligned" for an expansion objective — INTENT PARSING block now applies mandatory -0.25 penalty on confirmed existing products. All risks now require paired mitigation strategies.
+**What each phase fixed:**
 
-**Phase 2 root cause fixed:** Product taxonomy gap — catalog descriptions were one-sentence stubs ("Multi-sensor fusion") preventing BM25 from matching "GNC toolboxes" → "Sensor Fusion and Tracking Toolbox". Fixed by scraping 133 product pages (347 total docs), weighting vector search 1.5x over BM25, and having the LLM expand domain abbreviations before retrieval. Gatherer upgraded to generate objective-driven queries freely from `user_context` instead of 5 hardcoded categories.
+- **Phase 1** — Validator scored existing products (MATLAB) as "aligned" for an expansion objective. Fixed: intent parsing now applies a mandatory −0.25 penalty on confirmed existing products. All risks now require paired mitigation strategies.
+- **Phase 2** — Catalog descriptions were one-sentence stubs, preventing BM25 from matching "GNC toolboxes" → "Sensor Fusion and Tracking Toolbox". Fixed: 133 product pages scraped (347 total docs), vector search weighted 1.5× over BM25, LLM expands domain abbreviations before retrieval.
+- **Phase 3** — Identifier selected Navigation Toolbox over Sensor Fusion for a GNC requirement (keyword match on "Navigation"). Fixed: seller taxonomy JSON injected into Identifier and Validator prompts, coordinator auto-quality-gate reroutes when coverage gaps detected.
 
 ---
 

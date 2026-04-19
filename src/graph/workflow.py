@@ -215,8 +215,16 @@ class ResearchWorkflow:
         workflow.add_edge("identifier", "validator")
         workflow.add_edge("validator", "coordinator_exit")
 
-        # After coordinator_exit: always wait for human feedback
-        workflow.add_edge("coordinator_exit", "_wait_for_human")
+        # After coordinator_exit: auto-reroute to identifier if quality check failed,
+        # otherwise proceed to human review as normal
+        workflow.add_conditional_edges(
+            "coordinator_exit",
+            self._route_after_coordinator_exit,
+            {
+                "identifier": "identifier",
+                "wait_for_human": "_wait_for_human"
+            }
+        )
 
         # After human feedback is processed, route based on decision
         workflow.add_conditional_edges(
@@ -642,6 +650,20 @@ class ResearchWorkflow:
 
         # Otherwise, we came from coordinator_entry and continue to gatherer
         return "gatherer"
+
+    def _route_after_coordinator_exit(
+        self, state: ResearchState
+    ) -> Literal["identifier", "wait_for_human"]:
+        """
+        Route after coordinator_exit.
+
+        If the coordinator's auto quality check detected a critical gap
+        (sets next_route="identifier"), route back to identifier for a second pass.
+        Otherwise proceed to human review as normal.
+        """
+        if state.get("next_route") == "identifier":
+            return "identifier"
+        return "wait_for_human"
 
     def _route_after_feedback(
         self, state: ResearchState
