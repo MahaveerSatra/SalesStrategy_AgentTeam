@@ -71,8 +71,11 @@ The workflow pauses after report generation using LangGraph's `interrupt()` prim
 
 **Web UI** — Real-time streaming interface. Watch agents execute live, click any completed node to inspect extracted signals, opportunities, or risks, and submit feedback to loop back.
 
-<!-- TODO: replace with Web UI demo GIF/MP4 once recorded -->
-> 🎬 *Web UI demo coming soon*
+**Interactive Web Based Workflow**
+
+<a href="https://youtu.be/uvm0P4DED30"><img src="https://img.youtube.com/vi/uvm0P4DED30/maxresdefault.jpg" width="80%" alt="Web UI Demo"></a>
+
+---
 
 **CLI** — No UI required. Same agent orchestration, terminal output:
 ```bash
