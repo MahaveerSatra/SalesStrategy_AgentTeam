@@ -79,7 +79,9 @@ The workflow pauses after report generation using LangGraph's `interrupt()` prim
 python -m src.cli research "Remora Carbon" --industry "carbon capture" --seller "MathWorks"
 ```
 
-[![CLI Demo](https://img.youtube.com/vi/YNXBq7KxYjI/maxresdefault.jpg)](https://www.youtube.com/watch?v=YNXBq7KxYjI)
+**CLI Demo Video**
+
+<a href="https://www.youtube.com/watch?v=YNXBq7KxYjI"><img src="https://img.youtube.com/vi/YNXBq7KxYjI/maxresdefault.jpg" width="80%" alt="CLI Demo"></a>
 
 ---
 
