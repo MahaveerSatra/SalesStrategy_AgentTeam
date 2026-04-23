@@ -73,7 +73,7 @@ The workflow pauses after report generation using LangGraph's `interrupt()` prim
 
 **Interactive Web Based Workflow**
 
-<a href="https://www.youtube.com/watch?v=-DH8RiWTZjw"><img src="https://img.youtube.com/vi/uvm0P4DED30/maxresdefault.jpg" width="80%" alt="Web UI Demo"></a>
+<a href="https://www.youtube.com/watch?v=-DH8RiWTZjw"><img src="https://youtube.com" width="80%" alt="Web UI Demo"></a>
 
 ---
 
